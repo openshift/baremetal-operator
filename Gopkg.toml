@@ -28,14 +28,17 @@ required = [
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
   version = "kubernetes-1.14.0"
+  source = "github.com/openshift/kubernetes-apiextensions-apiserver"
 
 [[override]]
   name = "k8s.io/apimachinery"
   version = "kubernetes-1.14.0"
+  source = "github.com/openshift/kubernetes-apimachinery"
 
 [[override]]
   name = "k8s.io/client-go"
   version = "kubernetes-1.14.0"
+  source = "github.com/openshift/kubernetes-client-go"
 
 [[override]]
   name = "github.com/coreos/prometheus-operator"

@@ -17,8 +17,18 @@ import (
 
 func (s *Server) didOpen(ctx context.Context, params *protocol.DidOpenTextDocumentParams) error {
 	uri := span.NewURI(params.TextDocument.URI)
-	s.session.DidOpen(ctx, uri)
-	return s.cacheAndDiagnose(ctx, uri, []byte(params.TextDocument.Text))
+	text := []byte(params.TextDocument.Text)
+
+	// Open the file.
+	s.session.DidOpen(ctx, uri, text)
+
+	// Run diagnostics on the newly-changed file.
+	view := s.session.ViewOf(uri)
+	go func() {
+		ctx := view.BackgroundContext()
+		s.Diagnostics(ctx, view, uri)
+	}()
+	return nil
 }
 
 func (s *Server) didChange(ctx context.Context, params *protocol.DidChangeTextDocumentParams) error {
@@ -46,16 +56,12 @@ func (s *Server) didChange(ctx context.Context, params *protocol.DidChangeTextDo
 			}
 		}
 	}
-
 	// Cache the new file content and send fresh diagnostics.
-	return s.cacheAndDiagnose(ctx, uri, []byte(text))
-}
-
-func (s *Server) cacheAndDiagnose(ctx context.Context, uri span.URI, content []byte) error {
 	view := s.session.ViewOf(uri)
-	if err := view.SetContent(ctx, uri, content); err != nil {
+	if err := view.SetContent(ctx, uri, []byte(text)); err != nil {
 		return err
 	}
+	// Run diagnostics on the newly-changed file.
 	go func() {
 		ctx := view.BackgroundContext()
 		s.Diagnostics(ctx, view, uri)
@@ -116,6 +122,14 @@ func (s *Server) didClose(ctx context.Context, params *protocol.DidCloseTextDocu
 	if err := view.SetContent(ctx, uri, nil); err != nil {
 		return err
 	}
+	clear := []span.URI{uri} // by default, clear the closed URI
+	defer func() {
+		for _, uri := range clear {
+			if err := s.publishDiagnostics(ctx, view, uri, []source.Diagnostic{}); err != nil {
+				s.session.Logger().Errorf(ctx, "failed to clear diagnostics for %s: %v", uri, err)
+			}
+		}
+	}()
 	// If the current file was the only open file for its package,
 	// clear out all diagnostics for the package.
 	f, err := view.GetFile(ctx, uri)
@@ -126,6 +140,7 @@ func (s *Server) didClose(ctx context.Context, params *protocol.DidCloseTextDocu
 	// For non-Go files, don't return any diagnostics.
 	gof, ok := f.(source.GoFile)
 	if !ok {
+		s.session.Logger().Errorf(ctx, "closing a non-Go file, no diagnostics to clear")
 		return nil
 	}
 	pkg := gof.GetPackage(ctx)
@@ -133,27 +148,13 @@ func (s *Server) didClose(ctx context.Context, params *protocol.DidCloseTextDocu
 		s.session.Logger().Errorf(ctx, "no package available for %s", uri)
 		return nil
 	}
-	reports := make(map[span.URI][]source.Diagnostic)
-	clearDiagnostics := true
 	for _, filename := range pkg.GetFilenames() {
-		uri := span.NewURI(filename)
-		reports[uri] = []source.Diagnostic{}
-		if span.CompareURI(uri, gof.URI()) == 0 {
-			continue
+		// If other files from this package are open, don't clear.
+		if s.session.IsOpen(span.NewURI(filename)) {
+			clear = nil
+			return nil
 		}
-		// If other files from this package are open.
-		if s.session.IsOpen(uri) {
-			clearDiagnostics = false
-		}
-	}
-	// We still have open files for this package, so don't clear diagnostics.
-	if !clearDiagnostics {
-		return nil
-	}
-	for uri, diagnostics := range reports {
-		if err := s.publishDiagnostics(ctx, view, uri, diagnostics); err != nil {
-			s.session.Logger().Errorf(ctx, "failed to clear diagnostics for %s: %v", uri, err)
-		}
+		clear = append(clear, span.FileURI(filename))
 	}
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"context"
 	"go/ast"
 	"go/token"
+	"sync"
 
 	"golang.org/x/tools/internal/lsp/source"
 	"golang.org/x/tools/internal/span"
@@ -17,7 +18,9 @@ import (
 type goFile struct {
 	fileBase
 
-	ast *astFile
+	// mu protects all mutable state of the Go file,
+	// which can be modified during type-checking.
+	mu sync.Mutex
 
 	// missingImports is the set of unresolved imports for this package.
 	// It contains any packages with `go list` errors.
@@ -28,9 +31,11 @@ type goFile struct {
 	// that we know about all of their packages.
 	justOpened bool
 
-	pkgs    map[packageID]*pkg
-	meta    map[packageID]*metadata
 	imports []*ast.ImportSpec
+
+	ast  *astFile
+	pkgs map[packageID]*pkg
+	meta map[packageID]*metadata
 }
 
 type astFile struct {
@@ -51,6 +56,9 @@ func (f *goFile) GetToken(ctx context.Context) *token.File {
 			return nil
 		}
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if unexpectedAST(ctx, f) {
 		return nil
 	}
@@ -67,6 +75,10 @@ func (f *goFile) GetAnyAST(ctx context.Context) *ast.File {
 			return nil
 		}
 	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.ast == nil {
 		return nil
 	}
@@ -83,6 +95,9 @@ func (f *goFile) GetAST(ctx context.Context) *ast.File {
 			return nil
 		}
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if unexpectedAST(ctx, f) {
 		return nil
 	}
@@ -104,6 +119,10 @@ func (f *goFile) GetPackages(ctx context.Context) []source.Package {
 			return nil
 		}
 	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if unexpectedAST(ctx, f) {
 		return nil
 	}
@@ -136,7 +155,7 @@ func unexpectedAST(ctx context.Context, f *goFile) bool {
 		return true
 	}
 	// If the AST comes back trimmed, something has gone wrong.
-	if f.astIsTrimmed() {
+	if f.ast.isTrimmed {
 		f.View().Session().Logger().Errorf(ctx, "expected full AST for %s, returned trimmed", f.URI())
 		return true
 	}
@@ -146,6 +165,9 @@ func unexpectedAST(ctx context.Context, f *goFile) bool {
 // isDirty is true if the file needs to be type-checked.
 // It assumes that the file's view's mutex is held by the caller.
 func (f *goFile) isDirty() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	// If the the file has just been opened,
 	// it may be part of more packages than we are aware of.
 	//
@@ -166,6 +188,9 @@ func (f *goFile) isDirty() bool {
 }
 
 func (f *goFile) astIsTrimmed() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	return f.ast != nil && f.ast.isTrimmed
 }
 
@@ -212,7 +237,7 @@ func (v *view) reverseDeps(ctx context.Context, seen map[packageID]struct{}, res
 	}
 	for _, filename := range m.files {
 		uri := span.FileURI(filename)
-		if f, err := v.getFile(uri); err == nil && v.session.IsOpen(uri) {
+		if f, err := v.getFile(ctx, uri); err == nil && v.session.IsOpen(uri) {
 			results[f.(*goFile)] = struct{}{}
 		}
 	}

@@ -72,11 +72,15 @@ type Server struct {
 	// TODO(rstambler): Separate these into their own struct?
 	usePlaceholders               bool
 	noDocsOnHover                 bool
+	useDeepCompletions            bool
 	insertTextFormat              protocol.InsertTextFormat
 	configurationSupported        bool
 	dynamicConfigurationSupported bool
 	preferredContentFormat        protocol.MarkupKind
 	disabledAnalyses              map[string]struct{}
+	wantSuggestedFixes            bool
+
+	supportedCodeActions map[protocol.CodeActionKind]bool
 
 	textDocumentSyncKind protocol.TextDocumentSyncKind
 

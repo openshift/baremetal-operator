@@ -5,9 +5,11 @@
 package source
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/token"
 	"go/types"
 	"regexp"
@@ -49,17 +51,13 @@ func (i *IdentifierInfo) Rename(ctx context.Context, newName string) (map[span.U
 		return nil, fmt.Errorf("failed to rename because %q is declared in package %q", i.Name, i.decl.obj.Pkg().Name())
 	}
 
-	// TODO(suzmue): Support renaming of imported packages.
-	if _, ok := i.decl.obj.(*types.PkgName); ok {
-		return nil, fmt.Errorf("renaming imported package %s not supported", i.Name)
-	}
-
 	refs, err := i.References(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	r := renamer{
+		ctx:          ctx,
 		fset:         i.File.FileSet(),
 		pkg:          i.pkg,
 		refs:         refs,
@@ -78,11 +76,11 @@ func (i *IdentifierInfo) Rename(ctx context.Context, newName string) (map[span.U
 		return nil, fmt.Errorf(r.errors)
 	}
 
-	return r.update(ctx)
+	return r.update()
 }
 
 // Rename all references to the identifier.
-func (r *renamer) update(ctx context.Context) (map[span.URI][]TextEdit, error) {
+func (r *renamer) update() (map[span.URI][]TextEdit, error) {
 	result := make(map[span.URI][]TextEdit)
 
 	docRegexp, err := regexp.Compile(`\b` + r.from + `\b`)
@@ -95,32 +93,48 @@ func (r *renamer) update(ctx context.Context) (map[span.URI][]TextEdit, error) {
 			return nil, err
 		}
 
+		// Renaming a types.PkgName may result in the addition or removal of an identifier,
+		// so we deal with this separately.
+		if pkgName, ok := ref.obj.(*types.PkgName); ok && ref.isDeclaration {
+			edit, err := r.updatePkgName(pkgName)
+			if err != nil {
+				return nil, err
+			}
+			result[refSpan.URI()] = append(result[refSpan.URI()], *edit)
+			continue
+		}
+
+		// Replace the identifier with r.to.
 		edit := TextEdit{
 			Span:    refSpan,
 			NewText: r.to,
 		}
+
 		result[refSpan.URI()] = append(result[refSpan.URI()], edit)
 
-		if ref.isDeclaration {
-			// Perform the rename in doc comments too (declared in the original package)
-			if doc := r.docComment(r.pkg, ref.ident); doc != nil {
-				for _, comment := range doc.List {
-					for _, locs := range docRegexp.FindAllStringIndex(comment.Text, -1) {
-						rng := span.NewRange(r.fset, comment.Pos()+token.Pos(locs[0]), comment.Pos()+token.Pos(locs[1]))
-						spn, err := rng.Span()
-						if err != nil {
-							return nil, err
-						}
-						result[refSpan.URI()] = append(result[refSpan.URI()], TextEdit{
-							Span:    spn,
-							NewText: r.to,
-						})
-					}
-					comment.Text = docRegexp.ReplaceAllString(comment.Text, r.to)
-				}
-			}
+		if !ref.isDeclaration || ref.ident == nil { // uses do not have doc comments to update.
+			continue
 		}
 
+		doc := r.docComment(r.pkg, ref.ident)
+		if doc == nil {
+			continue
+		}
+
+		// Perform the rename in doc comments declared in the original package.
+		for _, comment := range doc.List {
+			for _, locs := range docRegexp.FindAllStringIndex(comment.Text, -1) {
+				rng := span.NewRange(r.fset, comment.Pos()+token.Pos(locs[0]), comment.Pos()+token.Pos(locs[1]))
+				spn, err := rng.Span()
+				if err != nil {
+					return nil, err
+				}
+				result[spn.URI()] = append(result[spn.URI()], TextEdit{
+					Span:    spn,
+					NewText: r.to,
+				})
+			}
+		}
 	}
 
 	return result, nil
@@ -153,4 +167,47 @@ func (r *renamer) docComment(pkg Package, id *ast.Ident) *ast.CommentGroup {
 		}
 	}
 	return nil
+}
+
+// updatePkgName returns the updates to rename a pkgName in the import spec
+func (r *renamer) updatePkgName(pkgName *types.PkgName) (*TextEdit, error) {
+	// Modify ImportSpec syntax to add or remove the Name as needed.
+	pkg := r.packages[pkgName.Pkg()]
+	_, path, _ := pathEnclosingInterval(r.ctx, r.fset, pkg, pkgName.Pos(), pkgName.Pos())
+
+	if len(path) < 2 {
+		return nil, fmt.Errorf("failed to update PkgName for %s", pkgName.Name())
+	}
+	spec, ok := path[1].(*ast.ImportSpec)
+	if !ok {
+		return nil, fmt.Errorf("failed to update PkgName for %s", pkgName.Name())
+	}
+
+	var astIdent *ast.Ident // will be nil if ident is removed
+	if pkgName.Imported().Name() != r.to {
+		// ImportSpec.Name needed
+		astIdent = &ast.Ident{NamePos: spec.Path.Pos(), Name: r.to}
+	}
+
+	// Make a copy of the ident that just has the name and path.
+	updated := &ast.ImportSpec{
+		Name:   astIdent,
+		Path:   spec.Path,
+		EndPos: spec.EndPos,
+	}
+
+	rng := span.NewRange(r.fset, spec.Pos(), spec.End())
+	spn, err := rng.Span()
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	format.Node(&buf, r.fset, updated)
+	newText := buf.String()
+
+	return &TextEdit{
+		Span:    spn,
+		NewText: newText,
+	}, nil
 }

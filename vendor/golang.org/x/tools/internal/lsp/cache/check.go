@@ -119,7 +119,7 @@ func (imp *importer) typeCheck(id packageID) (*pkg, error) {
 	)
 	for _, filename := range meta.files {
 		uri := span.FileURI(filename)
-		f, err := imp.view.getFile(uri)
+		f, err := imp.view.getFile(imp.ctx, uri)
 		if err != nil {
 			continue
 		}
@@ -187,52 +187,26 @@ func (imp *importer) typeCheck(id packageID) (*pkg, error) {
 	check.Files(pkg.GetSyntax())
 
 	// Add every file in this package to our cache.
-	imp.cachePackage(imp.ctx, pkg, meta, mode)
+	if err := imp.cachePackage(imp.ctx, pkg, meta, mode); err != nil {
+		return nil, err
+	}
 
 	return pkg, nil
 }
 
-func (imp *importer) cachePackage(ctx context.Context, p *pkg, meta *metadata, mode source.ParseMode) {
-	for _, file := range p.files {
-		f, err := imp.view.getFile(file.uri)
+func (imp *importer) cachePackage(ctx context.Context, pkg *pkg, meta *metadata, mode source.ParseMode) error {
+	for _, file := range pkg.files {
+		f, err := imp.view.getFile(ctx, file.uri)
 		if err != nil {
-			imp.view.session.log.Errorf(ctx, "no file: %v", err)
-			continue
+			return fmt.Errorf("no such file %s: %v", file.uri, err)
 		}
 		gof, ok := f.(*goFile)
 		if !ok {
-			imp.view.session.log.Errorf(ctx, "%v is not a Go file", file.uri)
-			continue
+			return fmt.Errorf("non Go file %s", file.uri)
 		}
-		// Set the package even if we failed to parse the file.
-		if gof.pkgs == nil {
-			gof.pkgs = make(map[packageID]*pkg)
+		if err := imp.cachePerFile(gof, file, pkg); err != nil {
+			return fmt.Errorf("failed to cache file %s: %v", gof.URI(), err)
 		}
-		gof.pkgs[p.id] = p
-
-		// Get the AST for the file.
-		gof.ast = file
-		if gof.ast == nil {
-			imp.view.session.log.Errorf(ctx, "no AST information for %s", file.uri)
-			continue
-		}
-		if gof.ast.file == nil {
-			imp.view.session.log.Errorf(ctx, "no AST for %s: %v", file.uri, err)
-			continue
-		}
-		// Get the *token.File directly from the AST.
-		pos := gof.ast.file.Pos()
-		if !pos.IsValid() {
-			imp.view.session.log.Errorf(ctx, "AST for %s has an invalid position", file.uri)
-			continue
-		}
-		tok := imp.view.session.cache.FileSet().File(pos)
-		if tok == nil {
-			imp.view.session.log.Errorf(ctx, "no *token.File for %s", file.uri)
-			continue
-		}
-		gof.token = tok
-		gof.imports = gof.ast.file.Imports
 	}
 
 	// Set imports of package to correspond to cached packages.
@@ -243,8 +217,42 @@ func (imp *importer) cachePackage(ctx context.Context, p *pkg, meta *metadata, m
 		if err != nil {
 			continue
 		}
-		p.imports[importPkg.pkgPath] = importPkg
+		pkg.imports[importPkg.pkgPath] = importPkg
 	}
+
+	return nil
+}
+
+func (imp *importer) cachePerFile(gof *goFile, file *astFile, p *pkg) error {
+	gof.mu.Lock()
+	defer gof.mu.Unlock()
+
+	// Set the package even if we failed to parse the file.
+	if gof.pkgs == nil {
+		gof.pkgs = make(map[packageID]*pkg)
+	}
+	gof.pkgs[p.id] = p
+
+	// Get the AST for the file.
+	gof.ast = file
+	if gof.ast == nil {
+		return fmt.Errorf("no AST information for %s", file.uri)
+	}
+	if gof.ast.file == nil {
+		return fmt.Errorf("no AST for %s", file.uri)
+	}
+	// Get the *token.File directly from the AST.
+	pos := gof.ast.file.Pos()
+	if !pos.IsValid() {
+		return fmt.Errorf("AST for %s has an invalid position", file.uri)
+	}
+	tok := imp.view.session.cache.FileSet().File(pos)
+	if tok == nil {
+		return fmt.Errorf("no *token.File for %s", file.uri)
+	}
+	gof.token = tok
+	gof.imports = gof.ast.file.Imports
+	return nil
 }
 
 func (c *cache) appendPkgError(pkg *pkg, err error) {
