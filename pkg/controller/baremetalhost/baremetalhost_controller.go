@@ -384,9 +384,9 @@ func checkUpdatedRebootRequest(host *metal3v1alpha1.BareMetalHost) (dirty bool) 
 
 	poweredOn := host.Status.PoweredOn
 	pendingRebootSince := host.Status.Provisioning.PendingRebootSince
-	lastPoweredOn := host.Status.Provisioning.LastPoweredOn
+	poweredOnAt := host.Status.Provisioning.PoweredOnAt
 
-	if poweredOn && (pendingRebootSince.IsZero() || pendingRebootSince.Before(lastPoweredOn)) {
+	if poweredOn && (pendingRebootSince.IsZero() || pendingRebootSince.Before(poweredOnAt)) {
 		now := metav1.Now()
 		host.Status.Provisioning.PendingRebootSince = &now
 		dirty = true
@@ -476,9 +476,7 @@ func (r *ReconcileBareMetalHost) actionRegistering(prov provisioner.Provisioner,
 		info.publishEvent("ExternallyProvisioned",
 			"Registered host that was externally provisioned")
 
-		if info.host.Status.Provisioning.LastPoweredOn.IsZero() {
-			info.host.RecordPoweredOn()
-		}
+		info.host.RecordPoweredOn()
 	}
 
 	return actionComplete{}
@@ -626,7 +624,7 @@ func (r *ReconcileBareMetalHost) actionDeprovisioning(prov provisioner.Provision
 	// After the provisioner is done, clear the image settings so we
 	// transition to the next state.
 	info.host.Status.Provisioning.Image = metal3v1alpha1.Image{}
-	info.host.Status.Provisioning.LastPoweredOn = nil
+	info.host.Status.Provisioning.PoweredOnAt = nil
 	info.host.Status.Provisioning.PendingRebootSince = nil
 	if info.host.Annotations != nil {
 		for annotation := range info.host.Annotations {
@@ -659,10 +657,10 @@ func (r *ReconcileBareMetalHost) manageHostPower(prov provisioner.Provisioner, i
 	}
 
 	pendingRebootSince := info.host.Status.Provisioning.PendingRebootSince
-	lastPoweredOn := info.host.Status.Provisioning.LastPoweredOn
+	poweredOnAt := info.host.Status.Provisioning.PoweredOnAt
 
 	desiredPowerOnState := info.host.Spec.Online
-	isInRebootProcess := lastPoweredOn.Before(pendingRebootSince) || (!pendingRebootSince.IsZero() && lastPoweredOn.IsZero())
+	isInRebootProcess := poweredOnAt.Before(pendingRebootSince) || (!pendingRebootSince.IsZero() && poweredOnAt.IsZero())
 
 	if isInRebootProcess {
 		suffixlessAnnotationExists, shouldHoldPowerOff := getRebootAnnotations(info.host)
@@ -721,6 +719,8 @@ func (r *ReconcileBareMetalHost) manageHostPower(prov provisioner.Provisioner, i
 		info.host.ClearError()
 		if desiredPowerOnState {
 			info.host.RecordPoweredOn()
+		} else {
+			info.host.Status.Provisioning.PoweredOnAt = nil
 		}
 		return actionContinue{provResult.RequeueAfter}
 	}
