@@ -221,15 +221,11 @@ func TestSetLastUpdated(t *testing.T) {
 	)
 }
 
-// TestGetRebootAnnotations verifies that getRebootAnnotations function
-// returns the correct values in all possible cases
-func TestGetRebootAnnotations(t *testing.T) {
+func testHasRebootAnnotation(t *testing.T) {
 	host := newDefaultHost(t)
 	host.Annotations = make(map[string]string)
 
-	suffixless, suffixed := getRebootAnnotations(host)
-
-	if suffixed || suffixless {
+	if hasRebootAnnotation(host) {
 		t.Fail()
 	}
 
@@ -237,34 +233,20 @@ func TestGetRebootAnnotations(t *testing.T) {
 	suffixedAnnotation := rebootAnnotationPrefix + "/foo"
 	host.Annotations[suffixedAnnotation] = ""
 
-	suffixless, suffixed = getRebootAnnotations(host)
-
-	if suffixless {
-		t.Fail()
-	}
-
-	if !suffixed {
+	if !hasRebootAnnotation(host) {
 		t.Fail()
 	}
 
 	delete(host.Annotations, suffixedAnnotation)
 	host.Annotations[rebootAnnotationPrefix] = ""
 
-	suffixless, suffixed = getRebootAnnotations(host)
-
-	if suffixed {
-		t.Fail()
-	}
-
-	if !suffixless {
+	if !hasRebootAnnotation(host) {
 		t.Fail()
 	}
 
 	host.Annotations[suffixedAnnotation] = ""
 
-	suffixless, suffixed = getRebootAnnotations(host)
-
-	if !(suffixed && suffixless) {
+	if !hasRebootAnnotation(host) {
 		t.Fail()
 	}
 
@@ -272,9 +254,7 @@ func TestGetRebootAnnotations(t *testing.T) {
 
 	host.Annotations[suffixedAnnotation+"bar"] = ""
 
-	suffixless, suffixed = getRebootAnnotations(host)
-
-	if !(suffixed && suffixless) {
+	if !hasRebootAnnotation(host) {
 		t.Fail()
 	}
 
