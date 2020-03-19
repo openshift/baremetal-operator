@@ -521,11 +521,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ca6a57b56c4a49d5d5675f8f67d98529c3dfbe948e9c50434b560504a76bffc8"
+  digest = "1:14cbe4de83839065f1ceeffcc099cfd66905b5d53603de77315e439654443b78"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   pruneopts = ""
-  revision = "bd318be0434a57050ed475e0f45c3dbb16c09c2e"
+  revision = "1b76d66859c6111b3d5c3ea6600ea44dc188bf12"
 
 [[projects]]
   branch = "master"
@@ -1050,6 +1050,7 @@
     "github.com/operator-framework/operator-sdk/pkg/test",
     "github.com/operator-framework/operator-sdk/version",
     "github.com/pkg/errors",
+    "github.com/prometheus/client_golang/prometheus",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
@@ -1069,6 +1070,7 @@
     "sigs.k8s.io/controller-runtime/pkg/log",
     "sigs.k8s.io/controller-runtime/pkg/manager",
     "sigs.k8s.io/controller-runtime/pkg/manager/signals",
+    "sigs.k8s.io/controller-runtime/pkg/metrics",
     "sigs.k8s.io/controller-runtime/pkg/reconcile",
     "sigs.k8s.io/controller-runtime/pkg/runtime/log",
     "sigs.k8s.io/controller-runtime/pkg/scheme",
