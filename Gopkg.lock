@@ -217,12 +217,10 @@
   digest = "1:d7212166c4b7f30a20fb3de70ab7e36564900b2e36360ffd31958b5af8fed025"
   name = "github.com/golang/protobuf"
   packages = [
+    "descriptor",
     "jsonpb",
     "proto",
     "protoc-gen-go/descriptor",
-    "protoc-gen-go/generator",
-    "protoc-gen-go/generator/internal/remap",
-    "protoc-gen-go/plugin",
     "ptypes",
     "ptypes/any",
     "ptypes/duration",
@@ -283,15 +281,16 @@
   revision = "2d40ff7a3874e2b376ff245d549e7757048cd65c"
 
 [[projects]]
-  branch = "master"
-  digest = "1:97972f03fbf34ec4247ddc78ddb681389c468c020492aa32b109744a54fc0c14"
-  name = "github.com/gregjones/httpcache"
+  digest = "1:6b5e6e46273970de04fdf2e11061955b7b65b82a6efc350e3ab7ff5d808f2ba4"
+  name = "github.com/grpc-ecosystem/grpc-gateway"
   packages = [
-    ".",
-    "diskcache",
+    "internal",
+    "runtime",
+    "utilities",
   ]
   pruneopts = "NT"
-  revision = "c63ab54fda8f77302f8d414e19933f2b6026a089"
+  revision = "5ec11588db26960526dccc39cf40367a54d76e16"
+  version = "v1.14.3"
 
 [[projects]]
   digest = "1:52094d0f8bdf831d1a2401e9b6fee5795fdc0b2a2d1f8bb1980834c289e79129"
@@ -582,11 +581,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:9f3f0a891360d57597d5c26c479dce4c6b158efc73dcd702f23002d218b55a98"
+  digest = "1:6e5025f9eb144c01a32b0d074b6a48ae234cfab1f71d143689f2ef8ff0e49f92"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   pruneopts = "NT"
-  revision = "cc06ce4a13d484c0101a9e92913248488a75786d"
+  revision = "0ec3e9974c59449edd84298612e9f16fa13368e8"
 
 [[projects]]
   branch = "master"
