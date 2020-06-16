@@ -159,7 +159,7 @@ build: ## Build the operator binary
 
 .PHONY: tools
 tools:
-	go build -o build/_output/bin/get-hardware-details cmd/get-hardware-details/main.go
+	go build -mod=vendor -o build/_output/bin/get-hardware-details cmd/get-hardware-details/main.go
 
 .PHONY: deploy
 deploy:
