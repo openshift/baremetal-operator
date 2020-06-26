@@ -161,10 +161,6 @@ build: ## Build the operator binary
 tools:
 	go build -o build/_output/bin/get-hardware-details cmd/get-hardware-details/main.go
 
-.PHONY: wait-for-ironic
-wait-for-ironic:
-	go build -o build/_output/bin/wat-for-ironic cmd/wait-for-ironic/main.go
-
 .PHONY: deploy
 deploy:
 	cd deploy && kustomize edit set namespace $(RUN_NAMESPACE) && cd ..
