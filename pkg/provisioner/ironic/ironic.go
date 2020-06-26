@@ -105,6 +105,9 @@ func LogStartup() {
 // A private function to construct an ironicProvisioner (rather than a
 // Provisioner interface) in a consistent way for tests.
 func newProvisioner(host *metal3v1alpha1.BareMetalHost, bmcCreds bmc.Credentials, publisher provisioner.EventPublisher) (*ironicProvisioner, error) {
+
+	log.Info("****************************************************************")
+
 	client, err := noauth.NewBareMetalNoAuth(noauth.EndpointOpts{
 		IronicEndpoint: ironicEndpoint,
 	})
@@ -134,6 +137,9 @@ func newProvisioner(host *metal3v1alpha1.BareMetalHost, bmcCreds bmc.Credentials
 		inspector: inspector,
 		log:       log.WithValues("host", host.Name),
 		publisher: publisher,
+	}
+	if !waitForIronicServices(client, inspector, 10) {
+		return nil, errors.New("Ironic services are not available")
 	}
 	return p, nil
 }

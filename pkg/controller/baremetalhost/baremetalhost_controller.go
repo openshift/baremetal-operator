@@ -48,7 +48,7 @@ const (
 
 var runInTestMode bool
 var runInDemoMode bool
-var maxConcurrentReconciles int = 3
+var maxConcurrentReconciles int = 1
 
 func init() {
 	flag.BoolVar(&runInTestMode, "test-mode", false, "disable ironic communication")
