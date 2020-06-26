@@ -24,9 +24,8 @@ func waitForIronic(ironic *gophercloud.ServiceClient, timeout int) bool {
 	defer cancel()
 
 	log.Info("Waiting for Ironic services...")
-	res := waitForAPI(ctx, ironic) && waitForConductor(ctx, ironic)
-
-	return res
+	return waitForAPI(ctx, ironic) &&
+		waitForConductor(ctx, ironic)
 }
 
 func waitForInspector(inspector *gophercloud.ServiceClient, timeout int) bool {
