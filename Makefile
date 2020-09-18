@@ -77,7 +77,9 @@ test-sec: $GOPATH/bin/gosec
 	gosec -severity medium --confidence medium -quiet ./...
 
 $GOPATH/bin/gosec:
-	go get -u github.com/securego/gosec/cmd/gosec
+	go env
+	go version
+	go get github.com/securego/gosec/cmd/gosec
 
 $GOPATH/bin/golint:
 	go get -u golang.org/x/lint/golint
