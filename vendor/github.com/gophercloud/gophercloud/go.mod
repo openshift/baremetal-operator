@@ -1,5 +1,7 @@
 module github.com/gophercloud/gophercloud
 
+go 1.15
+
 require (
 	golang.org/x/crypto v0.0.0-20191202143827-86a70503ff7e
 	golang.org/x/net v0.0.0-20191126235420-ef20fe5d7933 // indirect

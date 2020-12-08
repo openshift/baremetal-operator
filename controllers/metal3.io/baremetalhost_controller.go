@@ -212,14 +212,16 @@ func (r *BareMetalHostReconciler) Reconcile(request ctrl.Request) (result ctrl.R
 		return ctrl.Result{}, errors.Wrap(err, "failed to create provisioner")
 	}
 
-	ready, err := prov.IsReady()
-
-	if err != nil {
-		return ctrl.Result{}, errors.Wrap(err, "failed to check services availability")
-	}
-	if !ready {
-		reqLogger.Info("provisioner is not ready", "RequeueAfter:", provisionerNotReadyRetryDelay)
-		return ctrl.Result{Requeue: true, RequeueAfter: provisionerNotReadyRetryDelay}, nil
+	// if we can't check the ready state assume it is up.
+	if host.HasBMCDetails() {
+		ready, err := prov.IsReady()
+		if err != nil {
+			return ctrl.Result{}, errors.Wrap(err, "failed to check services availability")
+		}
+		if !ready {
+			reqLogger.Info("provisioner is not ready", "RequeueAfter:", provisionerNotReadyRetryDelay)
+			return ctrl.Result{Requeue: true, RequeueAfter: provisionerNotReadyRetryDelay}, nil
+		}
 	}
 
 	stateMachine := newHostStateMachine(host, r, prov, haveCreds)
