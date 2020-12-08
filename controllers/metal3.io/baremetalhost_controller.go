@@ -212,16 +212,21 @@ func (r *BareMetalHostReconciler) Reconcile(request ctrl.Request) (result ctrl.R
 		return ctrl.Result{}, errors.Wrap(err, "failed to create provisioner")
 	}
 
-	ready, err := prov.IsReady()
+	if host.Spec.ExternallyProvisioned && !host.HasBMCDetails() {
+		// In the case of Assisted Installer, we don't have Ironic or BMC info.
+		// so the IsReady() check will fail every time on the ironic endpoint check.
+		reqLogger.Info("externally provisioned host has no BMC details, assuming it is ready")
+	} else {
+		ready, err := prov.IsReady()
 
-	if err != nil {
-		return ctrl.Result{}, errors.Wrap(err, "failed to check services availability")
+		if err != nil {
+			return ctrl.Result{}, errors.Wrap(err, "failed to check services availability")
+		}
+		if !ready {
+			reqLogger.Info("provisioner is not ready", "RequeueAfter:", provisionerNotReadyRetryDelay)
+			return ctrl.Result{Requeue: true, RequeueAfter: provisionerNotReadyRetryDelay}, nil
+		}
 	}
-	if !ready {
-		reqLogger.Info("provisioner is not ready", "RequeueAfter:", provisionerNotReadyRetryDelay)
-		return ctrl.Result{Requeue: true, RequeueAfter: provisionerNotReadyRetryDelay}, nil
-	}
-
 	stateMachine := newHostStateMachine(host, r, prov, haveCreds)
 	actResult := stateMachine.ReconcileState(info)
 	result, err = actResult.Result()
