@@ -54,9 +54,6 @@ const (
 	inspectAnnotationPrefix       = "inspect.metal3.io"
 )
 
-func init() {
-}
-
 // BareMetalHostReconciler reconciles a BareMetalHost object
 type BareMetalHostReconciler struct {
 	client.Client
@@ -215,7 +212,6 @@ func (r *BareMetalHostReconciler) Reconcile(request ctrl.Request) (result ctrl.R
 	}
 
 	ready, err := prov.IsReady()
-
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "failed to check services availability")
 	}
@@ -294,6 +290,15 @@ func recordActionFailure(info *reconcileInfo, errorType metal3v1alpha1.ErrorType
 	info.publishEvent(eventType, errorMessage)
 
 	return actionFailed{dirty: true, ErrorType: errorType, errorCount: info.host.Status.ErrorCount}
+}
+
+func recordActionDelayed(info *reconcileInfo) actionResult {
+
+	counter := delayedProvisioningHostCounters.With(hostMetricLabels(info.request))
+	info.postSaveCallbacks = append(info.postSaveCallbacks, counter.Inc)
+
+	info.host.SetOperationalStatus(metal3v1alpha1.OperationalStatusDelayed)
+	return actionDelayed{}
 }
 
 func (r *BareMetalHostReconciler) credentialsErrorResult(err error, request ctrl.Request, host *metal3v1alpha1.BareMetalHost) (ctrl.Result, error) {
