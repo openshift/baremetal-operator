@@ -620,3 +620,52 @@ func TestValidateManagementAccessAddTwoHostsWithSameMAC(t *testing.T) {
 	assert.Equal(t, "", result.ErrorMessage)
 	assert.NotEqual(t, "", provID)
 }
+
+func TestValidateManagementAccessUnsupportedSecureBoot(t *testing.T) {
+	// Create a host without a bootMACAddress and with a BMC that
+	// requires one.
+	host := makeHost()
+	host.Spec.BootMode = metal3v1alpha1.UEFISecureBoot
+	host.Status.Provisioning.ID = "" // so we don't lookup by uuid
+
+	ironic := testserver.NewIronic(t).Ready().NoNode(host.Name)
+	ironic.Start()
+	defer ironic.Stop()
+
+	auth := clients.AuthConfig{Type: clients.NoAuth}
+	prov, err := newProvisionerWithSettings(host, bmc.Credentials{}, nil,
+		ironic.Endpoint(), auth, testserver.NewInspector(t).Endpoint(), auth,
+	)
+	if err != nil {
+		t.Fatalf("could not create provisioner: %s", err)
+	}
+
+	result, _, err := prov.ValidateManagementAccess(false, false)
+	if err != nil {
+		t.Fatalf("error from ValidateManagementAccess: %s", err)
+	}
+	assert.Contains(t, result.ErrorMessage, "does not support secure boot")
+}
+
+func TestValidateManagementAccessNoBMCDetails(t *testing.T) {
+	ironic := testserver.NewIronic(t).Ready()
+	ironic.Start()
+	defer ironic.Stop()
+
+	host := makeHost()
+	host.Spec.BMC = metal3v1alpha1.BMCDetails{}
+
+	auth := clients.AuthConfig{Type: clients.NoAuth}
+	prov, err := newProvisionerWithSettings(host, bmc.Credentials{}, nullEventPublisher,
+		ironic.Endpoint(), auth, testserver.NewInspector(t).Endpoint(), auth,
+	)
+	if err != nil {
+		t.Fatalf("could not create provisioner: %s", err)
+	}
+
+	result, _, err := prov.ValidateManagementAccess(false, false)
+	if err != nil {
+		t.Fatalf("error from ValidateManagementAccess: %s", err)
+	}
+	assert.Equal(t, "failed to parse BMC address information: missing BMC address", result.ErrorMessage)
+}
