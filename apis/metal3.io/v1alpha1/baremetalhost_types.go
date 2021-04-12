@@ -231,6 +231,10 @@ type BMCDetails struct {
 	// insecure because it allows a man-in-the-middle to intercept the
 	// connection.
 	DisableCertificateVerification bool `json:"disableCertificateVerification,omitempty"`
+
+	// privLevel is the ipmi privilage level to used when authenicating, it is ignore
+	// when not using ipmi
+	PrivLevel string `json:"privLevel,omitempty"`
 }
 
 // HardwareRAIDVolume defines the desired configuration of volume in hardware RAID

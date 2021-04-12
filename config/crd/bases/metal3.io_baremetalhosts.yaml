@@ -86,6 +86,14 @@ spec:
                   disableCertificateVerification:
                     description: DisableCertificateVerification disables verification of server certificates when using HTTPS to connect to the BMC. This is required when the server certificate is self-signed, but is insecure because it allows a man-in-the-middle to intercept the connection.
                     type: boolean
+                  privLevel:
+                    default: ADMINISTRATOR
+                    description: privLevel is the ipmi privilage level to use when authenicating, it is ignored when not using ipmi
+                    enum:
+                      - ADMINISTRATOR
+                      - OPERATOR
+                      - USER
+                    type: string
                 required:
                 - address
                 - credentialsName

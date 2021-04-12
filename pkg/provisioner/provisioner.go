@@ -26,6 +26,7 @@ type HostData struct {
 	DisableCertificateVerification bool
 	BootMACAddress                 string
 	ProvisionerID                  string
+	PrivLevel                      string
 }
 
 func BuildHostData(host metal3v1alpha1.BareMetalHost, bmcCreds bmc.Credentials) HostData {
@@ -34,6 +35,7 @@ func BuildHostData(host metal3v1alpha1.BareMetalHost, bmcCreds bmc.Credentials) 
 		BMCAddress:                     host.Spec.BMC.Address,
 		BMCCredentials:                 bmcCreds,
 		DisableCertificateVerification: host.Spec.BMC.DisableCertificateVerification,
+		PrivLevel:                      host.Spec.BMC.PrivLevel,
 		BootMACAddress:                 host.Spec.BootMACAddress,
 		ProvisionerID:                  host.Status.Provisioning.ID,
 	}

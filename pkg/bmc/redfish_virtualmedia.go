@@ -10,12 +10,13 @@ func init() {
 	RegisterFactory("ilo5-virtualmedia", newRedfishVirtualMediaAccessDetails, schemes)
 }
 
-func newRedfishVirtualMediaAccessDetails(parsedURL *url.URL, disableCertificateVerification bool) (AccessDetails, error) {
+func newRedfishVirtualMediaAccessDetails(parsedURL *url.URL, disableCertificateVerification bool, privLevel string) (AccessDetails, error) {
 	return &redfishVirtualMediaAccessDetails{
 		bmcType:                        parsedURL.Scheme,
 		host:                           parsedURL.Host,
 		path:                           parsedURL.Path,
 		disableCertificateVerification: disableCertificateVerification,
+		privLevel:                      privLevel,
 	}, nil
 }
 
@@ -24,6 +25,7 @@ type redfishVirtualMediaAccessDetails struct {
 	host                           string
 	path                           string
 	disableCertificateVerification bool
+	privLevel                      string
 }
 
 func (a *redfishVirtualMediaAccessDetails) Type() string {

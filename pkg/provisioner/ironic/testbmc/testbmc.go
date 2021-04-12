@@ -11,11 +11,12 @@ func init() {
 	bmc.RegisterFactory("test-needs-mac", newTestBMCAccessDetails, []string{})
 }
 
-func newTestBMCAccessDetails(parsedURL *url.URL, disableCertificateVerification bool) (bmc.AccessDetails, error) {
+func newTestBMCAccessDetails(parsedURL *url.URL, disableCertificateVerification bool, privLevel string) (bmc.AccessDetails, error) {
 	return &testAccessDetails{
 		bmcType:                        parsedURL.Scheme,
 		hostname:                       parsedURL.Hostname(),
 		disableCertificateVerification: disableCertificateVerification,
+		privLevel:                      privLevel,
 	}, nil
 }
 
@@ -23,6 +24,7 @@ type testAccessDetails struct {
 	bmcType                        string
 	hostname                       string
 	disableCertificateVerification bool
+	privLevel                      string
 }
 
 func (a *testAccessDetails) Type() string {

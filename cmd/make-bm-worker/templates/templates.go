@@ -43,6 +43,9 @@ spec:
 {{- if .DisableCertificateVerification }}
   disableCertificateVerification: true
 {{- end}}
+{{- if .PrivLevel }}
+  privLevel: .PrivLevel
+{{- end}}
 `
 
 // Template holds the arguments to pass to the template.

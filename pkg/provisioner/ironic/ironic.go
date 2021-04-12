@@ -144,6 +144,8 @@ type ironicProvisioner struct {
 	bmcCreds bmc.Credentials
 	// the MAC address of the PXE boot interface
 	bootMACAddress string
+	// ipmi privlevel
+	privLevel string
 	// a client for talking to ironic
 	client *gophercloud.ServiceClient
 	// a client for talking to ironic-inspector
@@ -206,6 +208,7 @@ func newProvisionerWithIronicClients(hostData provisioner.HostData, publisher pr
 		bmcAddress:              hostData.BMCAddress,
 		disableCertVerification: hostData.DisableCertificateVerification,
 		bootMACAddress:          hostData.BootMACAddress,
+		privLevel:               hostData.PrivLevel,
 		client:                  clientIronic,
 		inspector:               clientInspector,
 		log:                     provisionerLogger,
@@ -242,7 +245,7 @@ func New(hostData provisioner.HostData, publisher provisioner.EventPublisher) (p
 }
 
 func (p *ironicProvisioner) bmcAccess() (bmc.AccessDetails, error) {
-	bmcAccess, err := bmc.NewAccessDetails(p.bmcAddress, p.disableCertVerification)
+	bmcAccess, err := bmc.NewAccessDetails(p.bmcAddress, p.disableCertVerification, p.privLevel)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse BMC address information")
 	}

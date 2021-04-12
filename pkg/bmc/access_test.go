@@ -647,7 +647,7 @@ func TestStaticDriverInfo(t *testing.T) {
 		},
 	} {
 		t.Run(tc.Scenario, func(t *testing.T) {
-			acc, err := NewAccessDetails(tc.input, false)
+			acc, err := NewAccessDetails(tc.input, false, "")
 			if err != nil {
 				t.Fatalf("unexpected parse error: %v", err)
 			}
@@ -1082,7 +1082,7 @@ func TestDriverInfo(t *testing.T) {
 		},
 	} {
 		t.Run(tc.Scenario, func(t *testing.T) {
-			acc, err := NewAccessDetails(tc.input, true)
+			acc, err := NewAccessDetails(tc.input, true, "")
 			if err != nil {
 				t.Fatalf("unexpected parse error: %v", err)
 			}
@@ -1104,7 +1104,7 @@ func TestDriverInfo(t *testing.T) {
 }
 
 func TestUnknownType(t *testing.T) {
-	acc, err := NewAccessDetails("foo://192.168.122.1", false)
+	acc, err := NewAccessDetails("foo://192.168.122.1", false, "")
 	if err == nil || acc != nil {
 		t.Fatalf("unexpected parse success")
 	}

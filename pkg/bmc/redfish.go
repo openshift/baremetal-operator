@@ -12,22 +12,23 @@ func init() {
 	RegisterFactory("idrac-redfish", newRedfishiDracAccessDetails, schemes)
 }
 
-func redfishDetails(parsedURL *url.URL, disableCertificateVerification bool) *redfishAccessDetails {
+func redfishDetails(parsedURL *url.URL, disableCertificateVerification bool, privLevel string) *redfishAccessDetails {
 	return &redfishAccessDetails{
 		bmcType:                        parsedURL.Scheme,
 		host:                           parsedURL.Host,
 		path:                           parsedURL.Path,
 		disableCertificateVerification: disableCertificateVerification,
+		privLevel:                      privLevel,
 	}
 }
 
-func newRedfishAccessDetails(parsedURL *url.URL, disableCertificateVerification bool) (AccessDetails, error) {
-	return redfishDetails(parsedURL, disableCertificateVerification), nil
+func newRedfishAccessDetails(parsedURL *url.URL, disableCertificateVerification bool, privLevel string) (AccessDetails, error) {
+	return redfishDetails(parsedURL, disableCertificateVerification, privLevel), nil
 }
 
-func newRedfishiDracAccessDetails(parsedURL *url.URL, disableCertificateVerification bool) (AccessDetails, error) {
+func newRedfishiDracAccessDetails(parsedURL *url.URL, disableCertificateVerification bool, privLevel string) (AccessDetails, error) {
 	return &redfishiDracAccessDetails{
-		*redfishDetails(parsedURL, disableCertificateVerification),
+		*redfishDetails(parsedURL, disableCertificateVerification, privLevel),
 	}, nil
 }
 
@@ -36,6 +37,7 @@ type redfishAccessDetails struct {
 	host                           string
 	path                           string
 	disableCertificateVerification bool
+	privLevel                      string
 }
 
 type redfishiDracAccessDetails struct {
