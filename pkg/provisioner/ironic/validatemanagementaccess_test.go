@@ -337,6 +337,7 @@ func TestValidateManagementAccessExistingSteadyStateNoUpdate(t *testing.T) {
 		DeployInterface string
 		Image           *metal3v1alpha1.Image
 		InstanceInfo    map[string]interface{}
+		DriverInfo      map[string]interface{}
 	}{
 		{
 			DeployInterface: "",
@@ -368,6 +369,9 @@ func TestValidateManagementAccessExistingSteadyStateNoUpdate(t *testing.T) {
 				"boot_iso":     "theimage",
 				"capabilities": map[string]interface{}{},
 			},
+			DriverInfo: map[string]interface{}{
+				"force_persistent_boot_device": "Never",
+			},
 		},
 	}
 	clean := true
@@ -392,6 +396,7 @@ func TestValidateManagementAccessExistingSteadyStateNoUpdate(t *testing.T) {
 				InstanceUUID:    string(host.UID),
 				DeployInterface: imageType.DeployInterface,
 				InstanceInfo:    imageType.InstanceInfo,
+				DriverInfo:      imageType.DriverInfo,
 			}).NodeUpdate(nodes.Node{
 				UUID: "uuid",
 			})

@@ -433,6 +433,11 @@ func (p *ironicProvisioner) ValidateManagementAccess(data provisioner.Management
 	driverInfo["deploy_kernel"] = deployKernelURL
 	driverInfo["deploy_ramdisk"] = deployRamdiskURL
 
+	if data.CurrentImage != nil && data.CurrentImage.DiskFormat != nil && *data.CurrentImage.DiskFormat == "live-iso" {
+		// FIXME(shardy) just for testing, make configurable via an env-var
+		driverInfo["force_persistent_boot_device"] = "Never"
+	}
+
 	result, err = operationComplete()
 
 	// If we have not found a node yet, we need to create one
@@ -798,6 +803,19 @@ func (p *ironicProvisioner) setLiveIsoUpdateOptsForNode(ironicNode *nodes.Node, 
 				Op:    nodes.ReplaceOp,
 				Path:  "/deploy_interface",
 				Value: deployInterface,
+			},
+		)
+	}
+
+	// FIXME(shardy) hardcoded for testing, add an env var
+	forcePersistentBootDevice := "Never"
+	if ironicNode.DriverInfo["force_persistent_boot_device"] != forcePersistentBootDevice {
+		updates = append(
+			updates,
+			nodes.UpdateOperation{
+				Op:    nodes.AddOp,
+				Path:  "/driver_info/force_persistent_boot_device",
+				Value: forcePersistentBootDevice,
 			},
 		)
 	}
