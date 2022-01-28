@@ -54,6 +54,8 @@ func (s *BMCEventSubscription) ValidateUpdate(old runtime.Object) error {
 		return nil
 	}
 
+	bmcsubscriptionlog.Info("show old and new subscription spec", "old", bes.Spec, "new", s.Spec)
+
 	if s.Spec != bes.Spec {
 		return fmt.Errorf("subscriptions cannot be updated, please recreate it")
 	}
