@@ -451,7 +451,7 @@ func TestInspectDisabled(t *testing.T) {
 		inspectAnnotationPrefix: "disabled",
 	}
 	r := newTestReconciler(host)
-	waitForProvisioningState(t, r, host, metal3v1alpha1.StatePreparing)
+	waitForProvisioningState(t, r, host, metal3v1alpha1.StateAvailable)
 	assert.Nil(t, host.Status.HardwareDetails)
 }
 

@@ -349,7 +349,9 @@ func (hsm *hostStateMachine) handleRegistering(info *reconcileInfo) actionResult
 	if hsm.Host.Spec.ExternallyProvisioned {
 		hsm.NextState = metal3v1alpha1.StateExternallyProvisioned
 	} else if inspectionDisabled(hsm.Host) {
-		hsm.NextState = metal3v1alpha1.StatePreparing
+		// FIXME(dtantsur): hack to fix ZTP, change to Preparing when fixed properly in 4.12
+		hsm.Host.Status.ErrorCount = 0
+		hsm.NextState = metal3v1alpha1.StateAvailable
 	} else {
 		hsm.NextState = metal3v1alpha1.StateInspecting
 	}
@@ -382,6 +384,10 @@ func (hsm *hostStateMachine) handleExternallyProvisioned(info *reconcileInfo) ac
 	// TODO(dtantsur): move this logic inside NeedsHardwareInspection?
 	if hsm.Host.NeedsHardwareInspection() && !inspectionDisabled(hsm.Host) {
 		hsm.NextState = metal3v1alpha1.StateInspecting
+	} else if inspectionDisabled(hsm.Host) {
+		// FIXME(dtantsur): hack to fix ZTP, remove when fixed properly in 4.12
+		hsm.Host.Status.ErrorCount = 0
+		hsm.NextState = metal3v1alpha1.StateAvailable
 	} else {
 		hsm.NextState = metal3v1alpha1.StatePreparing
 	}

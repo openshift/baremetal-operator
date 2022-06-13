@@ -976,9 +976,9 @@ func TestErrorCountClearedOnStateTransition(t *testing.T) {
 			TargetState: metal3v1alpha1.StateInspecting,
 		},
 		{
-			Scenario:    "registering-to-preparing",
+			Scenario:    "registering-to-available",
 			Host:        host(metal3v1alpha1.StateRegistering).DisableInspection().build(),
-			TargetState: metal3v1alpha1.StatePreparing,
+			TargetState: metal3v1alpha1.StateAvailable,
 		},
 		{
 			Scenario:    "inspecting-to-preparing",
