@@ -182,6 +182,18 @@ func (r *HostFirmwareSettingsReconciler) updateHostFirmwareSettings(currentSetti
 	// get or create a firmwareSchema to hold schema
 	firmwareSchema, err := r.getOrCreateFirmwareSchema(info, schema)
 	if err != nil {
+		// forbidden error can be considered harmless when CleaningModeDisabled and ns terminating
+		if k8serrors.IsForbidden(err) {
+			namespace := &corev1.Namespace{}
+			err := r.Get(context.TODO(), client.ObjectKey{Name: info.bmh.Namespace}, namespace)
+			if err != nil {
+				return errors.Wrap(err, "could not get namespace to confirm its status")
+			}
+			if namespace.Status.Phase == corev1.NamespaceTerminating && info.bmh.Spec.AutomatedCleaningMode == metal3v1alpha1.CleaningModeDisabled {
+				info.log.Info(fmt.Sprintf("Namespace %s terminating and AutomatedCleaningMode disabled; failed to update hostFirmwareSettings: %s", info.bmh.Namespace, err.Error()))
+				return nil
+			}
+		}
 		return errors.Wrap(err, "could not get/create firmware schema")
 	}
 

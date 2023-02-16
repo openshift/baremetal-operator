@@ -34,3 +34,9 @@ ironic-inspector-auth-config
 ironic-rpc-auth-config
 HTTP_BASIC_HTPASSWD
 ironic-deployment/overlays/temp
+
+# macOS generated
+.DS_Store
+
+# jetbrains generated
+.idea

@@ -761,6 +761,12 @@ func (r *BareMetalHostReconciler) registerHost(prov provisioner.Provisioner, inf
 		// No need to create PreprovisioningImage if host is not yet registered
 		// or is externally provisioned
 		preprovImgFormats = nil
+	case metal3v1alpha1.StateDeprovisioning, metal3v1alpha1.StateDeleting:
+		// This is an edge case when the deprovisioning happens because the namespace with BMHs is being deleted.
+		// In this case, it is not possible to create a PreprovisioningImage if it's somehow missing.
+		if info.host.Spec.AutomatedCleaningMode == metal3v1alpha1.CleaningModeDisabled {
+			preprovImgFormats = nil
+		}
 	}
 
 	preprovImg, err := r.getPreprovImage(info, preprovImgFormats)
@@ -833,8 +839,12 @@ func (r *BareMetalHostReconciler) registerHost(prov provisioner.Provisioner, inf
 	// Create the hostFirmwareSettings resource with same host name/namespace if it doesn't exist
 	if info.host.Name != "" {
 		if err = r.createHostFirmwareSettings(info); err != nil {
-			info.log.Info("failed creating hostfirmwaresettings")
-			return actionError{errors.Wrap(err, "failed creating hostFirmwareSettings")}
+			if r.ignoreErrorWhenCleaningModeDisabled(err, info) {
+				info.log.Info(fmt.Sprintf("Namespace %s terminating and AutomatedCleaningMode disabled; failed to create hostFirmwareSettings %s", info.host.Namespace, err.Error()))
+			} else {
+				info.log.Info("failed creating hostfirmwaresettings")
+				return actionError{errors.Wrap(err, "failed creating hostFirmwareSettings")}
+			}
 		}
 	}
 
@@ -952,7 +962,12 @@ func (r *BareMetalHostReconciler) actionInspecting(prov provisioner.Provisioner,
 	}
 	// either hardwareData was deleted above, or not found. We need to re-create it
 	if err := r.Client.Create(context.Background(), hd); err != nil {
-		return actionError{errors.Wrap(err, "failed to create hardwareData")}
+		if r.ignoreErrorWhenCleaningModeDisabled(err, info) {
+			info.log.Info(fmt.Sprintf("Namespace %s terminating and AutomatedCleaningMode disabled; failed to create hardwareData: %s", info.host.Namespace, err.Error()))
+			return actionComplete{}
+		} else {
+			return actionError{errors.Wrap(err, "failed to create hardwareData")}
+		}
 	}
 	info.log.Info(fmt.Sprintf("Created hardwareData %q in %q namespace\n", string(hd.Name), string(hd.Namespace)))
 
@@ -1764,4 +1779,20 @@ func (r *BareMetalHostReconciler) reconciletHostData(ctx context.Context, host *
 	}
 	return ctrl.Result{}, nil
 
+}
+
+func (r *BareMetalHostReconciler) ignoreErrorWhenCleaningModeDisabled(err error, info *reconcileInfo) bool {
+	// forbidden error can be considered harmless when CleaningModeDisabled and ns terminating
+	if k8serrors.IsForbidden(err) {
+		namespace := &corev1.Namespace{}
+		err := r.Get(context.TODO(), client.ObjectKey{Name: info.host.Namespace}, namespace)
+		if err != nil {
+			r.Log.Error(err, "could not get namespace to confirm its status")
+			return false
+		}
+		if namespace.Status.Phase == corev1.NamespaceTerminating && info.host.Spec.AutomatedCleaningMode == metal3v1alpha1.CleaningModeDisabled {
+			return true
+		}
+	}
+	return false
 }
