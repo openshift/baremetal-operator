@@ -82,12 +82,12 @@ func (hcd *hostConfigData) NetworkData() (string, error) {
 	networkDataRaw, err := hcd.getSecretData(
 		networkData.Name,
 		namespace,
-		"networkData",
+		"nmstate",
 	)
 	if err != nil {
 		_, isNoDataErr := err.(NoDataInSecretError)
 		if isNoDataErr {
-			hcd.log.Info("NetworkData key is not set, returning empty data")
+			hcd.log.Info("nmstate key is not set, returning empty data")
 			return "", nil
 		}
 	}
