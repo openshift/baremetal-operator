@@ -1069,77 +1069,57 @@ func TestErrorClean(t *testing.T) {
 
 func TestDeleteWaitsForDetach(t *testing.T) {
 	tests := []struct {
-		Scenario      string
-		Host          *metal3v1alpha1.BareMetalHost
-		ExpectedState metal3v1alpha1.ProvisioningState
+		Scenario                  string
+		Host                      *metal3v1alpha1.BareMetalHost
+		ExpectedState             metal3v1alpha1.ProvisioningState
+		ExpectedOperationalStatus metal3v1alpha1.OperationalStatus
 	}{
 		{
-			Scenario: "provisioning-detached-delay",
-			Host: host(metal3v1alpha1.StateProvisioning).
-				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
-				setDeletion().
-				setDetached("{\"deleteAction\": \"delay\"}").
-				build(),
-			ExpectedState: metal3v1alpha1.StateProvisioning,
-		},
-		{
-			Scenario: "provisioned-detached-delay",
+			Scenario: "detached-delay",
 			Host: host(metal3v1alpha1.StateProvisioned).
 				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
 				setDeletion().
 				setDetached("{\"deleteAction\": \"delay\"}").
 				build(),
-			ExpectedState: metal3v1alpha1.StateProvisioned,
+			ExpectedState:             metal3v1alpha1.StateProvisioned,
+			ExpectedOperationalStatus: metal3v1alpha1.OperationalStatusDetached,
 		},
 		{
-			Scenario: "provisioning-detached-delete",
-			Host: host(metal3v1alpha1.StateProvisioning).
-				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
-				setDeletion().
-				setDetached("{\"deleteAction\": \"delete\"}").
-				build(),
-			ExpectedState: metal3v1alpha1.StateDeleting,
-		},
-		{
-			Scenario: "provisionined-detached-delete",
+			Scenario: "detached-delete",
 			Host: host(metal3v1alpha1.StateProvisioned).
 				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
 				setDeletion().
 				setDetached("{\"deleteAction\": \"delete\"}").
 				build(),
-			ExpectedState: metal3v1alpha1.StateDeleting,
+			ExpectedState:             metal3v1alpha1.StateDeleting,
+			ExpectedOperationalStatus: metal3v1alpha1.OperationalStatusDetached,
 		},
 		{
-			Scenario: "provisioning-detached-not-json",
-			Host: host(metal3v1alpha1.StateProvisioning).
-				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
-				setDeletion().
-				setDetached("true").
-				build(),
-			ExpectedState: metal3v1alpha1.StateDeleting,
-		},
-		{
-			Scenario: "provisioned-detached-not-json",
+			Scenario: "detached-not-json",
 			Host: host(metal3v1alpha1.StateProvisioned).
 				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
 				setDeletion().
 				setDetached("true").
 				build(),
-			ExpectedState: metal3v1alpha1.StateDeleting,
+			ExpectedState:             metal3v1alpha1.StateDeleting,
+			ExpectedOperationalStatus: metal3v1alpha1.OperationalStatusDetached,
 		},
 		{
-			Scenario: "provisioning-attached",
-			Host: host(metal3v1alpha1.StateProvisioning).
+			Scenario: "detached-no-annotation",
+			Host: host(metal3v1alpha1.StateProvisioned).
+				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
 				setDeletion().
 				build(),
-			ExpectedState: metal3v1alpha1.StateDeprovisioning,
+			ExpectedState:             metal3v1alpha1.StateProvisioned,
+			ExpectedOperationalStatus: metal3v1alpha1.OperationalStatusOK,
 		},
 		{
-			Scenario: "provisioned-attached",
+			Scenario: "attached",
 			Host: host(metal3v1alpha1.StateProvisioned).
 				setDeletion().
 				build(),
-			ExpectedState: metal3v1alpha1.StateDeprovisioning,
+			ExpectedState:             metal3v1alpha1.StateDeprovisioning,
+			ExpectedOperationalStatus: metal3v1alpha1.OperationalStatusOK,
 		},
 	}
 	for _, tt := range tests {
@@ -1153,6 +1133,7 @@ func TestDeleteWaitsForDetach(t *testing.T) {
 			hsm.ReconcileState(info)
 
 			assert.Equal(t, tt.ExpectedState, tt.Host.Status.Provisioning.State)
+			assert.Equal(t, tt.ExpectedOperationalStatus, tt.Host.Status.OperationalStatus)
 		})
 	}
 }
