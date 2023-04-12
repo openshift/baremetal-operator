@@ -784,10 +784,15 @@ func (r *BareMetalHostReconciler) registerHost(prov provisioner.Provisioner, inf
 		return actionError{err}
 	}
 	switch info.host.Status.Provisioning.State {
-	case metal3v1alpha1.StateRegistering, metal3v1alpha1.StateExternallyProvisioned:
+	case metal3v1alpha1.StateRegistering, metal3v1alpha1.StateExternallyProvisioned, metal3v1alpha1.StateDeleting:
 		// No need to create PreprovisioningImage if host is not yet registered
 		// or is externally provisioned
 		preprovImgFormats = nil
+	case metal3v1alpha1.StateDeprovisioning:
+		// PreprovisioningImage is not required for deprovisioning when cleaning is disabled
+		if info.host.Spec.AutomatedCleaningMode == metal3v1alpha1.CleaningModeDisabled {
+			preprovImgFormats = nil
+		}
 	}
 
 	preprovImg, err := r.getPreprovImage(info, preprovImgFormats)
@@ -851,9 +856,13 @@ func (r *BareMetalHostReconciler) registerHost(prov provisioner.Provisioner, inf
 
 	// Create the hostFirmwareSettings resource with same host name/namespace if it doesn't exist
 	if info.host.Name != "" {
-		if err = r.createHostFirmwareSettings(info); err != nil {
-			info.log.Info("failed creating hostfirmwaresettings")
-			return actionError{errors.Wrap(err, "failed creating hostFirmwareSettings")}
+		if !info.host.DeletionTimestamp.IsZero() {
+			r.Log.Info(fmt.Sprintf("will not attempt to create new hostFirmwareSettings in %s", info.host.Namespace))
+		} else {
+			if err = r.createHostFirmwareSettings(info); err != nil {
+				info.log.Info("failed creating hostfirmwaresettings")
+				return actionError{errors.Wrap(err, "failed creating hostFirmwareSettings")}
+			}
 		}
 	}
 
