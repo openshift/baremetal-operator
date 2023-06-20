@@ -9,8 +9,8 @@ require (
 	github.com/metal3-io/baremetal-operator/pkg/hardwareutils v0.1.2
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.13.0
-	github.com/stretchr/testify v1.7.1
-	go.etcd.io/etcd/client/pkg/v3 v3.5.6
+	github.com/stretchr/testify v1.8.1
+	go.etcd.io/etcd/client/pkg/v3 v3.5.9
 	go.uber.org/zap v1.21.0
 	k8s.io/api v0.25.0
 	k8s.io/apimachinery v0.25.0
