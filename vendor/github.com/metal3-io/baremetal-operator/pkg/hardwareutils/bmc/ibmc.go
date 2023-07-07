@@ -84,7 +84,7 @@ func (a *ibmcAccessDetails) BIOSInterface() string {
 }
 
 func (a *ibmcAccessDetails) BootInterface() string {
-	return "ipxe"
+	return "pxe"
 }
 
 func (a *ibmcAccessDetails) ManagementInterface() string {

@@ -116,17 +116,9 @@ type ErrDefault400 struct {
 	ErrUnexpectedResponseCode
 }
 
-func (e ErrDefault400) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
-}
-
 // ErrDefault401 is the default error type returned on a 401 HTTP response code.
 type ErrDefault401 struct {
 	ErrUnexpectedResponseCode
-}
-
-func (e ErrDefault401) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
 }
 
 // ErrDefault403 is the default error type returned on a 403 HTTP response code.
@@ -134,17 +126,9 @@ type ErrDefault403 struct {
 	ErrUnexpectedResponseCode
 }
 
-func (e ErrDefault403) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
-}
-
 // ErrDefault404 is the default error type returned on a 404 HTTP response code.
 type ErrDefault404 struct {
 	ErrUnexpectedResponseCode
-}
-
-func (e ErrDefault404) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
 }
 
 // ErrDefault405 is the default error type returned on a 405 HTTP response code.
@@ -152,17 +136,9 @@ type ErrDefault405 struct {
 	ErrUnexpectedResponseCode
 }
 
-func (e ErrDefault405) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
-}
-
 // ErrDefault408 is the default error type returned on a 408 HTTP response code.
 type ErrDefault408 struct {
 	ErrUnexpectedResponseCode
-}
-
-func (e ErrDefault408) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
 }
 
 // ErrDefault409 is the default error type returned on a 409 HTTP response code.
@@ -170,17 +146,9 @@ type ErrDefault409 struct {
 	ErrUnexpectedResponseCode
 }
 
-func (e ErrDefault409) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
-}
-
 // ErrDefault429 is the default error type returned on a 429 HTTP response code.
 type ErrDefault429 struct {
 	ErrUnexpectedResponseCode
-}
-
-func (e ErrDefault429) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
 }
 
 // ErrDefault500 is the default error type returned on a 500 HTTP response code.
@@ -188,17 +156,9 @@ type ErrDefault500 struct {
 	ErrUnexpectedResponseCode
 }
 
-func (e ErrDefault500) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
-}
-
 // ErrDefault502 is the default error type returned on a 502 HTTP response code.
 type ErrDefault502 struct {
 	ErrUnexpectedResponseCode
-}
-
-func (e ErrDefault502) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
 }
 
 // ErrDefault503 is the default error type returned on a 503 HTTP response code.
@@ -206,17 +166,9 @@ type ErrDefault503 struct {
 	ErrUnexpectedResponseCode
 }
 
-func (e ErrDefault503) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
-}
-
 // ErrDefault504 is the default error type returned on a 504 HTTP response code.
 type ErrDefault504 struct {
 	ErrUnexpectedResponseCode
-}
-
-func (e ErrDefault504) Unwrap() error {
-	return e.ErrUnexpectedResponseCode
 }
 
 func (e ErrDefault400) Error() string {

@@ -2,7 +2,6 @@ RUN_NAMESPACE = metal3
 GO_TEST_FLAGS = $(TEST_FLAGS)
 DEBUG = --debug
 COVER_PROFILE = cover.out
-GO_VERSION ?= 1.19.10
 
 # CRD Generation Options
 #
@@ -286,9 +285,6 @@ $(RELEASE_NOTES_DIR):
 .PHONY: release-notes
 release-notes: $(RELEASE_NOTES_DIR)
 	go run ./hack/tools/release_notes.go --from=$(PREVIOUS_TAG) > $(RELEASE_NOTES_DIR)/releasenotes.md
-
-go-version: ## Print the go version we use to compile our binaries and images
-	@echo $(GO_VERSION)
 
 ## --------------------------------------
 ## Clean

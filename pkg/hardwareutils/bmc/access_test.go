@@ -637,7 +637,7 @@ func TestStaticDriverInfo(t *testing.T) {
 			needsMac:   true,
 			driver:     "ibmc",
 			bios:       "",
-			boot:       "ipxe",
+			boot:       "pxe",
 			management: "ibmc",
 			power:      "ibmc",
 		},
