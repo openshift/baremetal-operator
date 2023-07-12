@@ -551,15 +551,15 @@ func (hsm *hostStateMachine) handleDeprovisioning(info *reconcileInfo) actionRes
 			hsm.Host.Status.ErrorCount = 0
 		}
 	} else {
-		skipToDelete := func() actionResult {
-			hsm.NextState = metal3api.StateDeleting
+		skipToPowerOff := func() actionResult {
+			hsm.NextState = metal3api.StatePoweringOffBeforeDelete
 			info.postSaveCallbacks = append(info.postSaveCallbacks, deleteWithoutDeprov.Inc)
 			return actionComplete{}
 		}
 
 		switch r := actResult.(type) {
 		case actionComplete:
-			hsm.NextState = metal3api.StateDeleting
+			hsm.NextState = metal3api.StatePoweringOffBeforeDelete
 			hsm.Host.Status.ErrorCount = 0
 		case actionFailed:
 			// If the provisioner gives up deprovisioning and
@@ -567,14 +567,14 @@ func (hsm *hostStateMachine) handleDeprovisioning(info *reconcileInfo) actionRes
 			if hsm.Host.Status.ErrorCount > 3 {
 				info.log.Info("Giving up on host clean up after 3 attempts. The host may still be operational " +
 					"and cause issues in your clusters. You should clean it up manually now.")
-				return skipToDelete()
+				return skipToPowerOff()
 			}
 		case actionError:
 			if r.NeedsRegistration() && !hsm.haveCreds {
 				// If the host is not registered as a node in Ironic and we
 				// lack the credentials to deprovision it, just continue to
 				// delete.
-				return skipToDelete()
+				return skipToPowerOff()
 			}
 		}
 	}
