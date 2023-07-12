@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	metal3iov1alpha1 "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	metal3iocontroller "github.com/metal3-io/baremetal-operator/controllers/metal3.io"
@@ -136,9 +137,12 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                  scheme,
-		MetricsBindAddress:      metricsBindAddr,
-		Port:                    webhookPort,
+		Scheme:             scheme,
+		MetricsBindAddress: metricsBindAddr,
+		WebhookServer: &webhook.Server{
+			Port:          webhookPort,
+			TLSMinVersion: "1.2",
+		},
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionID:        "baremetal-operator",
 		LeaderElectionNamespace: leaderElectionNamespace,
