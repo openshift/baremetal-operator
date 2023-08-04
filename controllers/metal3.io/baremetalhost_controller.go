@@ -40,7 +40,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	metal3v1alpha1 "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/metal3-io/baremetal-operator/pkg/hardware"
@@ -1667,7 +1669,8 @@ func (r *BareMetalHostReconciler) SetupWithManager(mgr ctrl.Manager, preprovImgE
 				UpdateFunc: r.updateEventHandler,
 			}).
 		WithOptions(opts).
-		Owns(&corev1.Secret{})
+		Watches(&source.Kind{Type: &corev1.Secret{}},
+			&handler.EnqueueRequestForOwner{OwnerType: &metal3v1alpha1.BareMetalHost{}})
 
 	if preprovImgEnable {
 		controller.Owns(&metal3v1alpha1.PreprovisioningImage{})
