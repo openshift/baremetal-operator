@@ -157,6 +157,15 @@ func loadConfigFromEnv(havePreprovImgBuilder bool) (ironicConfig, error) {
 
 	// Let's see if externalURL looks like a URL
 	if c.externalURL != "" {
+		podIPs := strings.Split(os.Getenv("POD_IPS"), ",")
+		for _, podIP := range podIPs {
+			if strings.Contains(podIP, ":") {
+				// IPv6 found, try to substitute the external URL
+				c.externalURL = strings.Replace(c.externalURL, "(POD_IP)", fmt.Sprintf("[%s]", podIP), 1)
+				break
+			}
+		}
+
 		_, externalURLParseErr := url.Parse(c.externalURL)
 
 		if externalURLParseErr != nil {
