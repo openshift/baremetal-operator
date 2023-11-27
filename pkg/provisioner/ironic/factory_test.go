@@ -227,3 +227,58 @@ func TestLoadEndpointsFromEnv(t *testing.T) {
 		})
 	}
 }
+
+func TestExternalV6(t *testing.T) {
+	cases := []struct {
+		name  string
+		proto string
+		hosts string
+
+		expected string
+	}{
+		{
+			name:  "https",
+			proto: "https",
+			hosts: "1.1.1.1,2001:db8::1,error,2.2.2.2",
+
+			expected: "https://[2001:db8::1]:6183",
+		},
+		{
+			name:  "http",
+			proto: "http",
+			hosts: "1.1.1.1,2001:db8::1,error,2.2.2.2",
+
+			expected: "http://[2001:db8::1]:6180",
+		},
+		{
+			name:  "no-v6",
+			proto: "http",
+			hosts: "1.1.1.1,2.2.2.2",
+
+			expected: "",
+		},
+		{
+			name:  "empty",
+			proto: "",
+			hosts: "",
+
+			expected: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			envFixture := EnvFixture{
+				isoURL: "http://iso",
+			}
+			envFixture.SetUp()
+			envFixture.replace("IRONIC_EXTERNAL_URL_V6_PROTO", tc.proto)
+			envFixture.replace("IRONIC_EXTERNAL_URL_V6_HOSTS", tc.hosts)
+			defer envFixture.TearDown()
+
+			conf, err := loadConfigFromEnv(false)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, conf.externalURL)
+		})
+	}
+}

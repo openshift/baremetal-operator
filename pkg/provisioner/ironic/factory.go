@@ -3,6 +3,7 @@ package ironic
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strconv"
@@ -162,6 +163,21 @@ func loadConfigFromEnv(havePreprovImgBuilder bool) (ironicConfig, error) {
 
 		if externalURLParseErr != nil {
 			return c, externalURLParseErr
+		}
+	} else {
+		externalURLProto := os.Getenv("IRONIC_EXTERNAL_URL_V6_PROTO")
+		externalURLHosts := os.Getenv("IRONIC_EXTERNAL_URL_V6_HOSTS")
+		if externalURLProto != "" && externalURLHosts != "" {
+			externalURLPort := "6183"
+			if externalURLProto == "http" {
+				externalURLPort = "6180"
+			}
+			for _, externalIP := range strings.Split(externalURLHosts, ",") {
+				if ip := net.ParseIP(externalIP); ip != nil && ip.To4() == nil {
+					c.externalURL = fmt.Sprintf("%s://%s", externalURLProto, net.JoinHostPort(externalIP, externalURLPort))
+					break
+				}
+			}
 		}
 	}
 
