@@ -1067,6 +1067,77 @@ func TestErrorClean(t *testing.T) {
 	}
 }
 
+func TestDeleteWaitsForDetach(t *testing.T) {
+	tests := []struct {
+		Scenario                  string
+		Host                      *metal3v1alpha1.BareMetalHost
+		ExpectedState             metal3v1alpha1.ProvisioningState
+		ExpectedOperationalStatus metal3v1alpha1.OperationalStatus
+	}{
+		{
+			Scenario: "detached-delay",
+			Host: host(metal3v1alpha1.StateProvisioned).
+				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
+				setDeletion().
+				setDetached("{\"deleteAction\": \"delay\"}").
+				build(),
+			ExpectedState:             metal3v1alpha1.StateProvisioned,
+			ExpectedOperationalStatus: metal3v1alpha1.OperationalStatusDetached,
+		},
+		{
+			Scenario: "detached-delete",
+			Host: host(metal3v1alpha1.StateProvisioned).
+				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
+				setDeletion().
+				setDetached("{\"deleteAction\": \"delete\"}").
+				build(),
+			ExpectedState:             metal3v1alpha1.StateDeleting,
+			ExpectedOperationalStatus: metal3v1alpha1.OperationalStatusDetached,
+		},
+		{
+			Scenario: "detached-not-json",
+			Host: host(metal3v1alpha1.StateProvisioned).
+				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
+				setDeletion().
+				setDetached("true").
+				build(),
+			ExpectedState:             metal3v1alpha1.StateDeleting,
+			ExpectedOperationalStatus: metal3v1alpha1.OperationalStatusDetached,
+		},
+		{
+			Scenario: "detached-no-annotation",
+			Host: host(metal3v1alpha1.StateProvisioned).
+				SetOperationalStatus(metal3v1alpha1.OperationalStatusDetached).
+				setDeletion().
+				build(),
+			ExpectedState:             metal3v1alpha1.StateProvisioned,
+			ExpectedOperationalStatus: metal3v1alpha1.OperationalStatusOK,
+		},
+		{
+			Scenario: "attached",
+			Host: host(metal3v1alpha1.StateProvisioned).
+				setDeletion().
+				build(),
+			ExpectedState:             metal3v1alpha1.StateDeprovisioning,
+			ExpectedOperationalStatus: metal3v1alpha1.OperationalStatusOK,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.Scenario, func(t *testing.T) {
+			prov := newMockProvisioner()
+			hsm := newHostStateMachine(tt.Host, &BareMetalHostReconciler{
+				Client: fakeclient.NewFakeClient(),
+			}, prov, true)
+
+			info := makeDefaultReconcileInfo(tt.Host)
+			hsm.ReconcileState(info)
+
+			assert.Equal(t, tt.ExpectedState, tt.Host.Status.Provisioning.State)
+			assert.Equal(t, tt.ExpectedOperationalStatus, tt.Host.Status.OperationalStatus)
+		})
+	}
+}
+
 type hostBuilder struct {
 	metal3v1alpha1.BareMetalHost
 }
@@ -1183,6 +1254,14 @@ func (hb *hostBuilder) DisableInspection() *hostBuilder {
 func (hb *hostBuilder) setDeletion() *hostBuilder {
 	date := metav1.Date(2021, time.January, 18, 10, 18, 0, 0, time.UTC)
 	hb.DeletionTimestamp = &date
+	return hb
+}
+
+func (hb *hostBuilder) setDetached(val string) *hostBuilder {
+	if hb.Annotations == nil {
+		hb.Annotations = make(map[string]string, 1)
+	}
+	hb.Annotations[metal3v1alpha1.DetachedAnnotation] = val
 	return hb
 }
 
