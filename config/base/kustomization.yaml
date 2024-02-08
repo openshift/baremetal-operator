@@ -13,6 +13,7 @@ resources:
 - crds/bases/metal3.io_preprovisioningimages.yaml
 - crds/bases/metal3.io_bmceventsubscriptions.yaml
 - crds/bases/metal3.io_hardwaredata.yaml
+- crds/bases/metal3.io_hostfirmwarecomponents.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:
