@@ -103,10 +103,8 @@ func (a *testAccessDetails) RequiresProvisioningNetwork() bool {
 }
 
 func (a *testAccessDetails) BuildBIOSSettings(firmwareConfig *bmc.FirmwareConfig) (settings []map[string]string, err error) {
-	// Return sample BMC data for test purposes
-	const enabled = "Enabled"
-	const disabled = "Disabled"
 
+	// Return sample BMC data for test purposes
 	if firmwareConfig == nil {
 		return nil, nil
 	}
@@ -114,9 +112,9 @@ func (a *testAccessDetails) BuildBIOSSettings(firmwareConfig *bmc.FirmwareConfig
 	var value string
 
 	if firmwareConfig.VirtualizationEnabled != nil {
-		value = disabled
+		value = "Disabled"
 		if *firmwareConfig.VirtualizationEnabled {
-			value = enabled
+			value = "Enabled"
 		}
 		settings = append(settings,
 			map[string]string{
@@ -127,9 +125,9 @@ func (a *testAccessDetails) BuildBIOSSettings(firmwareConfig *bmc.FirmwareConfig
 	}
 
 	if firmwareConfig.SimultaneousMultithreadingEnabled != nil {
-		value = disabled
+		value = "Disabled"
 		if *firmwareConfig.SimultaneousMultithreadingEnabled {
-			value = enabled
+			value = "Enabled"
 		}
 		settings = append(settings,
 			map[string]string{
@@ -140,9 +138,9 @@ func (a *testAccessDetails) BuildBIOSSettings(firmwareConfig *bmc.FirmwareConfig
 	}
 
 	if firmwareConfig.SriovEnabled != nil {
-		value = disabled
+		value = "Disabled"
 		if *firmwareConfig.SriovEnabled {
-			value = enabled
+			value = "Enabled"
 		}
 		settings = append(settings,
 			map[string]string{

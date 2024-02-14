@@ -17,12 +17,21 @@ import (
 
 var _ = Describe("Inspection", func() {
 	var (
-		specName      = "inspection"
-		secretName    = "bmc-credentials"
-		namespace     *corev1.Namespace
-		cancelWatches context.CancelFunc
+		specName       = "inspection"
+		secretName     = "bmc-credentials"
+		namespace      *corev1.Namespace
+		cancelWatches  context.CancelFunc
+		bmcUser        string
+		bmcPassword    string
+		bmcAddress     string
+		bootMacAddress string
 	)
 	BeforeEach(func() {
+		bmcUser = e2eConfig.GetVariable("BMC_USER")
+		bmcPassword = e2eConfig.GetVariable("BMC_PASSWORD")
+		bmcAddress = e2eConfig.GetVariable("BMC_ADDRESS")
+		bootMacAddress = e2eConfig.GetVariable("BOOT_MAC_ADDRESS")
+
 		namespace, cancelWatches = framework.CreateNamespaceAndWatchEvents(ctx, framework.CreateNamespaceAndWatchEventsInput{
 			Creator:   clusterProxy.GetClient(),
 			ClientSet: clusterProxy.GetClientSet(),
@@ -84,10 +93,9 @@ var _ = Describe("Inspection", func() {
 
 	It("should inspect a newly created BMH", func() {
 		By("Creating a secret with BMH credentials")
-
 		bmcCredentialsData := map[string]string{
-			"username": bmc.User,
-			"password": bmc.Password,
+			"username": bmcUser,
+			"password": bmcPassword,
 		}
 		CreateSecret(ctx, clusterProxy.GetClient(), namespace.Name, secretName, bmcCredentialsData)
 
@@ -99,11 +107,11 @@ var _ = Describe("Inspection", func() {
 			},
 			Spec: metal3api.BareMetalHostSpec{
 				BMC: metal3api.BMCDetails{
-					Address:         bmc.Address,
+					Address:         bmcAddress,
 					CredentialsName: "bmc-credentials",
 				},
 				BootMode:       metal3api.Legacy,
-				BootMACAddress: bmc.BootMacAddress,
+				BootMACAddress: bootMacAddress,
 			},
 		}
 		err := clusterProxy.GetClient().Create(ctx, &bmh)

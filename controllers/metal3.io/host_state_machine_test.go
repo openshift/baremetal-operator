@@ -14,6 +14,7 @@ import (
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1/profile"
 	"github.com/metal3-io/baremetal-operator/pkg/hardwareutils/bmc"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
@@ -26,7 +27,7 @@ func testStateMachine(host *metal3api.BareMetalHost) *hostStateMachine {
 	return newHostStateMachine(host, r, p, true)
 }
 
-// Create a reconciler with a fake client to satisfy states that use the client.
+// Create a reconciler with a fake client to satisfy states that use the client
 func testNewReconciler(host *metal3api.BareMetalHost) *BareMetalHostReconciler {
 	reconciler := &BareMetalHostReconciler{
 		Client:             fakeclient.NewClientBuilder().WithObjects(host).Build(),
@@ -464,7 +465,7 @@ func TestDetachError(t *testing.T) {
 			assert.True(t, result.Dirty())
 			assert.Equal(t, 1, tc.Host.Status.ErrorCount)
 			assert.Equal(t, metal3api.OperationalStatusError, info.host.OperationalStatus())
-			assert.Equal(t, metal3api.DetachError, info.host.Status.ErrorType)
+			assert.Equal(t, v1alpha1.DetachError, info.host.Status.ErrorType)
 			assert.Equal(t, tc.ExpectedState, info.host.Status.Provisioning.State)
 
 			if tc.ClearError {
@@ -953,6 +954,7 @@ func TestErrorCountIncreasedOnActionFailure(t *testing.T) {
 }
 
 func TestErrorCountClearedOnStateTransition(t *testing.T) {
+
 	tests := []struct {
 		Scenario                     string
 		Host                         *metal3api.BareMetalHost
@@ -1022,6 +1024,7 @@ func TestErrorCountClearedOnStateTransition(t *testing.T) {
 }
 
 func TestErrorClean(t *testing.T) {
+
 	tests := []struct {
 		Scenario    string
 		Host        *metal3api.BareMetalHost
@@ -1057,10 +1060,10 @@ func TestErrorClean(t *testing.T) {
 			hsm.ReconcileState(info)
 
 			if tt.ExpectError {
-				assert.Equal(t, metal3api.ProvisionedRegistrationError, tt.Host.Status.ErrorType)
+				assert.Equal(t, v1alpha1.ProvisionedRegistrationError, tt.Host.Status.ErrorType)
 				assert.NotEmpty(t, tt.Host.Status.ErrorMessage)
 			} else {
-				assert.Equal(t, metal3api.OperationalStatusOK, tt.Host.Status.OperationalStatus)
+				assert.Equal(t, v1alpha1.OperationalStatusOK, tt.Host.Status.OperationalStatus)
 				assert.Empty(t, tt.Host.Status.ErrorType)
 				assert.Empty(t, tt.Host.Status.ErrorMessage)
 			}
@@ -1144,6 +1147,7 @@ type hostBuilder struct {
 }
 
 func host(state metal3api.ProvisioningState) *hostBuilder {
+
 	creds := metal3api.CredentialsStatus{
 		Reference: &corev1.SecretReference{
 			Name:      "secretRefName",
@@ -1158,21 +1162,21 @@ func host(state metal3api.ProvisioningState) *hostBuilder {
 				Name:      "foo",
 				Namespace: "bar",
 			},
-			Spec: metal3api.BareMetalHostSpec{
+			Spec: v1alpha1.BareMetalHostSpec{
 				Online: true,
-				Image: &metal3api.Image{
+				Image: &v1alpha1.Image{
 					URL: "not-empty",
 				},
-				RootDeviceHints: &metal3api.RootDeviceHints{},
+				RootDeviceHints: &v1alpha1.RootDeviceHints{},
 			},
 			Status: metal3api.BareMetalHostStatus{
 				HardwareProfile: profile.DefaultProfileName,
 				Provisioning: metal3api.ProvisionStatus{
 					State:           state,
-					BootMode:        metal3api.DefaultBootMode,
+					BootMode:        v1alpha1.DefaultBootMode,
 					RootDeviceHints: &metal3api.RootDeviceHints{},
-					Image: metal3api.Image{
-						URL: "", // needs provisioning
+					Image: v1alpha1.Image{
+						URL: "", //needs provisioning
 					},
 					RAID: &metal3api.RAIDConfig{
 						SoftwareRAIDVolumes: []metal3api.SoftwareRAIDVolume{},

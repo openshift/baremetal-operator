@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	goctx "context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -103,8 +104,7 @@ func newHostFirmwareSettings(host *metal3api.BareMetalHost, conditions []metav1.
 	return hfs
 }
 
-func newDefaultNamedHost(t *testing.T, name string) *metal3api.BareMetalHost {
-	t.Helper()
+func newDefaultNamedHost(name string, t *testing.T) *metal3api.BareMetalHost {
 	spec := &metal3api.BareMetalHostSpec{
 		BMC: metal3api.BMCDetails{
 			Address:         "ipmi://192.168.122.1:6233",
@@ -130,8 +130,7 @@ func newDefaultNamedHost(t *testing.T, name string) *metal3api.BareMetalHost {
 }
 
 func newDefaultHost(t *testing.T) *metal3api.BareMetalHost {
-	t.Helper()
-	return newDefaultNamedHost(t, t.Name())
+	return newDefaultNamedHost(t.Name(), t)
 }
 
 func newTestReconcilerWithFixture(fix *fixture.Fixture, initObjs ...runtime.Object) *BareMetalHostReconciler {
@@ -142,7 +141,7 @@ func newTestReconcilerWithFixture(fix *fixture.Fixture, initObjs ...runtime.Obje
 	c := clientBuilder.Build()
 	// Add a default secret that can be used by most hosts.
 	bmcSecret := newBMCCredsSecret(defaultSecretName, "User", "Pass")
-	c.Create(context.TODO(), bmcSecret)
+	c.Create(goctx.TODO(), bmcSecret)
 
 	return &BareMetalHostReconciler{
 		Client:             c,
@@ -168,7 +167,7 @@ func newRequest(host *metal3api.BareMetalHost) ctrl.Request {
 }
 
 func tryReconcile(t *testing.T, r *BareMetalHostReconciler, host *metal3api.BareMetalHost, isDone DoneFunc) {
-	t.Helper()
+
 	request := newRequest(host)
 
 	for i := 0; ; i++ {
@@ -187,7 +186,7 @@ func tryReconcile(t *testing.T, r *BareMetalHostReconciler, host *metal3api.Bare
 		// need to replace the one we have with the updated data in
 		// order to test it. In case it was not found, let's set it to nil
 		updatedHost := &metal3api.BareMetalHost{}
-		if err = r.Get(context.TODO(), request.NamespacedName, updatedHost); k8serrors.IsNotFound(err) {
+		if err = r.Get(goctx.TODO(), request.NamespacedName, updatedHost); k8serrors.IsNotFound(err) {
 			host = nil
 		} else {
 			updatedHost.DeepCopyInto(host)
@@ -206,7 +205,6 @@ func tryReconcile(t *testing.T, r *BareMetalHostReconciler, host *metal3api.Bare
 }
 
 func waitForStatus(t *testing.T, r *BareMetalHostReconciler, host *metal3api.BareMetalHost, desiredStatus metal3api.OperationalStatus) {
-	t.Helper()
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			state := host.OperationalStatus()
@@ -217,7 +215,6 @@ func waitForStatus(t *testing.T, r *BareMetalHostReconciler, host *metal3api.Bar
 }
 
 func waitForError(t *testing.T, r *BareMetalHostReconciler, host *metal3api.BareMetalHost) {
-	t.Helper()
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			t.Logf("Waiting for error: %q", host.Status.ErrorMessage)
@@ -227,7 +224,6 @@ func waitForError(t *testing.T, r *BareMetalHostReconciler, host *metal3api.Bare
 }
 
 func waitForNoError(t *testing.T, r *BareMetalHostReconciler, host *metal3api.BareMetalHost) {
-	t.Helper()
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			t.Logf("Waiting for no error message: %q", host.Status.ErrorMessage)
@@ -237,7 +233,6 @@ func waitForNoError(t *testing.T, r *BareMetalHostReconciler, host *metal3api.Ba
 }
 
 func waitForProvisioningState(t *testing.T, r *BareMetalHostReconciler, host *metal3api.BareMetalHost, desiredState metal3api.ProvisioningState) {
-	t.Helper()
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			t.Logf("Waiting for state %q have state %q", desiredState, host.Status.Provisioning.State)
@@ -248,7 +243,7 @@ func waitForProvisioningState(t *testing.T, r *BareMetalHostReconciler, host *me
 
 // TestHardwareDetails_EmptyStatus ensures that hardware details in
 // the status field are populated when the hardwaredetails annotation
-// is present and no existing HarwareDetails are present.
+// is present and no existing HarwareDetails are present
 func TestHardwareDetails_EmptyStatus(t *testing.T) {
 	host := newDefaultHost(t)
 	host.Annotations = map[string]string{
@@ -269,7 +264,7 @@ func TestHardwareDetails_EmptyStatus(t *testing.T) {
 }
 
 // TestHardwareDetails_StatusPresent ensures that hardware details in
-// the hardwaredetails annotation is ignored with existing Status.
+// the hardwaredetails annotation is ignored with existing Status
 func TestHardwareDetails_StatusPresent(t *testing.T) {
 	host := newDefaultHost(t)
 	host.Annotations = map[string]string{
@@ -296,7 +291,7 @@ func TestHardwareDetails_StatusPresent(t *testing.T) {
 
 // TestHardwareDetails_StatusPresentInspectDisabled ensures that
 // hardware details in the hardwaredetails annotation are consumed
-// even when existing status exists, when inspection is disabled.
+// even when existing status exists, when inspection is disabled
 func TestHardwareDetails_StatusPresentInspectDisabled(t *testing.T) {
 	host := newDefaultHost(t)
 	host.Annotations = map[string]string{
@@ -323,7 +318,7 @@ func TestHardwareDetails_StatusPresentInspectDisabled(t *testing.T) {
 }
 
 // TestHardwareDetails_Invalid
-// Tests scenario where the hardwaredetails value is invalid.
+// Tests scenario where the hardwaredetails value is invalid
 func TestHardwareDetails_Invalid(t *testing.T) {
 	host := newDefaultHost(t)
 	badAnnotation := fmt.Sprintf("{\"hardware\": %s}", hwdAnnotation)
@@ -431,6 +426,7 @@ func TestStatusAnnotation_Partial(t *testing.T) {
 // TestHardwareDataExist ensures hardwareData takes precedence over
 // statusAnnotation when updating during BareMetalHost status.
 func TestHardwareDataExist(t *testing.T) {
+
 	host := newDefaultHost(t)
 	host.Annotations = map[string]string{
 		metal3api.StatusAnnotation: statusAnnotation,
@@ -487,7 +483,7 @@ func TestPause(t *testing.T) {
 	)
 }
 
-// TestInspectDisabled ensures that Inspection is skipped when disabled.
+// TestInspectDisabled ensures that Inspection is skipped when disabled
 func TestInspectDisabled(t *testing.T) {
 	host := newDefaultHost(t)
 	host.Annotations = map[string]string{
@@ -498,7 +494,7 @@ func TestInspectDisabled(t *testing.T) {
 	assert.Nil(t, host.Status.HardwareDetails)
 }
 
-// TestInspectEnabled ensures that Inspection is completed when not disabled.
+// TestInspectEnabled ensures that Inspection is completed when not disabled
 func TestInspectEnabled(t *testing.T) {
 	host := newDefaultHost(t)
 	r := newTestReconciler(host)
@@ -529,7 +525,7 @@ func TestAddFinalizers(t *testing.T) {
 
 // TestDoNotAddSecretFinalizersDuringDelete verifies that during a host deletion,
 // in case the removal of a secret finalizer triggers an immediate reconcile loop,
-// then the secret finalizer is not added again.
+// then the secret finalizer is not added again
 func TestDoNotAddSecretFinalizersDuringDelete(t *testing.T) {
 	host := newDefaultHost(t)
 	r := newTestReconciler(host)
@@ -551,7 +547,7 @@ func TestDoNotAddSecretFinalizersDuringDelete(t *testing.T) {
 	// The fake client will immediately remove the host
 	// from its cache, so let's keep the latest updated
 	// host
-	r.Get(context.TODO(), request.NamespacedName, host)
+	r.Get(goctx.TODO(), request.NamespacedName, host)
 	_, err = r.Reconcile(context.Background(), request)
 	assert.NoError(t, err)
 
@@ -579,7 +575,10 @@ func TestSetLastUpdated(t *testing.T) {
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			t.Logf("LastUpdated: %v", host.Status.LastUpdated)
-			return !host.Status.LastUpdated.IsZero()
+			if !host.Status.LastUpdated.IsZero() {
+				return true
+			}
+			return false
 		},
 	)
 }
@@ -602,6 +601,7 @@ func makeReconcileInfo(host *metal3api.BareMetalHost) *reconcileInfo {
 }
 
 func TestHasRebootAnnotation(t *testing.T) {
+
 	testCases := []struct {
 		Scenario       string
 		Annotations    map[string]string
@@ -702,7 +702,7 @@ func TestHasRebootAnnotation(t *testing.T) {
 }
 
 // TestRebootWithSuffixlessAnnotation tests full reboot cycle with suffixless
-// annotation which doesn't wait for annotation removal before power on.
+// annotation which doesn't wait for annotation removal before power on
 func TestRebootWithSuffixlessAnnotation(t *testing.T) {
 	host := newDefaultHost(t)
 	host.Annotations = make(map[string]string)
@@ -718,7 +718,11 @@ func TestRebootWithSuffixlessAnnotation(t *testing.T) {
 
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
-			return !host.Status.PoweredOn
+			if host.Status.PoweredOn {
+				return false
+			}
+
+			return true
 		},
 	)
 
@@ -734,20 +738,29 @@ func TestRebootWithSuffixlessAnnotation(t *testing.T) {
 
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
-			return host.Status.PoweredOn
+			if !host.Status.PoweredOn {
+				return false
+			}
+
+			return true
 		},
 	)
 
-	// make sure we don't go into another reboot
+	//make sure we don't go into another reboot
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
-			return host.Status.PoweredOn
+
+			if !host.Status.PoweredOn {
+				return false
+			}
+
+			return true
 		},
 	)
 }
 
 // TestRebootWithSuffixedAnnotation tests a full reboot cycle, with suffixed annotation
-// to verify that controller holds power off until annotation removal.
+// to verify that controller holds power off until annotation removal
 func TestRebootWithSuffixedAnnotation(t *testing.T) {
 	host := newDefaultHost(t)
 	host.Annotations = make(map[string]string)
@@ -764,42 +777,58 @@ func TestRebootWithSuffixedAnnotation(t *testing.T) {
 
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
-			return !host.Status.PoweredOn
+			if host.Status.PoweredOn {
+				return false
+			}
+
+			return true
 		},
 	)
 
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
-			// we expect that the machine will be powered off until we remove annotation
-			return !host.Status.PoweredOn
+			//we expect that the machine will be powered off until we remove annotation
+			if host.Status.PoweredOn {
+				return false
+			}
+
+			return true
 		},
 	)
 
 	delete(host.Annotations, annotation)
-	r.Update(context.TODO(), host)
+	r.Update(goctx.TODO(), host)
 
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
-			return host.Status.PoweredOn
+
+			if !host.Status.PoweredOn {
+				return false
+			}
+
+			return true
 		},
 	)
 
-	// make sure we don't go into another reboot
+	//make sure we don't go into another reboot
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
-			return host.Status.PoweredOn
+			if !host.Status.PoweredOn {
+				return false
+			}
+
+			return true
 		},
 	)
 }
 
 func getHostSecret(t *testing.T, r *BareMetalHostReconciler, host *metal3api.BareMetalHost) (secret *corev1.Secret) {
-	t.Helper()
 	secret = &corev1.Secret{}
 	secretName := types.NamespacedName{
 		Namespace: host.Namespace,
 		Name:      host.Spec.BMC.CredentialsName,
 	}
-	err := r.Get(context.TODO(), secretName, secret)
+	err := r.Get(goctx.TODO(), secretName, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -822,6 +851,7 @@ func TestSecretUpdateOwnerRefAndEnvironmentLabelOnStartup(t *testing.T) {
 	assert.Nil(t, secret.OwnerReferences[0].Controller)
 	assert.Nil(t, secret.OwnerReferences[0].BlockOwnerDeletion)
 	assert.Equal(t, "baremetal", secret.Labels["environment.metal3.io"])
+
 }
 
 // TestUpdateCredentialsSecretSuccessFields ensures that the
@@ -835,9 +865,13 @@ func TestUpdateCredentialsSecretSuccessFields(t *testing.T) {
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			t.Logf("ref: %v ver: %s", host.Status.GoodCredentials.Reference,
 				host.Status.GoodCredentials.Version)
-			return host.Status.GoodCredentials.Version != ""
+			if host.Status.GoodCredentials.Version != "" {
+				return true
+			}
+			return false
 		},
 	)
+
 }
 
 // TestUpdateGoodCredentialsOnNewSecret ensures that the
@@ -851,19 +885,22 @@ func TestUpdateGoodCredentialsOnNewSecret(t *testing.T) {
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			t.Logf("ref: %v ver: %s", host.Status.GoodCredentials.Reference,
 				host.Status.GoodCredentials.Version)
-			return host.Status.GoodCredentials.Version != ""
+			if host.Status.GoodCredentials.Version != "" {
+				return true
+			}
+			return false
 		},
 	)
 
 	// Define a second valid secret and update the host to use it.
 	secret2 := newBMCCredsSecret("bmc-creds-valid2", "User", "Pass")
-	err := r.Create(context.TODO(), secret2)
+	err := r.Create(goctx.TODO(), secret2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	host.Spec.BMC.CredentialsName = "bmc-creds-valid2"
-	err = r.Update(context.TODO(), host)
+	err = r.Update(goctx.TODO(), host)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -892,18 +929,22 @@ func TestUpdateGoodCredentialsOnBadSecret(t *testing.T) {
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			t.Logf("ref: %v ver: %s", host.Status.GoodCredentials.Reference,
 				host.Status.GoodCredentials.Version)
-			return host.Status.GoodCredentials.Version != ""
+			if host.Status.GoodCredentials.Version != "" {
+				return true
+			}
+			return false
 		},
 	)
 
 	host.Spec.BMC.CredentialsName = "bmc-creds-no-user"
-	err := r.Update(context.TODO(), host)
+	err := r.Update(goctx.TODO(), host)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
+
 			t.Logf("ref: %v ver: %s", host.Status.GoodCredentials.Reference,
 				host.Status.GoodCredentials.Version)
 			if host.Spec.BMC.CredentialsName != "bmc-creds-no-user" {
@@ -940,6 +981,7 @@ func TestDiscoveredHost(t *testing.T) {
 // TestMissingBMCParameters ensures that a host that is missing some
 // of the required BMC settings is put into an error state.
 func TestMissingBMCParameters(t *testing.T) {
+
 	testCases := []struct {
 		Scenario string
 		Secret   *corev1.Secret
@@ -1023,6 +1065,7 @@ func TestMissingBMCParameters(t *testing.T) {
 // TestFixSecret ensures that when the secret for a host is updated to
 // be correct the status of the host moves out of the error state.
 func TestFixSecret(t *testing.T) {
+
 	secret := newBMCCredsSecret("bmc-creds-no-user", "", "Pass")
 	host := newHost("fix-secret",
 		&metal3api.BareMetalHostSpec{
@@ -1039,12 +1082,12 @@ func TestFixSecret(t *testing.T) {
 		Namespace: namespace,
 		Name:      "bmc-creds-no-user",
 	}
-	err := r.Get(context.TODO(), secretName, secret)
+	err := r.Get(goctx.TODO(), secretName, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
 	secret.Data["username"] = []byte(base64.StdEncoding.EncodeToString([]byte("username")))
-	err = r.Update(context.TODO(), secret)
+	err = r.Update(goctx.TODO(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1055,6 +1098,7 @@ func TestFixSecret(t *testing.T) {
 // is updated to be broken, and then correct, the status of the host
 // moves out of the error state.
 func TestBreakThenFixSecret(t *testing.T) {
+
 	// Create the host without any errors and wait for it to be
 	// registered and get a provisioning ID.
 	secret := newBMCCredsSecret("bmc-creds-toggle-user", "User", "Pass")
@@ -1081,13 +1125,13 @@ func TestBreakThenFixSecret(t *testing.T) {
 		Namespace: namespace,
 		Name:      "bmc-creds-toggle-user",
 	}
-	err := r.Get(context.TODO(), secretName, secret)
+	err := r.Get(goctx.TODO(), secretName, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
 	oldUsername := secret.Data["username"]
 	secret.Data["username"] = []byte{}
-	err = r.Update(context.TODO(), secret)
+	err = r.Update(goctx.TODO(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1096,16 +1140,17 @@ func TestBreakThenFixSecret(t *testing.T) {
 	// Modify the secret to be correct again. Wait for the error to be
 	// cleared from the host.
 	secret = &corev1.Secret{}
-	err = r.Get(context.TODO(), secretName, secret)
+	err = r.Get(goctx.TODO(), secretName, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
 	secret.Data["username"] = oldUsername
-	err = r.Update(context.TODO(), secret)
+	err = r.Update(goctx.TODO(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}
 	waitForNoError(t, r, host)
+
 }
 
 // TestSetHardwareProfile ensures that the host has a label with
@@ -1117,7 +1162,10 @@ func TestSetHardwareProfile(t *testing.T) {
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			t.Logf("profile: %v", host.Status.HardwareProfile)
-			return host.Status.HardwareProfile != ""
+			if host.Status.HardwareProfile != "" {
+				return true
+			}
+			return false
 		},
 	)
 }
@@ -1131,7 +1179,10 @@ func TestCreateHardwareDetails(t *testing.T) {
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			t.Logf("new host details: %v", host.Status.HardwareDetails)
-			return host.Status.HardwareDetails != nil
+			if host.Status.HardwareDetails != nil {
+				return true
+			}
+			return false
 		},
 	)
 }
@@ -1254,7 +1305,10 @@ func TestProvision(t *testing.T) {
 			t.Logf("image details: %v", host.Spec.Image)
 			t.Logf("provisioning image details: %v", host.Status.Provisioning.Image)
 			t.Logf("provisioning state: %v", host.Status.Provisioning.State)
-			return host.Status.Provisioning.Image.URL != ""
+			if host.Status.Provisioning.Image.URL != "" {
+				return true
+			}
+			return false
 		},
 	)
 }
@@ -1309,6 +1363,7 @@ func TestProvisionCustomDeployWithURL(t *testing.T) {
 // expected states when it looks like it has been provisioned by
 // another tool.
 func TestExternallyProvisionedTransitions(t *testing.T) {
+
 	t.Run("registered to externally provisioned", func(t *testing.T) {
 		host := newDefaultHost(t)
 		host.Spec.Online = true
@@ -1328,7 +1383,7 @@ func TestExternallyProvisionedTransitions(t *testing.T) {
 		waitForProvisioningState(t, r, host, metal3api.StateExternallyProvisioned)
 
 		host.Spec.ExternallyProvisioned = false
-		err := r.Update(context.TODO(), host)
+		err := r.Update(goctx.TODO(), host)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1345,7 +1400,7 @@ func TestExternallyProvisionedTransitions(t *testing.T) {
 		waitForProvisioningState(t, r, host, metal3api.StatePreparing)
 
 		host.Spec.ExternallyProvisioned = true
-		err := r.Update(context.TODO(), host)
+		err := r.Update(goctx.TODO(), host)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1353,6 +1408,7 @@ func TestExternallyProvisionedTransitions(t *testing.T) {
 
 		waitForProvisioningState(t, r, host, metal3api.StateExternallyProvisioned)
 	})
+
 }
 
 // TestPowerOn verifies that the controller turns the host on when it
@@ -1385,7 +1441,7 @@ func TestPowerOff(t *testing.T) {
 	)
 }
 
-// TestDeleteHost verifies several delete cases.
+// TestDeleteHost verifies several delete cases
 func TestDeleteHost(t *testing.T) {
 	now := metav1.Now()
 
@@ -1393,13 +1449,13 @@ func TestDeleteHost(t *testing.T) {
 
 	testCases := []HostFactory{
 		func() *metal3api.BareMetalHost {
-			host := newDefaultNamedHost(t, "with-finalizer")
+			host := newDefaultNamedHost("with-finalizer", t)
 			host.Finalizers = append(host.Finalizers,
 				metal3api.BareMetalHostFinalizer)
 			return host
 		},
 		func() *metal3api.BareMetalHost {
-			host := newDefaultNamedHost(t, "without-bmc")
+			host := newDefaultNamedHost("without-bmc", t)
 			host.Spec.BMC = metal3api.BMCDetails{}
 			host.Finalizers = append(host.Finalizers,
 				metal3api.BareMetalHostFinalizer)
@@ -1419,14 +1475,14 @@ func TestDeleteHost(t *testing.T) {
 			return host
 		},
 		func() *metal3api.BareMetalHost {
-			host := newDefaultNamedHost(t, "host-with-hw-details")
+			host := newDefaultNamedHost("host-with-hw-details", t)
 			host.Status.HardwareDetails = &metal3api.HardwareDetails{}
 			host.Finalizers = append(host.Finalizers,
 				metal3api.BareMetalHostFinalizer)
 			return host
 		},
 		func() *metal3api.BareMetalHost {
-			host := newDefaultNamedHost(t, "provisioned-host")
+			host := newDefaultNamedHost("provisioned-host", t)
 			host.Status.HardwareDetails = &metal3api.HardwareDetails{}
 			host.Status.Provisioning.Image = metal3api.Image{
 				URL:      "image-url",
@@ -1778,6 +1834,7 @@ func TestUpdateEventHandler(t *testing.T) {
 }
 
 func TestErrorCountIncrementsAlways(t *testing.T) {
+
 	errorTypes := []metal3api.ErrorType{metal3api.RegistrationError, metal3api.InspectionError, metal3api.ProvisioningError, metal3api.PowerManagementError}
 
 	b := &metal3api.BareMetalHost{}
@@ -2237,7 +2294,7 @@ func TestGetPreprovImageNoFormats(t *testing.T) {
 	assert.EqualError(t, err, "no acceptable formats for preprovisioning image")
 	assert.Nil(t, imgData)
 
-	assert.Error(t, r.Client.Get(context.TODO(), client.ObjectKey{
+	assert.Error(t, r.Client.Get(goctx.TODO(), client.ObjectKey{
 		Name:      host.Name,
 		Namespace: host.Namespace,
 	},
@@ -2259,7 +2316,7 @@ func TestGetPreprovImageCreateUpdate(t *testing.T) {
 	assert.Nil(t, imgData)
 
 	img := metal3api.PreprovisioningImage{}
-	assert.NoError(t, r.Client.Get(context.TODO(), client.ObjectKey{
+	assert.NoError(t, r.Client.Get(goctx.TODO(), client.ObjectKey{
 		Name:      host.Name,
 		Namespace: host.Namespace,
 	},
@@ -2276,7 +2333,7 @@ func TestGetPreprovImageCreateUpdate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, imgData)
 
-	assert.NoError(t, r.Client.Get(context.TODO(), client.ObjectKey{
+	assert.NoError(t, r.Client.Get(goctx.TODO(), client.ObjectKey{
 		Name:      host.Name,
 		Namespace: host.Namespace,
 	},
@@ -2643,8 +2700,9 @@ func TestPreprovImageAvailable(t *testing.T) {
 }
 
 // TestHostFirwmareSettings verifies that a change to the HFS
-// can be detected as it will be used to set state to Preparing.
+// can be detected as it will be used to set state to Preparing
 func TestHostFirmwareSettings(t *testing.T) {
+
 	testCases := []struct {
 		Scenario   string
 		Conditions []metav1.Condition
@@ -2683,7 +2741,7 @@ func TestHostFirmwareSettings(t *testing.T) {
 			i.request = newRequest(host)
 
 			hfs := newHostFirmwareSettings(host, tc.Conditions)
-			r.Create(context.TODO(), hfs)
+			r.Create(goctx.TODO(), hfs)
 
 			dirty, _, err := r.getHostFirmwareSettings(i)
 			if err != nil {
@@ -2692,6 +2750,7 @@ func TestHostFirmwareSettings(t *testing.T) {
 			assert.Equal(t, tc.Dirty, dirty, "dirty flag did not match")
 		})
 	}
+
 }
 
 func TestBMHTransitionToPreparing(t *testing.T) {
@@ -2715,7 +2774,7 @@ func TestBMHTransitionToPreparing(t *testing.T) {
 		SimultaneousMultithreadingEnabled: &True,
 	}
 
-	err := r.Update(context.TODO(), host)
+	err := r.Update(goctx.TODO(), host)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2736,7 +2795,7 @@ func TestHFSTransitionToPreparing(t *testing.T) {
 	hfs := &metal3api.HostFirmwareSettings{}
 	key := client.ObjectKey{
 		Namespace: host.ObjectMeta.Namespace, Name: host.ObjectMeta.Name}
-	if err := r.Get(context.TODO(), key, hfs); err != nil {
+	if err := r.Get(goctx.TODO(), key, hfs); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2751,14 +2810,14 @@ func TestHFSTransitionToPreparing(t *testing.T) {
 		},
 	}
 
-	r.Update(context.TODO(), hfs)
+	r.Update(goctx.TODO(), hfs)
 
 	waitForProvisioningState(t, r, host, metal3api.StatePreparing)
 }
 
 // TestHFSEmptyStatusSettings ensures that BMH does not move to the next state
 // when a user provides the BIOS settings on a hardware server that does not
-// have the required license to configure BIOS.
+// have the required license to configure BIOS
 func TestHFSEmptyStatusSettings(t *testing.T) {
 	host := newDefaultHost(t)
 	host.Spec.Online = true
@@ -2772,7 +2831,7 @@ func TestHFSEmptyStatusSettings(t *testing.T) {
 	hfs := &metal3api.HostFirmwareSettings{}
 	key := client.ObjectKey{
 		Namespace: host.ObjectMeta.Namespace, Name: host.ObjectMeta.Name}
-	if err := r.Get(context.TODO(), key, hfs); err != nil {
+	if err := r.Get(goctx.TODO(), key, hfs); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2783,7 +2842,7 @@ func TestHFSEmptyStatusSettings(t *testing.T) {
 		},
 	}
 
-	r.Update(context.TODO(), hfs)
+	r.Update(goctx.TODO(), hfs)
 
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
@@ -2799,7 +2858,7 @@ func TestHFSEmptyStatusSettings(t *testing.T) {
 		},
 	}
 
-	r.Update(context.TODO(), hfs)
+	r.Update(goctx.TODO(), hfs)
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			return host.Status.Provisioning.State == metal3api.StateAvailable

@@ -20,6 +20,7 @@ import (
 )
 
 func TestLabelSecrets(t *testing.T) {
+
 	testCases := []struct {
 		name     string
 		getter   func(hcd *hostConfigData) (string, error)
@@ -84,6 +85,7 @@ func TestLabelSecrets(t *testing.T) {
 			assert.Equal(t, "baremetal", actualSecret.Labels["environment.metal3.io"])
 		})
 	}
+
 }
 
 func TestProvisionWithHostConfig(t *testing.T) {

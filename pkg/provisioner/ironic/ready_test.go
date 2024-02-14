@@ -12,6 +12,7 @@ import (
 )
 
 func TestProvisionerIsReady(t *testing.T) {
+
 	cases := []struct {
 		name   string
 		ironic *testserver.IronicMock

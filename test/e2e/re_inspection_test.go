@@ -21,15 +21,26 @@ import (
 
 var _ = Describe("Re-Inspection", func() {
 	var (
-		specName      = "re-inspection"
-		secretName    = "bmc-credentials"
-		namespace     *corev1.Namespace
-		cancelWatches context.CancelFunc
+		specName         = "re-inspection"
+		secretName       = "bmc-credentials"
+		namespace        *corev1.Namespace
+		cancelWatches    context.CancelFunc
+		bmcUser          string
+		bmcPassword      string
+		bmcAddress       string
+		bootMacAddress   string
+		expectedHostName string
 	)
 	const (
 		wrongHostName = "wrongHostName"
 	)
 	BeforeEach(func() {
+		bmcUser = e2eConfig.GetVariable("BMC_USER")
+		bmcPassword = e2eConfig.GetVariable("BMC_PASSWORD")
+		bmcAddress = e2eConfig.GetVariable("BMC_ADDRESS")
+		bootMacAddress = e2eConfig.GetVariable("BOOT_MAC_ADDRESS")
+		expectedHostName = e2eConfig.GetVariable("EXPECTED_HOST_NAME")
+
 		namespace, cancelWatches = framework.CreateNamespaceAndWatchEvents(ctx, framework.CreateNamespaceAndWatchEventsInput{
 			Creator:   clusterProxy.GetClient(),
 			ClientSet: clusterProxy.GetClientSet(),
@@ -41,8 +52,8 @@ var _ = Describe("Re-Inspection", func() {
 	It("should re-inspect the annotated BMH", func() {
 		By("Creating a secret with BMH credentials")
 		bmcCredentialsData := map[string]string{
-			"username": bmc.User,
-			"password": bmc.Password,
+			"username": bmcUser,
+			"password": bmcPassword,
 		}
 		CreateSecret(ctx, clusterProxy.GetClient(), namespace.Name, secretName, bmcCredentialsData)
 
@@ -59,11 +70,11 @@ var _ = Describe("Re-Inspection", func() {
 			},
 			Spec: metal3api.BareMetalHostSpec{
 				BMC: metal3api.BMCDetails{
-					Address:         bmc.Address,
+					Address:         bmcAddress,
 					CredentialsName: "bmc-credentials",
 				},
 				BootMode:       metal3api.Legacy,
-				BootMACAddress: bmc.BootMacAddress,
+				BootMACAddress: bootMacAddress,
 			},
 		}
 		err := clusterProxy.GetClient().Create(ctx, &bmh)
@@ -104,7 +115,7 @@ var _ = Describe("Re-Inspection", func() {
 		By("checking that the hardware details are corrected after re-inspection")
 		key = types.NamespacedName{Namespace: bmh.Namespace, Name: bmh.Name}
 		Expect(clusterProxy.GetClient().Get(ctx, key, &bmh)).To(Succeed())
-		Expect(bmh.Status.HardwareDetails.Hostname).To(Equal(bmc.HostName))
+		Expect(bmh.Status.HardwareDetails.Hostname).To(Equal(expectedHostName))
 	})
 
 	AfterEach(func() {

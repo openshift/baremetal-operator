@@ -13,6 +13,7 @@ import (
 )
 
 func TestUpdateHardwareState(t *testing.T) {
+
 	nodeUUID := "33ce8659-7400-4c68-9535-d10766f07a58"
 
 	cases := []struct {
@@ -90,7 +91,7 @@ func TestUpdateHardwareState(t *testing.T) {
 			hostName: "worker-0",
 			ironic:   testserver.NewIronic(t).NoNode(nodeUUID).NodeError("myns"+nameSeparator+"myhost", http.StatusGatewayTimeout),
 
-			expectedError: "host not registered",
+			expectedError: "Host not registered",
 
 			expectUnreadablePower: true,
 		},
@@ -98,7 +99,7 @@ func TestUpdateHardwareState(t *testing.T) {
 			name:   "not-ironic-node",
 			ironic: testserver.NewIronic(t).NoNode(nodeUUID).NoNode("myns" + nameSeparator + "myhost").NoNode("myhost"),
 
-			expectedError: "host not registered",
+			expectedError: "Host not registered",
 
 			expectUnreadablePower: true,
 		},
@@ -139,6 +140,7 @@ func TestUpdateHardwareState(t *testing.T) {
 				assert.Error(t, err)
 				assert.Regexp(t, tc.expectedError, err.Error())
 			}
+
 		})
 	}
 }

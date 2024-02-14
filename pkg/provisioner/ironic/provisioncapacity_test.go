@@ -13,6 +13,7 @@ import (
 )
 
 func TestHasCapacity(t *testing.T) {
+
 	states := []nodes.ProvisionState{
 		nodes.Cleaning, nodes.CleanWait, nodes.Inspecting, nodes.InspectWait, nodes.Deploying, nodes.DeployWait,
 		nodes.Deleting,
@@ -78,6 +79,7 @@ func TestHasCapacity(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+
 			allNodes := []nodes.Node{}
 			for n, state := range tc.nodeStates {
 				allNodes = append(allNodes, nodes.Node{

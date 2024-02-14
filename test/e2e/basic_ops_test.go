@@ -19,16 +19,25 @@ import (
 
 var _ = Describe("basic", func() {
 	var (
-		specName      = "basic-ops"
-		secretName    = "bmc-credentials"
-		namespace     *corev1.Namespace
-		cancelWatches context.CancelFunc
+		specName       = "basic-ops"
+		secretName     = "bmc-credentials"
+		namespace      *corev1.Namespace
+		cancelWatches  context.CancelFunc
+		bmcUser        string
+		bmcPassword    string
+		bmcAddress     string
+		bootMacAddress string
 	)
 	const (
 		rebootAnnotation   = "reboot.metal3.io"
 		poweroffAnnotation = "reboot.metal3.io/poweroff"
 	)
 	BeforeEach(func() {
+		bmcUser = e2eConfig.GetVariable("BMC_USER")
+		bmcPassword = e2eConfig.GetVariable("BMC_PASSWORD")
+		bmcAddress = e2eConfig.GetVariable("BMC_ADDRESS")
+		bootMacAddress = e2eConfig.GetVariable("BOOT_MAC_ADDRESS")
+
 		namespace, cancelWatches = framework.CreateNamespaceAndWatchEvents(ctx, framework.CreateNamespaceAndWatchEventsInput{
 			Creator:   clusterProxy.GetClient(),
 			ClientSet: clusterProxy.GetClientSet(),
@@ -40,8 +49,8 @@ var _ = Describe("basic", func() {
 	It("should control power cycle of BMH though annotations", func() {
 		By("creating a secret with BMH credentials")
 		bmcCredentialsData := map[string]string{
-			"username": bmc.User,
-			"password": bmc.Password,
+			"username": bmcUser,
+			"password": bmcPassword,
 		}
 		CreateSecret(ctx, clusterProxy.GetClient(), namespace.Name, secretName, bmcCredentialsData)
 
@@ -57,11 +66,11 @@ var _ = Describe("basic", func() {
 			Spec: metal3api.BareMetalHostSpec{
 				Online: true,
 				BMC: metal3api.BMCDetails{
-					Address:         bmc.Address,
+					Address:         bmcAddress,
 					CredentialsName: "bmc-credentials",
 				},
 				BootMode:       metal3api.Legacy,
-				BootMACAddress: bmc.BootMacAddress,
+				BootMACAddress: bootMacAddress,
 			},
 		}
 		err := clusterProxy.GetClient().Create(ctx, &bmh)

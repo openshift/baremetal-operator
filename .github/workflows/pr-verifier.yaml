@@ -4,19 +4,16 @@ on:
   pull_request_target:
     types: [opened, edited, reopened, synchronize]
 
-permissions: {}
+permissions:
+  checks: write
 
 jobs:
   verify:
-    name: verify PR contents
     runs-on: ubuntu-latest
-
-    permissions:
-      checks: write
-
+    name: verify PR contents
     steps:
     - name: Verifier action
       id: verifier
-      uses: kubernetes-sigs/kubebuilder-release-tools@012269a88fa4c034a0acf1ba84c26b195c0dbab4 # v0.4.3
+      uses: kubernetes-sigs/kubebuilder-release-tools@3c3411345eedc489d1022288aa844691e92a9c29 # v0.4.2
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
