@@ -317,10 +317,9 @@ func TestCredentialStatusMatch(t *testing.T) {
 
 func TestGetImageChecksum(t *testing.T) {
 	for _, tc := range []struct {
-		Scenario     string
-		Host         BareMetalHost
-		Expected     bool
-		ExpectedType string
+		Scenario string
+		Host     BareMetalHost
+		Expected bool
 	}{
 		{
 			Scenario: "both checksum value and type specified",
@@ -336,8 +335,7 @@ func TestGetImageChecksum(t *testing.T) {
 					},
 				},
 			},
-			Expected:     true,
-			ExpectedType: "md5",
+			Expected: true,
 		},
 		{
 			Scenario: "checksum value specified but not type",
@@ -352,25 +350,7 @@ func TestGetImageChecksum(t *testing.T) {
 					},
 				},
 			},
-			Expected:     true,
-			ExpectedType: "md5",
-		},
-		{
-			Scenario: "checksum value specified, auto type",
-			Host: BareMetalHost{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "myhost",
-					Namespace: "myns",
-				},
-				Spec: BareMetalHostSpec{
-					Image: &Image{
-						Checksum:     "md5hash",
-						ChecksumType: AutoChecksum,
-					},
-				},
-			},
-			Expected:     true,
-			ExpectedType: "",
+			Expected: true,
 		},
 		{
 			Scenario: "sha256 checksum value and type specified",
@@ -386,8 +366,7 @@ func TestGetImageChecksum(t *testing.T) {
 					},
 				},
 			},
-			Expected:     true,
-			ExpectedType: "sha256",
+			Expected: true,
 		},
 		{
 			Scenario: "sha512 checksum value and type specified",
@@ -403,8 +382,7 @@ func TestGetImageChecksum(t *testing.T) {
 					},
 				},
 			},
-			Expected:     true,
-			ExpectedType: "sha512",
+			Expected: true,
 		},
 		{
 			Scenario: "checksum value not specified",
@@ -465,10 +443,9 @@ func TestGetImageChecksum(t *testing.T) {
 		},
 	} {
 		t.Run(tc.Scenario, func(t *testing.T) {
-			_, checksumType, actual := tc.Host.Spec.Image.GetChecksum()
-			assert.Equal(t, tc.Expected, actual)
-			if tc.Expected {
-				assert.Equal(t, tc.ExpectedType, checksumType)
+			_, _, actual := tc.Host.Spec.Image.GetChecksum()
+			if actual != tc.Expected {
+				t.Errorf("expected %v but got %v", tc.Expected, actual)
 			}
 		})
 	}

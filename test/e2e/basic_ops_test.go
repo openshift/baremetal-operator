@@ -48,11 +48,7 @@ var _ = Describe("basic", func() {
 
 	It("should control power cycle of BMH though annotations", func() {
 		By("creating a secret with BMH credentials")
-		bmcCredentialsData := map[string]string{
-			"username": bmcUser,
-			"password": bmcPassword,
-		}
-		CreateSecret(ctx, clusterProxy.GetClient(), namespace.Name, secretName, bmcCredentialsData)
+		CreateBMHCredentialsSecret(ctx, clusterProxy.GetClient(), namespace.Name, secretName, bmcUser, bmcPassword)
 
 		By("creating a BMH")
 		bmh := metal3api.BareMetalHost{

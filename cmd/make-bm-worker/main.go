@@ -62,9 +62,9 @@ func main() {
 	}
 
 	switch *imageChecksumType {
-	case "", "md5", "sha256", "sha512", "auto":
+	case "", "md5", "sha256", "sha512":
 	default:
-		fmt.Fprintf(os.Stderr, "Invalid image checksum type %q, use \"md5\", \"sha256\", \"sha512\" or \"auto\"\n", *imageChecksumType)
+		fmt.Fprintf(os.Stderr, "Invalid image checksum type %q, use \"md5\", \"sha256\" or \"sha512\"\n", *imageChecksumType)
 		os.Exit(1)
 	}
 

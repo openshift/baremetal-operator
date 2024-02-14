@@ -965,21 +965,26 @@ func (p *ironicProvisioner) setDirectDeployUpdateOptsForNode(ironicNode *nodes.N
 		return
 	}
 
-	optValues := optionsData{
-		// Remove any boot_iso field
-		"boot_iso":          nil,
-		"image_source":      imageData.URL,
-		"image_disk_format": imageData.DiskFormat,
+	// FIXME: For older versions of ironic that do not have
+	// https://review.opendev.org/#/c/711816/ failing to include the
+	// 'image_checksum' causes ironic to refuse to provision the
+	// image, even if the other hash value parameters are given. We
+	// only want to do that for MD5, however, because those versions
+	// of ironic only support MD5 checksums.
+	var legacyChecksum *string
+	if checksumType == string(metal3api.MD5) {
+		legacyChecksum = &checksum
 	}
 
-	if checksumType == "" {
-		optValues["image_checksum"] = checksum
-		optValues["image_os_hash_algo"] = nil
-		optValues["image_os_hash_value"] = nil
-	} else {
-		optValues["image_checksum"] = nil
-		optValues["image_os_hash_algo"] = checksumType
-		optValues["image_os_hash_value"] = checksum
+	optValues := optionsData{
+		// Remove any boot_iso field
+		"boot_iso": nil,
+
+		"image_source":        imageData.URL,
+		"image_os_hash_algo":  checksumType,
+		"image_os_hash_value": checksum,
+		"image_checksum":      legacyChecksum,
+		"image_disk_format":   imageData.DiskFormat,
 	}
 	updater.
 		SetInstanceInfoOpts(optValues, ironicNode)
@@ -1277,24 +1282,15 @@ func (p *ironicProvisioner) ironicHasSameImage(ironicNode *nodes.Node, image met
 			"provisionState", ironicNode.ProvisionState)
 	} else {
 		checksum, checksumType, _ := image.GetChecksum()
-		if checksumType == "" {
-			sameImage = (ironicNode.InstanceInfo["image_source"] == image.URL &&
-				ironicNode.InstanceInfo["image_checksum"] == checksum &&
-				ironicNode.InstanceInfo["image_os_hash_algo"] == nil &&
-				ironicNode.InstanceInfo["image_os_hash_value"] == nil)
-		} else {
-			sameImage = (ironicNode.InstanceInfo["image_source"] == image.URL &&
-				ironicNode.InstanceInfo["image_checksum"] == nil &&
-				ironicNode.InstanceInfo["image_os_hash_algo"] == checksumType &&
-				ironicNode.InstanceInfo["image_os_hash_value"] == checksum)
-		}
+		sameImage = (ironicNode.InstanceInfo["image_source"] == image.URL &&
+			ironicNode.InstanceInfo["image_os_hash_algo"] == checksumType &&
+			ironicNode.InstanceInfo["image_os_hash_value"] == checksum)
 		p.log.Info("checking image settings",
 			"source", ironicNode.InstanceInfo["image_source"],
-			"checksumType", checksumType,
-			"checksum", checksum,
+			"image_os_hash_algo", checksumType,
+			"image_os_has_value", checksum,
 			"same", sameImage,
-			"provisionState", ironicNode.ProvisionState,
-			"iinfo", ironicNode.InstanceInfo)
+			"provisionState", ironicNode.ProvisionState)
 	}
 	return sameImage
 }
