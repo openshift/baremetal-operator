@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -151,24 +152,24 @@ func (r *HostFirmwareComponentsReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{Requeue: true, RequeueAfter: provisionerRetryDelay}, nil
 	}
 
-	newStatus, err := r.updateHostFirmware(info)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("could not update hostfirmwarecomponents: %w", err)
-	}
-
+	info.log.Info("retrieving firmware components and saving to resource", "Node", bmh.Status.Provisioning.ID)
 	// Check ironic for the components information if possible
 	components, err := prov.GetFirmwareComponents()
-	info.log.Info("retrieving firmware components and saving to resource", "Node", bmh.Status.Provisioning.ID)
 
 	if err != nil {
-		reqLogger.Error(err, "provisioner returns error", "RequeueAfter", provisionerRetryDelay)
-		setUpdatesCondition(info.hfc.GetGeneration(), &newStatus, info, metal3api.HostFirmwareComponentsValid, metav1.ConditionFalse, reasonInvalidComponent, err.Error())
+		if errors.Is(err, provisioner.ErrFirmwareUpdateUnsupported) {
+			return ctrl.Result{Requeue: false}, err
+		}
+		reqLogger.Info("provisioner returns error", "Error", err.Error(), "RequeueAfter", provisionerRetryDelay)
 		return ctrl.Result{Requeue: true, RequeueAfter: provisionerRetryDelay}, err
 	}
 
-	if err = r.updateHostFirmwareComponents(newStatus, components, info); err != nil {
-		return ctrl.Result{Requeue: false}, err
+	info.log.Info("updateHostFirmware function called")
+	if err = r.updateHostFirmware(info, components); err != nil {
+		info.log.Info("updateHostFirmware returned error")
+		return ctrl.Result{}, fmt.Errorf("could not update hostfirmwarecomponents: %w", err)
 	}
+	info.log.Info("updateHostFirmware exited")
 
 	for _, e := range info.events {
 		r.publishEvent(info.ctx, req, e)
@@ -181,20 +182,28 @@ func (r *HostFirmwareComponentsReconciler) Reconcile(ctx context.Context, req ct
 }
 
 // Update the HostFirmwareComponents resource using the components from provisioner.
-func (r *HostFirmwareComponentsReconciler) updateHostFirmware(info *rhfcInfo) (newStatus metal3api.HostFirmwareComponentsStatus, err error) {
+func (r *HostFirmwareComponentsReconciler) updateHostFirmware(info *rhfcInfo, components []metal3api.FirmwareComponentStatus) (err error) {
 	dirty := false
-
+	var newStatus metal3api.HostFirmwareComponentsStatus
 	// change the Updates in Status
 	newStatus.Updates = info.hfc.Spec.Updates
+	// change the Components in Status
+	newStatus.Components = components
 
 	// Check if the updates in the Spec are different than Status
 	updatesMismatch := !reflect.DeepEqual(info.hfc.Status.Updates, info.hfc.Spec.Updates)
+
+	if len(info.hfc.Spec.Updates) == 0 && len(info.hfc.Status.Updates) == 0 {
+		updatesMismatch = false
+	}
 
 	reason := reasonValidComponent
 	generation := info.hfc.GetGeneration()
 
 	if updatesMismatch {
+		info.log.Info("updateHostFirmware updatesMismatch True")
 		if setUpdatesCondition(generation, &newStatus, info, metal3api.HostFirmwareComponentsChangeDetected, metav1.ConditionTrue, reason, "") {
+			info.log.Info("updateHostFirmware updatesMismatch True - HostFirmwareComponentsChangeDetected Condition True")
 			dirty = true
 		}
 
@@ -203,49 +212,28 @@ func (r *HostFirmwareComponentsReconciler) updateHostFirmware(info *rhfcInfo) (n
 			info.publishEvent("ValidationFailed", fmt.Sprintf("Invalid Firmware Components: %s", err))
 			reason = reasonInvalidComponent
 			if setUpdatesCondition(generation, &newStatus, info, metal3api.HostFirmwareComponentsValid, metav1.ConditionFalse, reason, fmt.Sprintf("Invalid Firmware Components: %s", err)) {
+				info.log.Info("updateHostFirmware updatesMismatch True + Validation Failed - HostFirmwareComponentsValid Condition False")
 				dirty = true
 			}
 		} else if setUpdatesCondition(generation, &newStatus, info, metal3api.HostFirmwareComponentsValid, metav1.ConditionTrue, reason, "") {
+			info.log.Info("updateHostFirmware updatesMismatch True + Validation Failed - HostFirmwareComponentsValid Condition True")
 			dirty = true
 		}
 	} else {
+		info.log.Info("updatesMismatch False")
 		if setUpdatesCondition(generation, &newStatus, info, metal3api.HostFirmwareComponentsValid, metav1.ConditionTrue, reason, "") {
+			info.log.Info("updateHostFirmware updatesMismatch False - HostFirmwareComponentsValid Condition True")
 			dirty = true
 		}
 		if setUpdatesCondition(generation, &newStatus, info, metal3api.HostFirmwareComponentsChangeDetected, metav1.ConditionFalse, reason, "") {
+			info.log.Info("updateHostFirmware updatesMismatch False - HostFirmwareComponentsChangeDetected Condition False")
 			dirty = true
 		}
 	}
 
 	// Update Status if has changed
 	if dirty {
-		info.log.Info("Status for HostFirmwareComponents changed")
-		info.hfc.Status = *newStatus.DeepCopy()
-
-		t := metav1.Now()
-		info.hfc.Status.LastUpdated = &t
-		return newStatus, r.Status().Update(info.ctx, info.hfc)
-	}
-	return newStatus, nil
-}
-
-// Update the HostFirmwareComponents resource using the components from provisioner.
-func (r *HostFirmwareComponentsReconciler) updateHostFirmwareComponents(newStatus metal3api.HostFirmwareComponentsStatus, components []metal3api.FirmwareComponentStatus, info *rhfcInfo) (err error) {
-	dirty := false
-	// change the Components in Status
-	newStatus.Components = components
-	// Check if the components information we retrieved is different from the one in Status
-	componentsInfoMismatch := !reflect.DeepEqual(components, info.hfc.Status.Components)
-	reason := reasonValidComponent
-	generation := info.hfc.GetGeneration()
-	// Log the components we have
-	info.log.Info("firmware components for node", "components", components, "bmh", info.bmh.Name)
-	if componentsInfoMismatch {
-		setUpdatesCondition(generation, &newStatus, info, metal3api.HostFirmwareComponentsChangeDetected, metav1.ConditionTrue, reason, "")
-		dirty = true
-	}
-	if dirty {
-		info.log.Info("Components Status for HostFirmwareComponents changed")
+		info.log.Info("updateHostFirmware Status for HostFirmwareComponents changed ")
 		info.hfc.Status = *newStatus.DeepCopy()
 
 		t := metav1.Now()
