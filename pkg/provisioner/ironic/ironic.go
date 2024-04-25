@@ -461,7 +461,8 @@ func (p *ironicProvisioner) ValidateManagementAccess(data provisioner.Management
 		// target provision state to manageable, which happens
 		// below.
 	}
-	if data.CurrentImage != nil || data.HasCustomDeploy {
+	// NOTE(dtantsur): It is risky to update image information for active nodes since it may affect the ability to clean up.
+	if (data.CurrentImage != nil || data.HasCustomDeploy) && ironicNode.ProvisionState != string(nodes.Active) {
 		p.getImageUpdateOptsForNode(ironicNode, data.CurrentImage, data.BootMode, data.HasCustomDeploy, updater)
 	}
 	updater.SetTopLevelOpt("automated_clean",

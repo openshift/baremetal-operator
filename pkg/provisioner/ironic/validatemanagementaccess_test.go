@@ -348,6 +348,8 @@ func TestValidateManagementAccessExistingSteadyStateNoUpdate(t *testing.T) {
 		Image           *metal3v1alpha1.Image
 		InstanceInfo    map[string]interface{}
 		DriverInfo      map[string]interface{}
+		ProvisionState  string
+		HasCustomDeploy bool
 	}{
 		{
 			DeployInterface: "",
@@ -405,6 +407,47 @@ func TestValidateManagementAccessExistingSteadyStateNoUpdate(t *testing.T) {
 				"test_port":                    "42",
 			},
 		},
+		{
+			DeployInterface: "custom-agent",
+			HasCustomDeploy: true,
+			InstanceInfo: map[string]interface{}{
+				"capabilities": map[string]interface{}{},
+			},
+			DriverInfo: map[string]interface{}{
+				"force_persistent_boot_device": "Default",
+				"deploy_kernel":                "http://deploy.test/ipa.kernel",
+				"deploy_ramdisk":               "http://deploy.test/ipa.initramfs",
+				"test_address":                 "test.bmc",
+				"test_username":                "",
+				"test_password":                "******", // ironic returns a placeholder
+				"test_port":                    "42",
+			},
+		},
+		// NOTE(dtantsur): This is a corner case. If the node is active, do not change any instance information until it's deprovisioned.
+		// Otherwise, clean up may not work correctly (and updates to deploy_interface will be rejected anyway).
+		{
+			ProvisionState: string(nodes.Active),
+			Image: &metal3v1alpha1.Image{
+				URL:        "theimage",
+				DiskFormat: &liveFormat,
+			},
+			InstanceInfo: map[string]interface{}{
+				"image_source":        "theimage",
+				"image_os_hash_algo":  "md5",
+				"image_os_hash_value": "thechecksum",
+				"image_checksum":      "thechecksum",
+				"capabilities":        map[string]interface{}{},
+			},
+			DriverInfo: map[string]interface{}{
+				"force_persistent_boot_device": "Default",
+				"deploy_kernel":                "http://deploy.test/ipa.kernel",
+				"deploy_ramdisk":               "http://deploy.test/ipa.initramfs",
+				"test_address":                 "test.bmc",
+				"test_username":                "",
+				"test_password":                "******", // ironic returns a placeholder
+				"test_port":                    "42",
+			},
+		},
 	}
 	clean := true
 
@@ -419,11 +462,14 @@ func TestValidateManagementAccessExistingSteadyStateNoUpdate(t *testing.T) {
 			createCallback := func(node nodes.Node) {
 				t.Fatal("create callback should not be invoked for existing node")
 			}
-
+			provisionState := imageType.ProvisionState
+			if provisionState == "" {
+				provisionState = string(nodes.Manageable)
+			}
 			ironic := testserver.NewIronic(t).Ready().CreateNodes(createCallback).Node(nodes.Node{
 				Name:            host.Namespace + nameSeparator + host.Name,
 				UUID:            "uuid", // to match status in host
-				ProvisionState:  string(nodes.Manageable),
+				ProvisionState:  provisionState,
 				AutomatedClean:  &clean,
 				InstanceUUID:    string(host.UID),
 				DeployInterface: imageType.DeployInterface,
@@ -443,7 +489,8 @@ func TestValidateManagementAccessExistingSteadyStateNoUpdate(t *testing.T) {
 				t.Fatalf("could not create provisioner: %s", err)
 			}
 
-			result, _, err := prov.ValidateManagementAccess(provisioner.ManagementAccessData{CurrentImage: imageType.Image}, false, false)
+			data := provisioner.ManagementAccessData{CurrentImage: imageType.Image, HasCustomDeploy: imageType.HasCustomDeploy}
+			result, _, err := prov.ValidateManagementAccess(data, false, false)
 			if err != nil {
 				t.Fatalf("error from ValidateManagementAccess: %s", err)
 			}
