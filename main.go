@@ -23,6 +23,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
@@ -127,6 +128,9 @@ func main() {
 	var restConfigQPS float64
 	var restConfigBurst int
 	var controllerConcurrency int
+	var leaseDurationSeconds string
+	var renewDeadlineSeconds string
+	var retryPeriodSeconds string
 
 	// From CAPI point of view, BMO should be able to watch all namespaces
 	// in case of a deployment that is not multi-tenant. If the deployment
@@ -170,6 +174,11 @@ func main() {
 			"Insecure values: "+strings.Join(tlsCipherInsecureValues, ", ")+".")
 	flag.IntVar(&controllerConcurrency, "controller-concurrency", 0,
 		"Number of CRs of each type to process simultaneously")
+
+	flag.StringVar(&leaseDurationSeconds, "lease-duration-seconds", os.Getenv("LEASE_DURATION_SECONDS"), "Leader election duration in seconds.")
+	flag.StringVar(&renewDeadlineSeconds, "renew-deadline-seconds", os.Getenv("RENEW_DEADLINE_SECONDS"), "Leader election renew deadline duration in seconds.")
+	flag.StringVar(&retryPeriodSeconds, "retry-period-seconds", os.Getenv("RETRY_PERIOD_SECONDS"), "Leader election retry period in seconds.")
+
 	flag.Parse()
 
 	logOpts := zap.Options{}
@@ -212,14 +221,47 @@ func main() {
 			Port:    webhookPort,
 			TLSOpts: tlsOptionOverrides,
 		}),
-		LeaderElection:          enableLeaderElection,
-		LeaderElectionID:        leaderElectionID,
-		LeaderElectionNamespace: leaderElectionNamespace,
-		HealthProbeBindAddress:  healthAddr,
+		LeaderElection:                enableLeaderElection,
+		LeaderElectionID:              leaderElectionID,
+		LeaderElectionNamespace:       leaderElectionNamespace,
+		LeaderElectionReleaseOnCancel: true,
+		HealthProbeBindAddress:        healthAddr,
 		Cache: cache.Options{
 			ByObject:          secretutils.AddSecretSelector(nil),
 			DefaultNamespaces: watchNamespaces,
 		},
+	}
+
+	if leaseDurationSeconds != "" {
+		seconds, err := strconv.ParseInt(leaseDurationSeconds, 10, 16)
+		if err != nil {
+			setupLog.Error(err, "failed to parse duration")
+			os.Exit(1)
+		}
+
+		duration := time.Second * time.Duration(seconds)
+		ctrlOpts.LeaseDuration = &duration
+	}
+
+	if renewDeadlineSeconds != "" {
+		seconds, err := strconv.ParseInt(renewDeadlineSeconds, 10, 16)
+		if err != nil {
+			setupLog.Error(err, "failed to parse duration")
+			os.Exit(1)
+		}
+
+		duration := time.Second * time.Duration(seconds)
+		ctrlOpts.RenewDeadline = &duration
+	}
+
+	if retryPeriodSeconds != "" {
+		seconds, err := strconv.ParseInt(retryPeriodSeconds, 10, 16)
+		if err != nil {
+			setupLog.Error(err, "failed to parse duration")
+			os.Exit(1)
+		}
+		duration := time.Second * time.Duration(seconds)
+		ctrlOpts.RetryPeriod = &duration
 	}
 
 	mgr, err := ctrl.NewManager(restConfig, ctrlOpts)
