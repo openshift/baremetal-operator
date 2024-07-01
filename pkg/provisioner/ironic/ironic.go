@@ -1248,10 +1248,18 @@ func (p *ironicProvisioner) buildManualCleaningSteps(bmcAccess bmc.AccessDetails
 	}
 
 	// extract to generate the updates that will trigger a clean step
-	newUpdates := make(map[string]string)
+	// the format we send to ironic is:
+	// [{"component":"...", "url":"..."}, {"component":"...","url":".."}]
+	var newUpdates []map[string]string
+	p.log.Info("Evaluating TargetFirmwareComponents in data")
 	if data.TargetFirmwareComponents != nil {
 		for _, update := range data.TargetFirmwareComponents {
-			newUpdates[update.Component] = update.URL
+			newComponentUpdate := map[string]string{
+				"component": update.Component,
+				"url":       update.URL,
+			}
+			newUpdates = append(newUpdates, newComponentUpdate)
+			p.log.Info("Added TargetFirmwareComponents data to newUpdates")
 		}
 	}
 

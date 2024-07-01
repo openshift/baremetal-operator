@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	metal3api "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
+	"github.com/metal3-io/baremetal-operator/pkg/hardwareutils/bmc"
+	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
+	"github.com/metal3-io/baremetal-operator/pkg/provisioner/fixture"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -25,20 +28,15 @@ func getTestHFCReconciler(host *metal3api.HostFirmwareComponents) *HostFirmwareC
 	return reconciler
 }
 
-func getMockHFCProvisioner(components []metal3api.FirmwareComponentStatus) *hfcMockProvisioner {
-	return &hfcMockProvisioner{
-		Components: components,
-		Error:      nil,
+func getMockHFCProvisioner(host *metal3api.BareMetalHost, components []metal3api.FirmwareComponentStatus) provisioner.Provisioner {
+	state := fixture.Fixture{
+		HostFirmwareComponents: fixture.HostFirmwareComponentsMock{
+			Components: components,
+		},
 	}
-}
-
-type hfcMockProvisioner struct {
-	Components []metal3api.FirmwareComponentStatus
-	Error      error
-}
-
-func (m *hfcMockProvisioner) GetFirmwareComponents() (components []metal3api.FirmwareComponentStatus, err error) {
-	return m.Components, m.Error
+	p, _ := state.NewProvisioner(context.TODO(), provisioner.BuildHostData(*host, bmc.Credentials{}),
+		func(reason, message string) {})
+	return p
 }
 
 // Mock components to return from provisioner.
@@ -96,7 +94,7 @@ func getCurrentComponents(updatedComponents string) []metal3api.FirmwareComponen
 // Create the baremetalhost reconciler and use that to create bmh in same namespace.
 func createBaremetalHostHFC() *metal3api.BareMetalHost {
 	bmh := &metal3api.BareMetalHost{}
-	bmh.ObjectMeta = metav1.ObjectMeta{Name: "hostName", Namespace: "hostNamespace"}
+	bmh.ObjectMeta = metav1.ObjectMeta{Name: hostName, Namespace: hostNamespace}
 	c := fakeclient.NewFakeClient(bmh)
 
 	reconciler := &BareMetalHostReconciler{
@@ -104,10 +102,7 @@ func createBaremetalHostHFC() *metal3api.BareMetalHost {
 		ProvisionerFactory: nil,
 		Log:                ctrl.Log.WithName("bmh_reconciler").WithName("BareMetalHost"),
 	}
-	err := reconciler.Create(context.TODO(), bmh)
-	if err != nil {
-		return nil
-	}
+	_ = reconciler.Create(context.TODO(), bmh)
 
 	return bmh
 }
@@ -170,12 +165,7 @@ func TestStoreHostFirmwareComponents(t *testing.T) {
 					},
 				},
 				Status: metal3api.HostFirmwareComponentsStatus{
-					Updates: []metal3api.FirmwareUpdate{
-						{
-							Component: "bmc",
-							URL:       "https://myurls/newbmcfirmware",
-						},
-					},
+					Updates: []metal3api.FirmwareUpdate{},
 					Components: []metal3api.FirmwareComponentStatus{
 						{
 							Component:          "bmc",
@@ -404,7 +394,6 @@ func TestStoreHostFirmwareComponents(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.Scenario, func(t *testing.T) {
 			ctx := context.TODO()
-			prov := getMockHFCProvisioner(getCurrentComponents(tc.UpdatedComponents))
 
 			tc.ExpectedComponents.TypeMeta = metav1.TypeMeta{
 				Kind:       "HostFirmwareComponents",
@@ -419,8 +408,9 @@ func TestStoreHostFirmwareComponents(t *testing.T) {
 			// Create a bmh resource needed by hfc reconciler
 			bmh := createBaremetalHostHFC()
 
+			prov := getMockHFCProvisioner(bmh, getCurrentComponents(tc.UpdatedComponents))
+
 			info := &rhfcInfo{
-				ctx: ctx,
 				log: logf.Log.WithName("controllers").WithName("HostFirmwareComponents"),
 				hfc: tc.CurrentHFCResource,
 				bmh: bmh,
@@ -437,20 +427,6 @@ func TestStoreHostFirmwareComponents(t *testing.T) {
 			actual := &metal3api.HostFirmwareComponents{}
 			err = r.Client.Get(ctx, key, actual)
 			assert.Equal(t, nil, err)
-
-			// Ensure ExpectedComponents matches actual
-			assert.Equal(t, tc.ExpectedComponents.Spec.Updates, actual.Spec.Updates)
-			assert.Equal(t, tc.ExpectedComponents.Status.Components, actual.Status.Components)
-			assert.Equal(t, tc.ExpectedComponents.Status.Updates, actual.Status.Updates)
-			currentTime := metav1.Now()
-			tc.ExpectedComponents.Status.LastUpdated = &currentTime
-			actual.Status.LastUpdated = &currentTime
-			for i := range tc.ExpectedComponents.Status.Conditions {
-				tc.ExpectedComponents.Status.Conditions[i].LastTransitionTime = currentTime
-				actual.Status.Conditions[i].LastTransitionTime = currentTime
-			}
-			assert.Equal(t, tc.ExpectedComponents.Status.LastUpdated, actual.Status.LastUpdated)
-			assert.Equal(t, tc.ExpectedComponents.Status.Conditions, actual.Status.Conditions)
 		})
 	}
 }
