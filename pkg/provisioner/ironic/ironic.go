@@ -761,6 +761,13 @@ func (p *ironicProvisioner) tryChangeNodeProvisionState(ironicNode *nodes.Node, 
 		result, err = retryAfterDelay(provisionRequeueDelay)
 		return success, result, err
 	}
+
+	if ironicNode.ProvisionState == string(nodes.Manageable) && opts.Target == nodes.TargetProvide && ironicNode.DriverInternalInfo["agent_secret_token"] == nil {
+		p.log.Info("node agent hasn't called back, will retry", "reason", "awaiting agent lookup")
+		result, err = retryAfterDelay(provisionRequeueDelay)
+		return success, result, err
+	}
+
 	if ironicNode.Maintenance {
 		p.log.Info("trying to change a provision state for a node in maintenance, removing maintenance first", "reason", ironicNode.MaintenanceReason)
 		result, err = p.setMaintenanceFlag(ironicNode, false, "")
