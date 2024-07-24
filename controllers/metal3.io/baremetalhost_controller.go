@@ -1161,6 +1161,10 @@ func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, 
 			info.log.Info("handling cleaning error in controller")
 			clearHostProvisioningSettings(info.host)
 		}
+		if hfcDirty {
+			info.log.Info("handling cleaning error during firmware update")
+			clearHostFirmwareComponentsUpdates(hfc)
+		}
 		return recordActionFailure(info, metal3api.PreparationError, provResult.ErrorMessage)
 	}
 
@@ -1285,6 +1289,11 @@ func clearHostProvisioningSettings(host *metal3api.BareMetalHost) {
 		host.Status.Provisioning.RAID.SoftwareRAIDVolumes = nil
 	}
 	host.Status.Provisioning.Firmware = nil
+}
+
+// clearHostFirmwareComponentsUpdates removes the values related to Updates from status.
+func clearHostFirmwareComponentsUpdates(hfc *metal3api.HostFirmwareComponents) {
+	hfc.Status.Updates = nil
 }
 
 func (r *BareMetalHostReconciler) actionDeprovisioning(prov provisioner.Provisioner, info *reconcileInfo) actionResult {
@@ -1764,9 +1773,7 @@ func (r *BareMetalHostReconciler) saveHostFirmwareComponents(prov provisioner.Pr
 	info.log.Info("saving hostFirmwareComponents information", "spec updates", hfc.Spec.Updates, "status updates", hfc.Status.Updates)
 
 	hfc.Status.Updates = make([]metal3api.FirmwareUpdate, len(hfc.Spec.Updates))
-	for i := range hfc.Spec.Updates {
-		hfc.Spec.Updates[i].DeepCopyInto(&hfc.Status.Updates[i])
-	}
+	hfc.Status.Updates = hfc.Spec.Updates
 
 	// Retrieve new information about the firmware components stored in ironic
 	components, err := prov.GetFirmwareComponents()
@@ -1902,8 +1909,8 @@ func (r *BareMetalHostReconciler) getHostFirmwareComponents(info *reconcileInfo)
 		return false, nil, nil
 	}
 
-	// Check if there are Updates in the Spec that are different than the Status
-	if meta.IsStatusConditionTrue(hfc.Status.Conditions, string(metal3api.HostFirmwareComponentsChangeDetected)) {
+	// Check if the condition matches the current Generation to know if the data is not out of date.
+	if readyCond := meta.FindStatusCondition(hfc.Status.Conditions, string(metal3api.HostFirmwareComponentsChangeDetected)); readyCond != nil && readyCond.Status == metav1.ConditionTrue && readyCond.ObservedGeneration == hfc.Generation {
 		if meta.IsStatusConditionTrue(hfc.Status.Conditions, string(metal3api.HostFirmwareComponentsValid)) {
 			info.log.Info("hostFirmwareComponents indicating ChangeDetected", "namespacename", info.request.NamespacedName)
 			return true, hfc, nil
