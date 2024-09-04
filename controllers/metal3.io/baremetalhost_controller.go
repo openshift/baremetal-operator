@@ -807,14 +807,17 @@ func (r *BareMetalHostReconciler) registerHost(prov provisioner.Provisioner, inf
 		return actionError{err}
 	}
 
+	openShiftNoAgentPowerOff := info.host.Annotations["baremetal.openshift.io/disable-agent-power-off"] == "true"
+
 	provResult, provID, err := prov.ValidateManagementAccess(
 		provisioner.ManagementAccessData{
-			BootMode:              info.host.Status.Provisioning.BootMode,
-			AutomatedCleaningMode: info.host.Spec.AutomatedCleaningMode,
-			State:                 info.host.Status.Provisioning.State,
-			CurrentImage:          getCurrentImage(info.host),
-			PreprovisioningImage:  preprovImg,
-			HasCustomDeploy:       hasCustomDeploy(info.host),
+			BootMode:                 info.host.Status.Provisioning.BootMode,
+			AutomatedCleaningMode:    info.host.Spec.AutomatedCleaningMode,
+			State:                    info.host.Status.Provisioning.State,
+			CurrentImage:             getCurrentImage(info.host),
+			PreprovisioningImage:     preprovImg,
+			HasCustomDeploy:          hasCustomDeploy(info.host),
+			OpenShiftNoAgentPowerOff: openShiftNoAgentPowerOff,
 		},
 		credsChanged,
 		info.host.Status.ErrorType == metal3api.RegistrationError)
