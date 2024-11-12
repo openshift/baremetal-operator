@@ -1376,6 +1376,8 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 
 	var fwDirty bool
 	var hfsDirty bool
+	var hfcDirty bool
+	var hfc *metal3api.HostFirmwareComponents
 	var liveFirmwareSettingsAllowed bool
 
 	if hup != nil {
@@ -1399,9 +1401,17 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 			servicingData.ActualFirmwareSettings = hfs.Status.Settings
 			servicingData.TargetFirmwareSettings = hfs.Spec.Settings
 		}
+
+		hfcDirty, hfc, err = r.getHostFirmwareComponents(info)
+		if err != nil {
+			return actionError{fmt.Errorf("could not determine firmware components: %w", err)}
+		}
+		if hfcDirty {
+			servicingData.TargetFirmwareComponents = hfc.Spec.Updates
+		}
 	}
 
-	hasChanges := fwDirty || hfsDirty
+	hasChanges := fwDirty || hfsDirty || hfcDirty
 
 	// Even if settings are clean, we need to check the result of the current servicing.
 	if !hasChanges && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing && info.host.Status.ErrorType != metal3api.ServicingError {
@@ -1425,6 +1435,9 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 	}
 	if provResult.ErrorMessage != "" {
 		info.host.Status.Provisioning.Firmware = nil
+		if hfcDirty {
+			hfc.Status.Updates = nil
+		}
 		result = recordActionFailure(info, metal3api.ServicingError, provResult.ErrorMessage)
 		return result
 	}
@@ -1433,6 +1446,21 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 
 	if started && fwDirty {
 		info.host.Status.Provisioning.Firmware = info.host.Spec.Firmware.DeepCopy()
+		dirty = true
+	}
+
+	if hfcDirty && started {
+		hfcStillDirty, err := r.saveHostFirmwareComponents(prov, info, hfc)
+		if err != nil {
+			return actionError{errors.Wrap(err, "could not save the host firmware components")}
+		}
+
+		if hfcStillDirty {
+			info.log.Info("going to update the host firmware components")
+			if err := r.Status().Update(info.ctx, hfc); err != nil {
+				return actionError{errors.Wrap(err, "failed to update hostfirmwarecomponents status")}
+			}
+		}
 		dirty = true
 	}
 
