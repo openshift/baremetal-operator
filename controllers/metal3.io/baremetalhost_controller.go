@@ -137,7 +137,21 @@ func (r *BareMetalHostReconciler) Reconcile(ctx context.Context, request ctrl.Re
 		}
 	}
 
-	hostData, err := r.reconciletHostData(ctx, host, request)
+	// If DataImage exists, add its ownerReference
+	dataImage := &metal3api.DataImage{}
+	err = r.Get(ctx, request.NamespacedName, dataImage)
+	if !(err != nil || ownerReferenceExists(host, dataImage)) {
+		if err := controllerutil.SetControllerReference(host, dataImage, r.Scheme()); err != nil {
+			return ctrl.Result{}, fmt.Errorf("could not set bmh as controller, %w", err)
+		}
+		if err := r.Update(ctx, dataImage); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failure updating dataImage status, %w", err)
+		}
+
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	hostData, err := r.reconcileHostData(ctx, host, request)
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "Could not reconcile host data")
 	} else if hostData.Requeue {
@@ -1480,18 +1494,6 @@ func (r *BareMetalHostReconciler) handleDataImageActions(prov provisioner.Provis
 		}
 		// Error reading the object - requeue the request.
 		return actionError{fmt.Errorf("could not load dataImage, %w", err)}
-	}
-
-	// Set ControllerReference to DataImage
-	if !ownerReferenceExists(info.host, dataImage) {
-		if err := controllerutil.SetControllerReference(info.host, dataImage, r.Scheme()); err != nil {
-			return actionError{fmt.Errorf("could not set bmh as controller, %w", err)}
-		}
-		if err := r.Update(info.ctx, dataImage); err != nil {
-			return actionError{fmt.Errorf("failure updating dataImage status, %w", err)}
-		}
-
-		return actionContinue{}
 	}
 
 	// Update reconciliation timestamp for dataImage
