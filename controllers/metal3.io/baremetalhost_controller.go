@@ -137,7 +137,7 @@ func (r *BareMetalHostReconciler) Reconcile(ctx context.Context, request ctrl.Re
 		}
 	}
 
-	hostData, err := r.reconcileHostData(ctx, host, request)
+	hostData, err := r.reconciletHostData(ctx, host, request)
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "Could not reconcile host data")
 	} else if hostData.Requeue {
