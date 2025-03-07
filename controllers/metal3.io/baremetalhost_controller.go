@@ -1482,18 +1482,6 @@ func (r *BareMetalHostReconciler) handleDataImageActions(prov provisioner.Provis
 		return actionError{fmt.Errorf("could not load dataImage, %w", err)}
 	}
 
-	// Set ControllerReference to DataImage
-	if !ownerReferenceExists(info.host, dataImage) {
-		if err := controllerutil.SetControllerReference(info.host, dataImage, r.Scheme()); err != nil {
-			return actionError{fmt.Errorf("could not set bmh as controller, %w", err)}
-		}
-		if err := r.Update(info.ctx, dataImage); err != nil {
-			return actionError{fmt.Errorf("failure updating dataImage status, %w", err)}
-		}
-
-		return actionContinue{}
-	}
-
 	// Update reconciliation timestamp for dataImage
 	dataImage.Status.LastReconciled = &metav1.Time{Time: time.Now()}
 
