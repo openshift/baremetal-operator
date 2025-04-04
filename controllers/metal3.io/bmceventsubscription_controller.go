@@ -248,6 +248,10 @@ func (r *BMCEventSubscriptionReconciler) getHTTPHeaders(subscription metal3v1alp
 		return headers, nil
 	}
 
+	if subscription.Spec.HTTPHeadersRef.Namespace != subscription.Namespace {
+		return headers, errors.New("httpHeadersRef secret must be in the same namespace as the BMCEventSubscription")
+	}
+
 	secret := &corev1.Secret{}
 	secretKey := types.NamespacedName{
 		Name:      subscription.Spec.HTTPHeadersRef.Name,
