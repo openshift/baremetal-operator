@@ -123,7 +123,7 @@ func TestBMCGetProvisioner(t *testing.T) {
 		},
 	} {
 		t.Run(tc.Scenario, func(t *testing.T) {
-			prov, actual, err := r.getProvisioner(context.Background(), request, tc.Host)
+			prov, actual, err := r.getProvisioner(request, tc.Host)
 			if err != nil {
 				t.Error(err)
 			}
