@@ -1185,6 +1185,7 @@ func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, 
 		return actionError{errors.Wrap(err, "error preparing host")}
 	}
 
+	info.log.Info("extra debug - provResult", "provResult", provResult, "provResult.ErrorMessage", provResult.ErrorMessage)
 	if provResult.ErrorMessage != "" {
 		if bmhDirty {
 			info.log.Info("handling cleaning error in controller")
@@ -1198,6 +1199,7 @@ func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, 
 	}
 
 	if hfcDirty && started {
+		info.log.Info("extra debug - hfcDirty and started", "hfc", hfc)
 		hfcStillDirty, err := r.saveHostFirmwareComponents(prov, info, hfc)
 		if err != nil {
 			return actionError{errors.Wrap(err, "could not save the host firmware components")}
@@ -1917,11 +1919,6 @@ func (r *BareMetalHostReconciler) saveHostFirmwareComponents(prov provisioner.Pr
 		return dirty, nil
 	}
 
-	info.log.Info("saving hostFirmwareComponents information", "spec updates", hfc.Spec.Updates, "status updates", hfc.Status.Updates)
-
-	hfc.Status.Updates = make([]metal3api.FirmwareUpdate, len(hfc.Spec.Updates))
-	hfc.Status.Updates = hfc.Spec.Updates
-
 	// Retrieve new information about the firmware components stored in ironic
 	components, err := prov.GetFirmwareComponents()
 	if err != nil {
@@ -1930,6 +1927,36 @@ func (r *BareMetalHostReconciler) saveHostFirmwareComponents(prov provisioner.Pr
 	}
 	hfc.Status.Components = components
 	dirty = true
+
+	// Set conditions to indicate that cleaning completed successfully
+	// Note: We do NOT copy spec.updates to status.updates here because:
+	// 1. Cleaning success doesn't guarantee firmware was actually updated
+	// 2. We want to avoid corrupting status.updates if there are subsequent errors
+	// 3. The HostFirmwareComponents controller will handle status.updates when it detects
+	//    that the actual firmware state matches what was requested
+	generation := hfc.GetGeneration()
+
+	// Mark update as no longer in progress since cleaning completed
+	updateInProgressCondition := metav1.Condition{
+		Type:               string(metal3api.HostFirmwareComponentsUpdateInProgress),
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: generation,
+		Reason:             "CleaningCompleted",
+		Message:            "Firmware update cleaning phase completed",
+	}
+	meta.SetStatusCondition(&hfc.Status.Conditions, updateInProgressCondition)
+
+	// Set UpdateCompleted to true to indicate the update process finished
+	// The actual verification of successful updates will be handled by the
+	// HostFirmwareComponents controller in subsequent reconciliation
+	updateCompletedCondition := metav1.Condition{
+		Type:               string(metal3api.HostFirmwareComponentsCompleted),
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: generation,
+		Reason:             "CleaningCompleted",
+		Message:            "Firmware update process completed, verification pending",
+	}
+	meta.SetStatusCondition(&hfc.Status.Conditions, updateCompletedCondition)
 
 	return dirty, nil
 }

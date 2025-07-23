@@ -212,6 +212,8 @@ func TestStoreHostFirmwareComponents(t *testing.T) {
 					Conditions: []metav1.Condition{
 						{Type: "ChangeDetected", Status: "True", Reason: "OK"},
 						{Type: "Valid", Status: "True", Reason: "OK"},
+						{Type: "UpdateInProgress", Status: "True", Reason: "OK", Message: "Firmware updates are in progress"},
+						{Type: "UpdateCompleted", Status: "False", Reason: "OK", Message: "New firmware updates required"},
 					},
 				},
 			},
@@ -283,6 +285,8 @@ func TestStoreHostFirmwareComponents(t *testing.T) {
 					Conditions: []metav1.Condition{
 						{Type: "ChangeDetected", Status: "True", Reason: "OK"},
 						{Type: "Valid", Status: "True", Reason: "OK"},
+						{Type: "UpdateInProgress", Status: "True", Reason: "OK", Message: "Firmware updates are in progress"},
+						{Type: "UpdateCompleted", Status: "False", Reason: "OK", Message: "New firmware updates required"},
 					},
 				},
 			},
@@ -368,6 +372,8 @@ func TestStoreHostFirmwareComponents(t *testing.T) {
 					Conditions: []metav1.Condition{
 						{Type: "ChangeDetected", Status: "True", Reason: "OK"},
 						{Type: "Valid", Status: "True", Reason: "OK"},
+						{Type: "UpdateInProgress", Status: "True", Reason: "OK", Message: "Firmware updates are in progress"},
+						{Type: "UpdateCompleted", Status: "False", Reason: "OK", Message: "New firmware updates required"},
 					},
 				},
 			},

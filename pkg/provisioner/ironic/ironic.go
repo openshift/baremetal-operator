@@ -1338,6 +1338,7 @@ func (p *ironicProvisioner) startManualCleaning(bmcAccess bmc.AccessDetails, iro
 // Prepare remove existing configuration and set new configuration.
 // If `started` is true,  it means that we successfully executed `tryChangeNodeProvisionState`.
 func (p *ironicProvisioner) Prepare(data provisioner.PrepareData, unprepared bool, restartOnFailure bool) (result provisioner.Result, started bool, err error) {
+	p.log.Info("extra debug - Preparing host", "data", data, "unprepared", unprepared, "restartOnFailure", restartOnFailure)
 	bmcAccess, err := p.bmcAccess()
 	if err != nil {
 		result, err = transientError(err)
@@ -1387,11 +1388,14 @@ func (p *ironicProvisioner) Prepare(data provisioner.PrepareData, unprepared boo
 		result, err = operationComplete()
 
 	case nodes.CleanFail:
+		p.log.Info("extra debug - CleanFail", "ironicNode", ironicNode)
 		// When clean failed, we need to clean host provisioning settings.
 		// If restartOnFailure is false, it means the settings aren't cleared.
 		// So we can't set the node's state to manageable, until the settings are cleared.
 		if !restartOnFailure {
+			p.log.Info("extra debug - CleanFail - operationFailed", "ironicNode", ironicNode.UUID, "ironicNode.LastError", ironicNode.LastError)
 			result, err = operationFailed(ironicNode.LastError)
+			p.log.Info("extra debug - CleanFail - operationFailed - result", "result", result)
 			return result, started, err
 		}
 		if ironicNode.Maintenance {
