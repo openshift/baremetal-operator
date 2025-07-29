@@ -1206,6 +1206,7 @@ func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, 
 		return actionError{errors.Wrap(err, "error preparing host")}
 	}
 
+	info.log.Info("extra debug - provResult", "provResult", provResult, "provResult.ErrorMessage", provResult.ErrorMessage)
 	if provResult.ErrorMessage != "" {
 		if bmhDirty {
 			info.log.Info("handling cleaning error in controller")
@@ -1219,6 +1220,7 @@ func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, 
 	}
 
 	if hfcDirty && started {
+		info.log.Info("extra debug - hfcDirty and started", "hfc", hfc)
 		hfcStillDirty, err := r.saveHostFirmwareComponents(prov, info, hfc)
 		if err != nil {
 			return actionError{errors.Wrap(err, "could not save the host firmware components")}
