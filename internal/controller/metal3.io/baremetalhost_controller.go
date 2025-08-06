@@ -1438,6 +1438,19 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 			servicingData.ActualFirmwareSettings = hfs.Status.Settings
 			servicingData.TargetFirmwareSettings = hfs.Spec.Settings
 		}
+
+		// Set ChangeDetected condition status from HFS controller
+		if hfs != nil {
+			// Reuse the HFS object we already fetched
+			servicingData.FirmwareSettingsChangeDetected = meta.IsStatusConditionTrue(hfs.Status.Conditions, string(metal3api.FirmwareSettingsChangeDetected))
+		} else {
+			// Only fetch a new HFS object if we don't have one (edge case where HFS was not found/invalid)
+			hfsExists := &metal3api.HostFirmwareSettings{}
+			hfsExistsErr := r.Get(info.ctx, info.request.NamespacedName, hfsExists)
+			if hfsExistsErr == nil {
+				servicingData.FirmwareSettingsChangeDetected = meta.IsStatusConditionTrue(hfsExists.Status.Conditions, string(metal3api.FirmwareSettingsChangeDetected))
+			}
+		}
 	}
 
 	if liveFirmwareUpdatesAllowed {
@@ -1452,6 +1465,19 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 				servicingData.TargetFirmwareComponents = getUpdatesDifference(hfc.Spec.Updates, hfc.Status.Updates)
 			} else {
 				servicingData.TargetFirmwareComponents = hfc.Spec.Updates
+			}
+		}
+
+		// Set ChangeDetected condition status from HFC controller
+		if hfc != nil {
+			// Reuse the HFC object we already fetched
+			servicingData.FirmwareComponentsChangeDetected = meta.IsStatusConditionTrue(hfc.Status.Conditions, string(metal3api.HostFirmwareComponentsChangeDetected))
+		} else {
+			// Only fetch a new HFC object if we don't have one (edge case where HFC was not found/invalid)
+			hfcExists := &metal3api.HostFirmwareComponents{}
+			hfcExistsErr := r.Get(info.ctx, info.request.NamespacedName, hfcExists)
+			if hfcExistsErr == nil {
+				servicingData.FirmwareComponentsChangeDetected = meta.IsStatusConditionTrue(hfcExists.Status.Conditions, string(metal3api.HostFirmwareComponentsChangeDetected))
 			}
 		}
 	}

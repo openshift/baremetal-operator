@@ -48,6 +48,7 @@ func TestService(t *testing.T) {
 		ironic               *testserver.IronicMock
 		unprepared           bool
 		skipConfig           bool
+		matchingSpecStatus   bool // For accept current state abort tests - spec matches status
 		expectedStarted      bool
 		expectedDirty        bool
 		expectedError        bool
@@ -151,6 +152,86 @@ func TestService(t *testing.T) {
 			expectedDirty:        false,
 			expectedError:        true,
 		},
+		// Service abort tests - Complete spec removal triggers abort
+		{
+			name: "serviceFail_abort_no_changes_detected",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.ServiceFail),
+				UUID:           nodeUUID,
+			}),
+			skipConfig:           true, // No firmware specs = ChangeDetected false for both
+			expectedStarted:      true, // Abort triggers state change
+			expectedRequestAfter: 10,   // Abort returns RequeueAfter: 10s
+			expectedDirty:        true, // Abort returns Dirty: true
+		},
+		{
+			name: "servicing_abort_no_changes_detected",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.Servicing),
+				UUID:           nodeUUID,
+			}),
+			skipConfig:           true, // No firmware specs = ChangeDetected false for both
+			expectedStarted:      true, // Abort triggers state change
+			expectedRequestAfter: 10,   // Abort returns RequeueAfter: 10s
+			expectedDirty:        true, // Abort returns Dirty: true
+		},
+		{
+			name: "serviceWait_abort_no_changes_detected",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.ServiceWait),
+				UUID:           nodeUUID,
+			}),
+			skipConfig:           true, // No firmware specs = ChangeDetected false for both
+			expectedStarted:      true, // Abort triggers state change
+			expectedRequestAfter: 10,   // Abort returns RequeueAfter: 10s
+			expectedDirty:        true, // Abort returns Dirty: true
+		},
+		// Service abort tests - No firmware changes detected (both HFS and HFC ChangeDetected=false)
+		{
+			name: "serviceFail_abort_no_changes_spec_matches_status",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.ServiceFail),
+				UUID:           nodeUUID,
+			}),
+			matchingSpecStatus:   true, // ChangeDetected=false for both HFS and HFC
+			expectedStarted:      true, // Abort triggers state change
+			expectedRequestAfter: 10,   // Abort returns RequeueAfter: 10s
+			expectedDirty:        true, // Abort returns Dirty: true
+		},
+		{
+			name: "servicing_abort_no_changes_spec_matches_status",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.Servicing),
+				UUID:           nodeUUID,
+			}),
+			matchingSpecStatus:   true, // ChangeDetected=false for both HFS and HFC
+			expectedStarted:      true, // Abort triggers state change
+			expectedRequestAfter: 10,   // Abort returns RequeueAfter: 10s
+			expectedDirty:        true, // Abort returns Dirty: true
+		},
+		{
+			name: "serviceWait_abort_no_changes_spec_matches_status",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.ServiceWait),
+				UUID:           nodeUUID,
+			}),
+			matchingSpecStatus:   true, // ChangeDetected=false for both HFS and HFC
+			expectedStarted:      true, // Abort triggers state change
+			expectedRequestAfter: 10,   // Abort returns RequeueAfter: 10s
+			expectedDirty:        true, // Abort returns Dirty: true
+		},
+		// Mixed scenarios - when only one spec matches status (should NOT abort)
+		{
+			name: "serviceFail_mixed_hfs_matches_hfc_differs",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.ServiceFail),
+				UUID:           nodeUUID,
+			}),
+			unprepared:           true, // Retry servicing case
+			expectedStarted:      true, // Should restart servicing, not abort
+			expectedRequestAfter: 10,   // Normal servicing retry
+			expectedDirty:        true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -164,13 +245,53 @@ func TestService(t *testing.T) {
 			host.Status.Provisioning.ID = nodeUUID
 			prepData := provisioner.ServicingData{}
 			if !tc.skipConfig {
-				host.Spec.BMC.Address = "raid-test://test.bmc/"
-				prepData.ActualFirmwareSettings = metal3api.SettingsMap{
-					"Answer": "unknown",
+				host.Spec.BMC.Address = "bios-test://test.bmc/"
+				// Handle mixed scenario test case
+				if tc.name == "serviceFail_mixed_hfs_matches_hfc_differs" {
+					// HFS has no changes (ChangeDetected=false) but HFC has changes (ChangeDetected=true)
+					prepData.FirmwareSettingsChangeDetected = false  // HFS matches status
+					prepData.FirmwareComponentsChangeDetected = true // HFC differs from status
+					// HFS settings match (no service steps from settings)
+					prepData.ActualFirmwareSettings = metal3api.SettingsMap{
+						"ProcVirtualization": "Enabled", // Same as spec
+					}
+					prepData.TargetFirmwareSettings = metal3api.DesiredSettingsMap{
+						"ProcVirtualization": intstr.FromString("Enabled"), // Same as actual
+					}
+					// HFC components differ (should generate service steps)
+					prepData.TargetFirmwareComponents = []metal3api.FirmwareUpdate{
+						{
+							Component: "bios",
+							URL:       "https://example.com/bios-v1.2.3.bin",
+						},
+					}
+				} else if tc.matchingSpecStatus {
+					// No changes detected: ChangeDetected=false for both HFS and HFC triggers abort
+					prepData.FirmwareSettingsChangeDetected = false   // No changes detected, should abort
+					prepData.FirmwareComponentsChangeDetected = false // No changes detected, should abort
+					// Provide matching firmware settings (spec matches status)
+					prepData.ActualFirmwareSettings = metal3api.SettingsMap{
+						"ProcVirtualization": "Enabled",
+					}
+					prepData.TargetFirmwareSettings = metal3api.DesiredSettingsMap{
+						"ProcVirtualization": intstr.FromString("Enabled"), // Same as actual
+					}
+				} else {
+					// Normal case: ChangeDetected=true (changes pending, no abort)
+					prepData.FirmwareSettingsChangeDetected = true    // Changes pending, continue servicing
+					prepData.FirmwareComponentsChangeDetected = false // No components spec for these tests
+					// Provide actual firmware settings that differ to generate service steps
+					prepData.ActualFirmwareSettings = metal3api.SettingsMap{
+						"ProcVirtualization": "Disabled",
+					}
+					prepData.TargetFirmwareSettings = metal3api.DesiredSettingsMap{
+						"ProcVirtualization": intstr.FromString("Enabled"), // Different from actual
+					}
 				}
-				prepData.TargetFirmwareSettings = metal3api.DesiredSettingsMap{
-					"Answer": intstr.FromInt(42),
-				}
+			} else {
+				// For skipConfig cases (no firmware specs), ChangeDetected is false for both
+				prepData.FirmwareSettingsChangeDetected = false
+				prepData.FirmwareComponentsChangeDetected = false
 			}
 
 			publisher := func(reason, message string) {}

@@ -76,6 +76,26 @@ func (p *ironicProvisioner) startServicing(bmcAccess bmc.AccessDetails, ironicNo
 	return
 }
 
+func (p *ironicProvisioner) abortServicing(ironicNode *nodes.Node) (result provisioner.Result, started bool, err error) {
+	// Clear maintenance flag first if it's set
+	if ironicNode.Maintenance {
+		p.log.Info("clearing maintenance flag before aborting servicing")
+		result, err = p.setMaintenanceFlag(ironicNode, false, "")
+		return result, started, err
+	}
+
+	// Set started to let the controller know about the change
+	p.log.Info("aborting servicing due to removal of spec.updates/spec.settings")
+	started, result, err = p.tryChangeNodeProvisionState(
+		ironicNode,
+		nodes.ProvisionStateOpts{Target: nodes.TargetAbort},
+	)
+	if err != nil {
+		p.log.Error(err, "Unable to abort servicing operation")
+	}
+	return
+}
+
 func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, restartOnFailure bool) (result provisioner.Result, started bool, err error) {
 	if !p.availableFeatures.HasServicing() {
 		result, err = operationFailed(fmt.Sprintf("servicing not supported: requires API version 1.87, available is 1.%d", p.availableFeatures.MaxVersion))
@@ -93,10 +113,20 @@ func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, 
 		result, err = transientError(err)
 		return result, started, err
 	}
+	// NOTE(janders) this is useful during testing, can be removed in the final revision
+	p.log.Info("servicing state check:",
+		"FirmwareSettingsChangeDetected", data.FirmwareSettingsChangeDetected,
+		"FirmwareComponentsChangeDetected", data.FirmwareComponentsChangeDetected,
+		"nodeState", ironicNode.ProvisionState)
 
 	switch nodes.ProvisionState(ironicNode.ProvisionState) {
 	case nodes.ServiceFail:
-		// When servicing failed, we need to clean host provisioning settings.
+		// Check for abort conditions
+		if p.shouldAbortServicing(data) {
+			return p.abortServicing(ironicNode)
+		}
+
+		// When servicing failed and there are pending updates, we need to clean host provisioning settings
 		// If restartOnFailure is false, it means the settings aren't cleared.
 		if !restartOnFailure {
 			result, err = operationFailed(ironicNode.LastError)
@@ -125,6 +155,11 @@ func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, 
 		p.log.Info("servicing finished on the host")
 		result, err = operationComplete()
 	case nodes.Servicing, nodes.ServiceWait:
+		// Check for abort conditions
+		if p.shouldAbortServicing(data) {
+			return p.abortServicing(ironicNode)
+		}
+
 		p.log.Info("waiting for host to become active",
 			"state", ironicNode.ProvisionState,
 			"serviceStep", ironicNode.ServiceStep)
@@ -134,4 +169,16 @@ func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, 
 		result, err = transientError(fmt.Errorf("have unexpected ironic node state %s", ironicNode.ProvisionState))
 	}
 	return result, started, err
+}
+
+// shouldAbortServicing determines if servicing should be aborted based on ChangeDetected condition.
+// Abort condition: No changes detected for both HFS and HFC (ChangeDetected=false for both)
+// This covers both spec deletion (no spec = no changes) and accept current state (spec matches status)
+func (p *ironicProvisioner) shouldAbortServicing(data provisioner.ServicingData) bool {
+	// Abort if no changes detected for both firmware types
+	if !data.FirmwareSettingsChangeDetected && !data.FirmwareComponentsChangeDetected {
+		p.log.Info("aborting servicing because no firmware changes detected")
+		return true
+	}
+	return false
 }
