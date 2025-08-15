@@ -147,11 +147,11 @@ if [[ -n "${CONTAINER_RUNTIME}" ]]; then
         "${CONTAINER_RUNTIME}" run --rm
         -v "${PWD}":"/src:ro,z"
         -w /src
-        ghcr.io/google/osv-scanner:v2.0.0@sha256:ceea4d7c57dcb4ab65453445f7a3155d0cc9ccef66a098a516ac264677d4b61f
+        ghcr.io/google/osv-scanner:v2.2.0@sha256:edad0349f4e50fad17d1803af2fda9a0f0d9f32ccb927b0901c93bc2dc03b53a
     )
 else
     # go install github.com/google/go-containerregistry/cmd/gcrane@latest
-    # go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.0.0
+    # go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.2.0
     required_tools+=(
         gcrane
         osv-scanner
@@ -213,7 +213,7 @@ check_tools()
         case "${tool}" in
             osv-scanner)
                 version=$("${OSVSCANNER_CMD[@]}" -v | grep version | cut -f3 -d" ")
-                min_version="2.0.0"
+                min_version="2.2.0"
                 ;;
             *)
                 # dummy values here for other tools
