@@ -45,6 +45,12 @@ const (
 
 	// Indicates if the updates are valid and can be configured on the host.
 	HostFirmwareComponentsValid UpdatesConditionType = "Valid"
+
+	// Indicates that the updates are in progress.
+	HostFirmwareComponentsUpdateInProgress UpdatesConditionType = "UpdateInProgress"
+
+	// Indicates that the updates are completed.
+	HostFirmwareComponentsCompleted UpdatesConditionType = "UpdateCompleted"
 )
 
 // HostFirmwareComponentsSpec defines the desired state of HostFirmwareComponents.

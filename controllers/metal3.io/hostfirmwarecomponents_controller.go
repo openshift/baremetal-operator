@@ -208,8 +208,18 @@ func (r *HostFirmwareComponentsReconciler) updateHostFirmware(info *rhfcInfo, co
 			if setUpdatesCondition(generation, newStatus, info, metal3api.HostFirmwareComponentsValid, metav1.ConditionFalse, reason, fmt.Sprintf("Invalid Firmware Components: %s", err)) {
 				dirty = true
 			}
-		} else if setUpdatesCondition(generation, newStatus, info, metal3api.HostFirmwareComponentsValid, metav1.ConditionTrue, reason, "") {
-			dirty = true
+		} else {
+			if setUpdatesCondition(generation, newStatus, info, metal3api.HostFirmwareComponentsValid, metav1.ConditionTrue, reason, "") {
+				dirty = true
+			}
+			// Set UpdateInProgress to true when there is an update mismatch and components are valid
+			if setUpdatesCondition(generation, newStatus, info, metal3api.HostFirmwareComponentsUpdateInProgress, metav1.ConditionTrue, reason, "Firmware updates are in progress") {
+				dirty = true
+			}
+			// Reset UpdateCompleted to false when new updates are needed
+			if setUpdatesCondition(generation, newStatus, info, metal3api.HostFirmwareComponentsCompleted, metav1.ConditionFalse, reason, "New firmware updates required") {
+				dirty = true
+			}
 		}
 	} else {
 		if setUpdatesCondition(generation, newStatus, info, metal3api.HostFirmwareComponentsValid, metav1.ConditionTrue, reason, "") {
@@ -217,6 +227,19 @@ func (r *HostFirmwareComponentsReconciler) updateHostFirmware(info *rhfcInfo, co
 		}
 		if setUpdatesCondition(generation, newStatus, info, metal3api.HostFirmwareComponentsChangeDetected, metav1.ConditionFalse, reason, "") {
 			dirty = true
+		}
+
+		// If UpdateCompleted is true but status.updates doesn't match spec.updates,
+		// it means the firmware updates finished but we haven't updated the status yet.
+		// This is safe to do now since there's no mismatch and updates are completed.
+		if meta.IsStatusConditionTrue(info.hfc.Status.Conditions, string(metal3api.HostFirmwareComponentsCompleted)) {
+			if !reflect.DeepEqual(info.hfc.Status.Updates, info.hfc.Spec.Updates) {
+				info.log.Info("updating status.updates after successful firmware update completion",
+					"spec updates", len(info.hfc.Spec.Updates), "status updates", len(info.hfc.Status.Updates))
+				newStatus.Updates = make([]metal3api.FirmwareUpdate, len(info.hfc.Spec.Updates))
+				copy(newStatus.Updates, info.hfc.Spec.Updates)
+				dirty = true
+			}
 		}
 	}
 
