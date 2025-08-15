@@ -93,7 +93,7 @@ func (dst *Cluster) ConvertFrom(srcRaw conversion.Hub) error {
 		return err
 	}
 
-	if src.Spec.InfrastructureRef != nil {
+	if src.Spec.InfrastructureRef.IsDefined() {
 		infraRef, err := convertToObjectReference(src.Spec.InfrastructureRef, src.Namespace)
 		if err != nil {
 			return err
@@ -101,12 +101,17 @@ func (dst *Cluster) ConvertFrom(srcRaw conversion.Hub) error {
 		dst.Spec.InfrastructureRef = infraRef
 	}
 
-	if src.Spec.ControlPlaneRef != nil {
+	if src.Spec.ControlPlaneRef.IsDefined() {
 		controlPlaneRef, err := convertToObjectReference(src.Spec.ControlPlaneRef, src.Namespace)
 		if err != nil {
 			return err
 		}
 		dst.Spec.ControlPlaneRef = controlPlaneRef
+	}
+
+	if dst.Spec.ClusterNetwork != nil && dst.Spec.ClusterNetwork.APIServerPort != nil &&
+		*dst.Spec.ClusterNetwork.APIServerPort == 0 {
+		dst.Spec.ClusterNetwork.APIServerPort = nil
 	}
 
 	if dst.Spec.Topology != nil {
@@ -521,8 +526,6 @@ func (dst *MachineHealthCheck) ConvertFrom(srcRaw conversion.Hub) error {
 		dst.Spec.RemediationTemplate.Namespace = src.Namespace
 	}
 
-	dropEmptyStringsMachineHealthCheck(dst)
-
 	return utilconversion.MarshalData(src, dst)
 }
 
@@ -624,15 +627,12 @@ func Convert_v1beta2_ClusterClassSpec_To_v1beta1_ClusterClassSpec(in *clusterv1.
 		return err
 	}
 
-	if in.Infrastructure.NamingStrategy != nil {
-		var template *string
-		if in.Infrastructure.NamingStrategy.Template != "" {
-			template = ptr.To(in.Infrastructure.NamingStrategy.Template)
-		}
+	if in.Infrastructure.Naming.Template != "" {
 		out.InfrastructureNamingStrategy = &InfrastructureNamingStrategy{
-			Template: template,
+			Template: ptr.To(in.Infrastructure.Naming.Template),
 		}
 	}
+
 	return nil
 }
 
@@ -651,44 +651,10 @@ func Convert_v1beta1_ClusterClassSpec_To_v1beta2_ClusterClassSpec(in *ClusterCla
 	}
 
 	if in.InfrastructureNamingStrategy != nil {
-		out.Infrastructure.NamingStrategy = &clusterv1.InfrastructureClassNamingStrategy{
+		out.Infrastructure.Naming = clusterv1.InfrastructureClassNamingSpec{
 			Template: ptr.Deref(in.InfrastructureNamingStrategy.Template, ""),
 		}
 	}
-	return nil
-}
-
-func Convert_v1beta1_MachineHealthCheckClass_To_v1beta2_MachineHealthCheckClass(in *MachineHealthCheckClass, out *clusterv1.MachineHealthCheckClass, s apimachineryconversion.Scope) error {
-	if err := autoConvert_v1beta1_MachineHealthCheckClass_To_v1beta2_MachineHealthCheckClass(in, out, s); err != nil {
-		return err
-	}
-
-	for _, c := range in.UnhealthyConditions {
-		out.UnhealthyNodeConditions = append(out.UnhealthyNodeConditions, clusterv1.UnhealthyNodeCondition{
-			Type:           c.Type,
-			Status:         c.Status,
-			TimeoutSeconds: ptr.Deref(clusterv1.ConvertToSeconds(&c.Timeout), 0),
-		})
-	}
-	out.NodeStartupTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeStartupTimeout)
-
-	return nil
-}
-
-func Convert_v1beta2_MachineHealthCheckClass_To_v1beta1_MachineHealthCheckClass(in *clusterv1.MachineHealthCheckClass, out *MachineHealthCheckClass, s apimachineryconversion.Scope) error {
-	if err := autoConvert_v1beta2_MachineHealthCheckClass_To_v1beta1_MachineHealthCheckClass(in, out, s); err != nil {
-		return err
-	}
-
-	for _, c := range in.UnhealthyNodeConditions {
-		out.UnhealthyConditions = append(out.UnhealthyConditions, UnhealthyCondition{
-			Type:    c.Type,
-			Status:  c.Status,
-			Timeout: ptr.Deref(clusterv1.ConvertFromSeconds(&c.TimeoutSeconds), metav1.Duration{}),
-		})
-	}
-	out.NodeStartupTimeout = clusterv1.ConvertFromSeconds(in.NodeStartupTimeoutSeconds)
-
 	return nil
 }
 
@@ -705,10 +671,38 @@ func Convert_v1beta1_ControlPlaneClass_To_v1beta2_ControlPlaneClass(in *ControlP
 	if err := autoConvert_v1beta1_ControlPlaneClass_To_v1beta2_ControlPlaneClass(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
-	out.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
-	out.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+	out.Deletion.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
+	out.Deletion.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
+	out.Deletion.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
 	convert_v1beta1_LocalObjectTemplate_To_v1beta2_ClusterClassTemplateReference(&in.LocalObjectTemplate, &out.TemplateRef, s)
+
+	if in.MachineHealthCheck != nil {
+		for _, c := range in.MachineHealthCheck.UnhealthyConditions {
+			out.HealthCheck.Checks.UnhealthyNodeConditions = append(out.HealthCheck.Checks.UnhealthyNodeConditions, clusterv1.UnhealthyNodeCondition{
+				Type:           c.Type,
+				Status:         c.Status,
+				TimeoutSeconds: clusterv1.ConvertToSeconds(&c.Timeout),
+			})
+		}
+		out.HealthCheck.Checks.NodeStartupTimeoutSeconds = clusterv1.ConvertToSeconds(in.MachineHealthCheck.NodeStartupTimeout)
+		out.HealthCheck.Remediation.TriggerIf.UnhealthyLessThanOrEqualTo = in.MachineHealthCheck.MaxUnhealthy
+		out.HealthCheck.Remediation.TriggerIf.UnhealthyInRange = ptr.Deref(in.MachineHealthCheck.UnhealthyRange, "")
+		if in.MachineHealthCheck.RemediationTemplate != nil {
+			if err := Convert_v1_ObjectReference_To_v1beta2_MachineHealthCheckRemediationTemplateReference(in.MachineHealthCheck.RemediationTemplate, &out.HealthCheck.Remediation.TemplateRef, s); err != nil {
+				return err
+			}
+		}
+	}
+	if in.NamingStrategy != nil {
+		out.Naming = clusterv1.ControlPlaneClassNamingSpec{
+			Template: ptr.Deref(in.NamingStrategy.Template, ""),
+		}
+	}
+	if in.MachineInfrastructure != nil {
+		if err := Convert_v1beta1_LocalObjectTemplate_To_v1beta2_ControlPlaneClassMachineInfrastructureTemplate(in.MachineInfrastructure, &out.MachineInfrastructure, s); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -716,10 +710,43 @@ func Convert_v1beta2_ControlPlaneClass_To_v1beta1_ControlPlaneClass(in *clusterv
 	if err := autoConvert_v1beta2_ControlPlaneClass_To_v1beta1_ControlPlaneClass(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.NodeDrainTimeoutSeconds)
-	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.NodeVolumeDetachTimeoutSeconds)
-	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.NodeDeletionTimeoutSeconds)
+	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDrainTimeoutSeconds)
+	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeVolumeDetachTimeoutSeconds)
+	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDeletionTimeoutSeconds)
 	Convert_v1beta2_ClusterClassTemplateReference_To_v1beta1_LocalObjectTemplate(&in.TemplateRef, &out.LocalObjectTemplate, s)
+
+	if !reflect.DeepEqual(in.HealthCheck, clusterv1.ControlPlaneClassHealthCheck{}) {
+		out.MachineHealthCheck = &MachineHealthCheckClass{}
+		for _, c := range in.HealthCheck.Checks.UnhealthyNodeConditions {
+			out.MachineHealthCheck.UnhealthyConditions = append(out.MachineHealthCheck.UnhealthyConditions, UnhealthyCondition{
+				Type:    c.Type,
+				Status:  c.Status,
+				Timeout: ptr.Deref(clusterv1.ConvertFromSeconds(c.TimeoutSeconds), metav1.Duration{}),
+			})
+		}
+		out.MachineHealthCheck.NodeStartupTimeout = clusterv1.ConvertFromSeconds(in.HealthCheck.Checks.NodeStartupTimeoutSeconds)
+		out.MachineHealthCheck.MaxUnhealthy = in.HealthCheck.Remediation.TriggerIf.UnhealthyLessThanOrEqualTo
+		if in.HealthCheck.Remediation.TriggerIf.UnhealthyInRange != "" {
+			out.MachineHealthCheck.UnhealthyRange = ptr.To(in.HealthCheck.Remediation.TriggerIf.UnhealthyInRange)
+		}
+		if in.HealthCheck.Remediation.TemplateRef.IsDefined() {
+			out.MachineHealthCheck.RemediationTemplate = &corev1.ObjectReference{}
+			if err := Convert_v1beta2_MachineHealthCheckRemediationTemplateReference_To_v1_ObjectReference(&in.HealthCheck.Remediation.TemplateRef, out.MachineHealthCheck.RemediationTemplate, s); err != nil {
+				return err
+			}
+		}
+	}
+	if in.Naming.Template != "" {
+		out.NamingStrategy = &ControlPlaneClassNamingStrategy{
+			Template: ptr.To(in.Naming.Template),
+		}
+	}
+	if in.MachineInfrastructure.TemplateRef.IsDefined() {
+		out.MachineInfrastructure = &LocalObjectTemplate{}
+		if err := Convert_v1beta2_ControlPlaneClassMachineInfrastructureTemplate_To_v1beta1_LocalObjectTemplate(&in.MachineInfrastructure, out.MachineInfrastructure, s); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -727,9 +754,33 @@ func Convert_v1beta1_ControlPlaneTopology_To_v1beta2_ControlPlaneTopology(in *Co
 	if err := autoConvert_v1beta1_ControlPlaneTopology_To_v1beta2_ControlPlaneTopology(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
-	out.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
-	out.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+	if in.Variables != nil {
+		if err := autoConvert_v1beta1_ControlPlaneVariables_To_v1beta2_ControlPlaneVariables(in.Variables, &out.Variables, s); err != nil {
+			return err
+		}
+	}
+	out.Deletion.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
+	out.Deletion.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
+	out.Deletion.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+
+	if in.MachineHealthCheck != nil {
+		out.HealthCheck.Enabled = in.MachineHealthCheck.Enable
+		for _, c := range in.MachineHealthCheck.UnhealthyConditions {
+			out.HealthCheck.Checks.UnhealthyNodeConditions = append(out.HealthCheck.Checks.UnhealthyNodeConditions, clusterv1.UnhealthyNodeCondition{
+				Type:           c.Type,
+				Status:         c.Status,
+				TimeoutSeconds: clusterv1.ConvertToSeconds(&c.Timeout),
+			})
+		}
+		out.HealthCheck.Checks.NodeStartupTimeoutSeconds = clusterv1.ConvertToSeconds(in.MachineHealthCheck.NodeStartupTimeout)
+		out.HealthCheck.Remediation.TriggerIf.UnhealthyLessThanOrEqualTo = in.MachineHealthCheck.MaxUnhealthy
+		out.HealthCheck.Remediation.TriggerIf.UnhealthyInRange = ptr.Deref(in.MachineHealthCheck.UnhealthyRange, "")
+		if in.MachineHealthCheck.RemediationTemplate != nil {
+			if err := Convert_v1_ObjectReference_To_v1beta2_MachineHealthCheckRemediationTemplateReference(in.MachineHealthCheck.RemediationTemplate, &out.HealthCheck.Remediation.TemplateRef, s); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -737,9 +788,38 @@ func Convert_v1beta2_ControlPlaneTopology_To_v1beta1_ControlPlaneTopology(in *cl
 	if err := autoConvert_v1beta2_ControlPlaneTopology_To_v1beta1_ControlPlaneTopology(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.NodeDrainTimeoutSeconds)
-	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.NodeVolumeDetachTimeoutSeconds)
-	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.NodeDeletionTimeoutSeconds)
+	if !reflect.DeepEqual(in.Variables, clusterv1.ControlPlaneVariables{}) {
+		out.Variables = &ControlPlaneVariables{}
+		if err := autoConvert_v1beta2_ControlPlaneVariables_To_v1beta1_ControlPlaneVariables(&in.Variables, out.Variables, s); err != nil {
+			return err
+		}
+	}
+	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDrainTimeoutSeconds)
+	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeVolumeDetachTimeoutSeconds)
+	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDeletionTimeoutSeconds)
+
+	if !reflect.DeepEqual(in.HealthCheck, clusterv1.ControlPlaneTopologyHealthCheck{}) {
+		out.MachineHealthCheck = &MachineHealthCheckTopology{}
+		out.MachineHealthCheck.Enable = in.HealthCheck.Enabled
+		for _, c := range in.HealthCheck.Checks.UnhealthyNodeConditions {
+			out.MachineHealthCheck.UnhealthyConditions = append(out.MachineHealthCheck.UnhealthyConditions, UnhealthyCondition{
+				Type:    c.Type,
+				Status:  c.Status,
+				Timeout: ptr.Deref(clusterv1.ConvertFromSeconds(c.TimeoutSeconds), metav1.Duration{}),
+			})
+		}
+		out.MachineHealthCheck.NodeStartupTimeout = clusterv1.ConvertFromSeconds(in.HealthCheck.Checks.NodeStartupTimeoutSeconds)
+		out.MachineHealthCheck.MaxUnhealthy = in.HealthCheck.Remediation.TriggerIf.UnhealthyLessThanOrEqualTo
+		if in.HealthCheck.Remediation.TriggerIf.UnhealthyInRange != "" {
+			out.MachineHealthCheck.UnhealthyRange = ptr.To(in.HealthCheck.Remediation.TriggerIf.UnhealthyInRange)
+		}
+		if in.HealthCheck.Remediation.TemplateRef.IsDefined() {
+			out.MachineHealthCheck.RemediationTemplate = &corev1.ObjectReference{}
+			if err := Convert_v1beta2_MachineHealthCheckRemediationTemplateReference_To_v1_ObjectReference(&in.HealthCheck.Remediation.TemplateRef, out.MachineHealthCheck.RemediationTemplate, s); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -747,9 +827,54 @@ func Convert_v1beta1_MachineDeploymentClass_To_v1beta2_MachineDeploymentClass(in
 	if err := autoConvert_v1beta1_MachineDeploymentClass_To_v1beta2_MachineDeploymentClass(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
-	out.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
-	out.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+	if err := Convert_v1beta1_ObjectMeta_To_v1beta2_ObjectMeta(&in.Template.Metadata, &out.Metadata, s); err != nil {
+		return err
+	}
+	if err := Convert_v1beta1_LocalObjectTemplate_To_v1beta2_MachineDeploymentClassBootstrapTemplate(&in.Template.Bootstrap, &out.Bootstrap, s); err != nil {
+		return err
+	}
+	if err := Convert_v1beta1_LocalObjectTemplate_To_v1beta2_MachineDeploymentClassInfrastructureTemplate(&in.Template.Infrastructure, &out.Infrastructure, s); err != nil {
+		return err
+	}
+	if in.Strategy != nil {
+		out.Rollout.Strategy.Type = clusterv1.MachineDeploymentRolloutStrategyType(in.Strategy.Type)
+		if in.Strategy.RollingUpdate != nil {
+			out.Rollout.Strategy.RollingUpdate.MaxUnavailable = in.Strategy.RollingUpdate.MaxUnavailable
+			out.Rollout.Strategy.RollingUpdate.MaxSurge = in.Strategy.RollingUpdate.MaxSurge
+			if in.Strategy.RollingUpdate.DeletePolicy != nil {
+				out.Deletion.Order = clusterv1.MachineSetDeletionOrder(*in.Strategy.RollingUpdate.DeletePolicy)
+			}
+		}
+		if in.Strategy.Remediation != nil && in.Strategy.Remediation.MaxInFlight != nil {
+			out.HealthCheck.Remediation.MaxInFlight = in.Strategy.Remediation.MaxInFlight
+		}
+	}
+	out.Deletion.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
+	out.Deletion.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
+	out.Deletion.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+
+	if in.MachineHealthCheck != nil {
+		for _, c := range in.MachineHealthCheck.UnhealthyConditions {
+			out.HealthCheck.Checks.UnhealthyNodeConditions = append(out.HealthCheck.Checks.UnhealthyNodeConditions, clusterv1.UnhealthyNodeCondition{
+				Type:           c.Type,
+				Status:         c.Status,
+				TimeoutSeconds: clusterv1.ConvertToSeconds(&c.Timeout),
+			})
+		}
+		out.HealthCheck.Checks.NodeStartupTimeoutSeconds = clusterv1.ConvertToSeconds(in.MachineHealthCheck.NodeStartupTimeout)
+		out.HealthCheck.Remediation.TriggerIf.UnhealthyLessThanOrEqualTo = in.MachineHealthCheck.MaxUnhealthy
+		out.HealthCheck.Remediation.TriggerIf.UnhealthyInRange = ptr.Deref(in.MachineHealthCheck.UnhealthyRange, "")
+		if in.MachineHealthCheck.RemediationTemplate != nil {
+			if err := Convert_v1_ObjectReference_To_v1beta2_MachineHealthCheckRemediationTemplateReference(in.MachineHealthCheck.RemediationTemplate, &out.HealthCheck.Remediation.TemplateRef, s); err != nil {
+				return err
+			}
+		}
+	}
+	if in.NamingStrategy != nil {
+		out.Naming = clusterv1.MachineDeploymentClassNamingSpec{
+			Template: ptr.Deref(in.NamingStrategy.Template, ""),
+		}
+	}
 	return nil
 }
 
@@ -757,9 +882,75 @@ func Convert_v1beta2_MachineDeploymentClass_To_v1beta1_MachineDeploymentClass(in
 	if err := autoConvert_v1beta2_MachineDeploymentClass_To_v1beta1_MachineDeploymentClass(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.NodeDrainTimeoutSeconds)
-	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.NodeVolumeDetachTimeoutSeconds)
-	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.NodeDeletionTimeoutSeconds)
+	if err := Convert_v1beta2_ObjectMeta_To_v1beta1_ObjectMeta(&in.Metadata, &out.Template.Metadata, s); err != nil {
+		return err
+	}
+	if err := Convert_v1beta2_MachineDeploymentClassBootstrapTemplate_To_v1beta1_LocalObjectTemplate(&in.Bootstrap, &out.Template.Bootstrap, s); err != nil {
+		return err
+	}
+	if err := Convert_v1beta2_MachineDeploymentClassInfrastructureTemplate_To_v1beta1_LocalObjectTemplate(&in.Infrastructure, &out.Template.Infrastructure, s); err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(in.Rollout.Strategy, clusterv1.MachineDeploymentClassRolloutStrategy{}) {
+		out.Strategy = &MachineDeploymentStrategy{}
+		out.Strategy.Type = MachineDeploymentStrategyType(in.Rollout.Strategy.Type)
+		if !reflect.DeepEqual(in.Rollout.Strategy.RollingUpdate, clusterv1.MachineDeploymentClassRolloutStrategyRollingUpdate{}) {
+			out.Strategy.RollingUpdate = &MachineRollingUpdateDeployment{}
+			out.Strategy.RollingUpdate.MaxUnavailable = in.Rollout.Strategy.RollingUpdate.MaxUnavailable
+			out.Strategy.RollingUpdate.MaxSurge = in.Rollout.Strategy.RollingUpdate.MaxSurge
+		}
+	}
+	if in.Deletion.Order != "" {
+		if out.Strategy == nil {
+			out.Strategy = &MachineDeploymentStrategy{}
+		}
+		if out.Strategy.RollingUpdate == nil {
+			out.Strategy.RollingUpdate = &MachineRollingUpdateDeployment{}
+		}
+		out.Strategy.RollingUpdate.DeletePolicy = ptr.To(string(in.Deletion.Order))
+	}
+	if in.HealthCheck.Remediation.MaxInFlight != nil {
+		if out.Strategy == nil {
+			out.Strategy = &MachineDeploymentStrategy{}
+		}
+		if out.Strategy.Remediation == nil {
+			out.Strategy.Remediation = &RemediationStrategy{}
+		}
+		out.Strategy.Remediation.MaxInFlight = in.HealthCheck.Remediation.MaxInFlight
+	}
+	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDrainTimeoutSeconds)
+	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeVolumeDetachTimeoutSeconds)
+	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDeletionTimeoutSeconds)
+
+	// Check if HealthCheck is not nil and another field apart from MaxInFlight is set (MaxInFlight is set in Strategy above).
+	if !reflect.DeepEqual(in.HealthCheck, clusterv1.MachineDeploymentClassHealthCheck{
+		Remediation: clusterv1.MachineDeploymentClassHealthCheckRemediation{MaxInFlight: in.HealthCheck.Remediation.MaxInFlight},
+	}) {
+		out.MachineHealthCheck = &MachineHealthCheckClass{}
+		for _, c := range in.HealthCheck.Checks.UnhealthyNodeConditions {
+			out.MachineHealthCheck.UnhealthyConditions = append(out.MachineHealthCheck.UnhealthyConditions, UnhealthyCondition{
+				Type:    c.Type,
+				Status:  c.Status,
+				Timeout: ptr.Deref(clusterv1.ConvertFromSeconds(c.TimeoutSeconds), metav1.Duration{}),
+			})
+		}
+		out.MachineHealthCheck.NodeStartupTimeout = clusterv1.ConvertFromSeconds(in.HealthCheck.Checks.NodeStartupTimeoutSeconds)
+		out.MachineHealthCheck.MaxUnhealthy = in.HealthCheck.Remediation.TriggerIf.UnhealthyLessThanOrEqualTo
+		if in.HealthCheck.Remediation.TriggerIf.UnhealthyInRange != "" {
+			out.MachineHealthCheck.UnhealthyRange = ptr.To(in.HealthCheck.Remediation.TriggerIf.UnhealthyInRange)
+		}
+		if in.HealthCheck.Remediation.TemplateRef.IsDefined() {
+			out.MachineHealthCheck.RemediationTemplate = &corev1.ObjectReference{}
+			if err := Convert_v1beta2_MachineHealthCheckRemediationTemplateReference_To_v1_ObjectReference(&in.HealthCheck.Remediation.TemplateRef, out.MachineHealthCheck.RemediationTemplate, s); err != nil {
+				return err
+			}
+		}
+	}
+	if in.Naming.Template != "" {
+		out.NamingStrategy = &MachineDeploymentClassNamingStrategy{
+			Template: ptr.To(in.Naming.Template),
+		}
+	}
 	return nil
 }
 
@@ -767,9 +958,46 @@ func Convert_v1beta1_MachineDeploymentTopology_To_v1beta2_MachineDeploymentTopol
 	if err := autoConvert_v1beta1_MachineDeploymentTopology_To_v1beta2_MachineDeploymentTopology(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
-	out.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
-	out.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+	if in.Variables != nil {
+		if err := autoConvert_v1beta1_MachineDeploymentVariables_To_v1beta2_MachineDeploymentVariables(in.Variables, &out.Variables, s); err != nil {
+			return err
+		}
+	}
+	if in.Strategy != nil {
+		out.Rollout.Strategy.Type = clusterv1.MachineDeploymentRolloutStrategyType(in.Strategy.Type)
+		if in.Strategy.RollingUpdate != nil {
+			out.Rollout.Strategy.RollingUpdate.MaxUnavailable = in.Strategy.RollingUpdate.MaxUnavailable
+			out.Rollout.Strategy.RollingUpdate.MaxSurge = in.Strategy.RollingUpdate.MaxSurge
+			if in.Strategy.RollingUpdate.DeletePolicy != nil {
+				out.Deletion.Order = clusterv1.MachineSetDeletionOrder(*in.Strategy.RollingUpdate.DeletePolicy)
+			}
+		}
+		if in.Strategy.Remediation != nil && in.Strategy.Remediation.MaxInFlight != nil {
+			out.HealthCheck.Remediation.MaxInFlight = in.Strategy.Remediation.MaxInFlight
+		}
+	}
+	out.Deletion.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
+	out.Deletion.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
+	out.Deletion.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+
+	if in.MachineHealthCheck != nil {
+		out.HealthCheck.Enabled = in.MachineHealthCheck.Enable
+		for _, c := range in.MachineHealthCheck.UnhealthyConditions {
+			out.HealthCheck.Checks.UnhealthyNodeConditions = append(out.HealthCheck.Checks.UnhealthyNodeConditions, clusterv1.UnhealthyNodeCondition{
+				Type:           c.Type,
+				Status:         c.Status,
+				TimeoutSeconds: clusterv1.ConvertToSeconds(&c.Timeout),
+			})
+		}
+		out.HealthCheck.Checks.NodeStartupTimeoutSeconds = clusterv1.ConvertToSeconds(in.MachineHealthCheck.NodeStartupTimeout)
+		out.HealthCheck.Remediation.TriggerIf.UnhealthyLessThanOrEqualTo = in.MachineHealthCheck.MaxUnhealthy
+		out.HealthCheck.Remediation.TriggerIf.UnhealthyInRange = ptr.Deref(in.MachineHealthCheck.UnhealthyRange, "")
+		if in.MachineHealthCheck.RemediationTemplate != nil {
+			if err := Convert_v1_ObjectReference_To_v1beta2_MachineHealthCheckRemediationTemplateReference(in.MachineHealthCheck.RemediationTemplate, &out.HealthCheck.Remediation.TemplateRef, s); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -777,9 +1005,68 @@ func Convert_v1beta2_MachineDeploymentTopology_To_v1beta1_MachineDeploymentTopol
 	if err := autoConvert_v1beta2_MachineDeploymentTopology_To_v1beta1_MachineDeploymentTopology(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.NodeDrainTimeoutSeconds)
-	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.NodeVolumeDetachTimeoutSeconds)
-	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.NodeDeletionTimeoutSeconds)
+	if !reflect.DeepEqual(in.Variables, clusterv1.MachineDeploymentVariables{}) {
+		out.Variables = &MachineDeploymentVariables{}
+		if err := autoConvert_v1beta2_MachineDeploymentVariables_To_v1beta1_MachineDeploymentVariables(&in.Variables, out.Variables, s); err != nil {
+			return err
+		}
+	}
+	if !reflect.DeepEqual(in.Rollout.Strategy, clusterv1.MachineDeploymentTopologyRolloutStrategy{}) {
+		out.Strategy = &MachineDeploymentStrategy{}
+		out.Strategy.Type = MachineDeploymentStrategyType(in.Rollout.Strategy.Type)
+		if !reflect.DeepEqual(in.Rollout.Strategy.RollingUpdate, clusterv1.MachineDeploymentTopologyRolloutStrategyRollingUpdate{}) {
+			out.Strategy.RollingUpdate = &MachineRollingUpdateDeployment{}
+			out.Strategy.RollingUpdate.MaxUnavailable = in.Rollout.Strategy.RollingUpdate.MaxUnavailable
+			out.Strategy.RollingUpdate.MaxSurge = in.Rollout.Strategy.RollingUpdate.MaxSurge
+		}
+	}
+	if in.Deletion.Order != "" {
+		if out.Strategy == nil {
+			out.Strategy = &MachineDeploymentStrategy{}
+		}
+		if out.Strategy.RollingUpdate == nil {
+			out.Strategy.RollingUpdate = &MachineRollingUpdateDeployment{}
+		}
+		out.Strategy.RollingUpdate.DeletePolicy = ptr.To(string(in.Deletion.Order))
+	}
+	if in.HealthCheck.Remediation.MaxInFlight != nil {
+		if out.Strategy == nil {
+			out.Strategy = &MachineDeploymentStrategy{}
+		}
+		if out.Strategy.Remediation == nil {
+			out.Strategy.Remediation = &RemediationStrategy{}
+		}
+		out.Strategy.Remediation.MaxInFlight = in.HealthCheck.Remediation.MaxInFlight
+	}
+	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDrainTimeoutSeconds)
+	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeVolumeDetachTimeoutSeconds)
+	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDeletionTimeoutSeconds)
+
+	// Check if HealthCheck is not nil and another field apart from MaxInFlight is set (MaxInFlight is set in Strategy above).
+	if !reflect.DeepEqual(in.HealthCheck, clusterv1.MachineDeploymentTopologyHealthCheck{
+		Remediation: clusterv1.MachineDeploymentTopologyHealthCheckRemediation{MaxInFlight: in.HealthCheck.Remediation.MaxInFlight},
+	}) {
+		out.MachineHealthCheck = &MachineHealthCheckTopology{}
+		out.MachineHealthCheck.Enable = in.HealthCheck.Enabled
+		for _, c := range in.HealthCheck.Checks.UnhealthyNodeConditions {
+			out.MachineHealthCheck.UnhealthyConditions = append(out.MachineHealthCheck.UnhealthyConditions, UnhealthyCondition{
+				Type:    c.Type,
+				Status:  c.Status,
+				Timeout: ptr.Deref(clusterv1.ConvertFromSeconds(c.TimeoutSeconds), metav1.Duration{}),
+			})
+		}
+		out.MachineHealthCheck.NodeStartupTimeout = clusterv1.ConvertFromSeconds(in.HealthCheck.Checks.NodeStartupTimeoutSeconds)
+		out.MachineHealthCheck.MaxUnhealthy = in.HealthCheck.Remediation.TriggerIf.UnhealthyLessThanOrEqualTo
+		if in.HealthCheck.Remediation.TriggerIf.UnhealthyInRange != "" {
+			out.MachineHealthCheck.UnhealthyRange = ptr.To(in.HealthCheck.Remediation.TriggerIf.UnhealthyInRange)
+		}
+		if in.HealthCheck.Remediation.TemplateRef.IsDefined() {
+			out.MachineHealthCheck.RemediationTemplate = &corev1.ObjectReference{}
+			if err := Convert_v1beta2_MachineHealthCheckRemediationTemplateReference_To_v1_ObjectReference(&in.HealthCheck.Remediation.TemplateRef, out.MachineHealthCheck.RemediationTemplate, s); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -787,9 +1074,23 @@ func Convert_v1beta1_MachinePoolClass_To_v1beta2_MachinePoolClass(in *MachinePoo
 	if err := autoConvert_v1beta1_MachinePoolClass_To_v1beta2_MachinePoolClass(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
-	out.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
-	out.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+	if err := Convert_v1beta1_ObjectMeta_To_v1beta2_ObjectMeta(&in.Template.Metadata, &out.Metadata, s); err != nil {
+		return err
+	}
+	if err := Convert_v1beta1_LocalObjectTemplate_To_v1beta2_MachinePoolClassBootstrapTemplate(&in.Template.Bootstrap, &out.Bootstrap, s); err != nil {
+		return err
+	}
+	if err := Convert_v1beta1_LocalObjectTemplate_To_v1beta2_MachinePoolClassInfrastructureTemplate(&in.Template.Infrastructure, &out.Infrastructure, s); err != nil {
+		return err
+	}
+	out.Deletion.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
+	out.Deletion.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
+	out.Deletion.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+	if in.NamingStrategy != nil {
+		out.Naming = clusterv1.MachinePoolClassNamingSpec{
+			Template: ptr.Deref(in.NamingStrategy.Template, ""),
+		}
+	}
 	return nil
 }
 
@@ -797,9 +1098,23 @@ func Convert_v1beta2_MachinePoolClass_To_v1beta1_MachinePoolClass(in *clusterv1.
 	if err := autoConvert_v1beta2_MachinePoolClass_To_v1beta1_MachinePoolClass(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.NodeDrainTimeoutSeconds)
-	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.NodeVolumeDetachTimeoutSeconds)
-	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.NodeDeletionTimeoutSeconds)
+	if err := Convert_v1beta2_ObjectMeta_To_v1beta1_ObjectMeta(&in.Metadata, &out.Template.Metadata, s); err != nil {
+		return err
+	}
+	if err := Convert_v1beta2_MachinePoolClassBootstrapTemplate_To_v1beta1_LocalObjectTemplate(&in.Bootstrap, &out.Template.Bootstrap, s); err != nil {
+		return err
+	}
+	if err := Convert_v1beta2_MachinePoolClassInfrastructureTemplate_To_v1beta1_LocalObjectTemplate(&in.Infrastructure, &out.Template.Infrastructure, s); err != nil {
+		return err
+	}
+	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDrainTimeoutSeconds)
+	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeVolumeDetachTimeoutSeconds)
+	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDeletionTimeoutSeconds)
+	if in.Naming.Template != "" {
+		out.NamingStrategy = &MachinePoolClassNamingStrategy{
+			Template: ptr.To(in.Naming.Template),
+		}
+	}
 	return nil
 }
 
@@ -807,9 +1122,14 @@ func Convert_v1beta1_MachinePoolTopology_To_v1beta2_MachinePoolTopology(in *Mach
 	if err := autoConvert_v1beta1_MachinePoolTopology_To_v1beta2_MachinePoolTopology(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
-	out.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
-	out.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+	if in.Variables != nil {
+		if err := autoConvert_v1beta1_MachinePoolVariables_To_v1beta2_MachinePoolVariables(in.Variables, &out.Variables, s); err != nil {
+			return err
+		}
+	}
+	out.Deletion.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
+	out.Deletion.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
+	out.Deletion.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
 	return nil
 }
 
@@ -817,9 +1137,15 @@ func Convert_v1beta2_MachinePoolTopology_To_v1beta1_MachinePoolTopology(in *clus
 	if err := autoConvert_v1beta2_MachinePoolTopology_To_v1beta1_MachinePoolTopology(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.NodeDrainTimeoutSeconds)
-	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.NodeVolumeDetachTimeoutSeconds)
-	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.NodeDeletionTimeoutSeconds)
+	if !reflect.DeepEqual(in.Variables, clusterv1.MachinePoolVariables{}) {
+		out.Variables = &MachinePoolVariables{}
+		if err := autoConvert_v1beta2_MachinePoolVariables_To_v1beta1_MachinePoolVariables(&in.Variables, out.Variables, s); err != nil {
+			return err
+		}
+	}
+	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDrainTimeoutSeconds)
+	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeVolumeDetachTimeoutSeconds)
+	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDeletionTimeoutSeconds)
 	return nil
 }
 
@@ -827,9 +1153,9 @@ func Convert_v1beta1_MachineSpec_To_v1beta2_MachineSpec(in *MachineSpec, out *cl
 	if err := autoConvert_v1beta1_MachineSpec_To_v1beta2_MachineSpec(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
-	out.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
-	out.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
+	out.Deletion.NodeDrainTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDrainTimeout)
+	out.Deletion.NodeVolumeDetachTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeVolumeDetachTimeout)
+	out.Deletion.NodeDeletionTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeDeletionTimeout)
 	return nil
 }
 
@@ -953,7 +1279,11 @@ func Convert_v1beta1_Topology_To_v1beta2_Topology(in *Topology, out *clusterv1.T
 	if err := autoConvert_v1beta1_Topology_To_v1beta2_Topology(in, out, s); err != nil {
 		return err
 	}
-
+	if in.Workers != nil {
+		if err := autoConvert_v1beta1_WorkersTopology_To_v1beta2_WorkersTopology(in.Workers, &out.Workers, s); err != nil {
+			return err
+		}
+	}
 	out.ClassRef.Name = in.Class
 	out.ClassRef.Namespace = in.ClassNamespace
 	return nil
@@ -1031,15 +1361,15 @@ func Convert_v1beta2_Topology_To_v1beta1_Topology(in *clusterv1.Topology, out *T
 	if err := autoConvert_v1beta2_Topology_To_v1beta1_Topology(in, out, s); err != nil {
 		return err
 	}
-
+	if !reflect.DeepEqual(in.Workers, clusterv1.WorkersTopology{}) {
+		out.Workers = &WorkersTopology{}
+		if err := autoConvert_v1beta2_WorkersTopology_To_v1beta1_WorkersTopology(&in.Workers, out.Workers, s); err != nil {
+			return err
+		}
+	}
 	out.Class = in.ClassRef.Name
 	out.ClassNamespace = in.ClassRef.Namespace
 	return nil
-}
-
-func Convert_v1beta1_MachineDeploymentSpec_To_v1beta2_MachineDeploymentSpec(in *MachineDeploymentSpec, out *clusterv1.MachineDeploymentSpec, s apimachineryconversion.Scope) error {
-	// NOTE: v1beta2 MachineDeploymentSpec does not have ProgressDeadlineSeconds anymore. But it's fine to just lose this field it was never used.
-	return autoConvert_v1beta1_MachineDeploymentSpec_To_v1beta2_MachineDeploymentSpec(in, out, s)
 }
 
 func Convert_v1beta2_MachineDeploymentStatus_To_v1beta1_MachineDeploymentStatus(in *clusterv1.MachineDeploymentStatus, out *MachineDeploymentStatus, s apimachineryconversion.Scope) error {
@@ -1124,13 +1454,20 @@ func Convert_v1beta1_MachineHealthCheckSpec_To_v1beta2_MachineHealthCheckSpec(in
 	}
 
 	for _, c := range in.UnhealthyConditions {
-		out.UnhealthyNodeConditions = append(out.UnhealthyNodeConditions, clusterv1.UnhealthyNodeCondition{
+		out.Checks.UnhealthyNodeConditions = append(out.Checks.UnhealthyNodeConditions, clusterv1.UnhealthyNodeCondition{
 			Type:           c.Type,
 			Status:         c.Status,
-			TimeoutSeconds: ptr.Deref(clusterv1.ConvertToSeconds(&c.Timeout), 0),
+			TimeoutSeconds: clusterv1.ConvertToSeconds(&c.Timeout),
 		})
 	}
-	out.NodeStartupTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeStartupTimeout)
+	out.Checks.NodeStartupTimeoutSeconds = clusterv1.ConvertToSeconds(in.NodeStartupTimeout)
+	out.Remediation.TriggerIf.UnhealthyLessThanOrEqualTo = in.MaxUnhealthy
+	out.Remediation.TriggerIf.UnhealthyInRange = ptr.Deref(in.UnhealthyRange, "")
+	if in.RemediationTemplate != nil {
+		if err := Convert_v1_ObjectReference_To_v1beta2_MachineHealthCheckRemediationTemplateReference(in.RemediationTemplate, &out.Remediation.TemplateRef, s); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -1140,14 +1477,24 @@ func Convert_v1beta2_MachineHealthCheckSpec_To_v1beta1_MachineHealthCheckSpec(in
 		return err
 	}
 
-	for _, c := range in.UnhealthyNodeConditions {
+	for _, c := range in.Checks.UnhealthyNodeConditions {
 		out.UnhealthyConditions = append(out.UnhealthyConditions, UnhealthyCondition{
 			Type:    c.Type,
 			Status:  c.Status,
-			Timeout: ptr.Deref(clusterv1.ConvertFromSeconds(&c.TimeoutSeconds), metav1.Duration{}),
+			Timeout: ptr.Deref(clusterv1.ConvertFromSeconds(c.TimeoutSeconds), metav1.Duration{}),
 		})
 	}
-	out.NodeStartupTimeout = clusterv1.ConvertFromSeconds(in.NodeStartupTimeoutSeconds)
+	out.NodeStartupTimeout = clusterv1.ConvertFromSeconds(in.Checks.NodeStartupTimeoutSeconds)
+	out.MaxUnhealthy = in.Remediation.TriggerIf.UnhealthyLessThanOrEqualTo
+	if in.Remediation.TriggerIf.UnhealthyInRange != "" {
+		out.UnhealthyRange = ptr.To(in.Remediation.TriggerIf.UnhealthyInRange)
+	}
+	if in.Remediation.TemplateRef.IsDefined() {
+		out.RemediationTemplate = &corev1.ObjectReference{}
+		if err := Convert_v1beta2_MachineHealthCheckRemediationTemplateReference_To_v1_ObjectReference(&in.Remediation.TemplateRef, out.RemediationTemplate, s); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -1290,6 +1637,19 @@ func Convert_v1beta2_MachineStatus_To_v1beta1_MachineStatus(in *clusterv1.Machin
 	if err := autoConvert_v1beta2_MachineStatus_To_v1beta1_MachineStatus(in, out, s); err != nil {
 		return err
 	}
+	if !reflect.DeepEqual(in.LastUpdated, metav1.Time{}) {
+		out.LastUpdated = ptr.To(in.LastUpdated)
+	}
+	if !reflect.DeepEqual(in.CertificatesExpiryDate, metav1.Time{}) {
+		out.CertificatesExpiryDate = ptr.To(in.CertificatesExpiryDate)
+	}
+	if in.NodeRef.IsDefined() {
+		out.NodeRef = &corev1.ObjectReference{
+			Name:       in.NodeRef.Name,
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Node",
+		}
+	}
 
 	// Reset conditions from autogenerated conversions
 	// NOTE: v1beta2 conditions should not be automatically be converted into legacy conditions (v1beta1).
@@ -1320,6 +1680,16 @@ func Convert_v1beta2_MachineStatus_To_v1beta1_MachineStatus(in *clusterv1.Machin
 func Convert_v1beta1_MachineStatus_To_v1beta2_MachineStatus(in *MachineStatus, out *clusterv1.MachineStatus, s apimachineryconversion.Scope) error {
 	if err := autoConvert_v1beta1_MachineStatus_To_v1beta2_MachineStatus(in, out, s); err != nil {
 		return err
+	}
+
+	if in.LastUpdated != nil && !reflect.DeepEqual(in.LastUpdated, &metav1.Time{}) {
+		out.LastUpdated = *in.LastUpdated
+	}
+	if in.CertificatesExpiryDate != nil && !reflect.DeepEqual(in.CertificatesExpiryDate, &metav1.Time{}) {
+		out.CertificatesExpiryDate = *in.CertificatesExpiryDate
+	}
+	if in.NodeRef != nil && !reflect.DeepEqual(in.NodeRef, &corev1.ObjectReference{}) {
+		out.NodeRef.Name = in.NodeRef.Name
 	}
 
 	// Reset conditions from autogenerated conversions
@@ -1382,17 +1752,13 @@ func Convert_v1beta1_ClusterVariable_To_v1beta2_ClusterVariable(in *ClusterVaria
 	return autoConvert_v1beta1_ClusterVariable_To_v1beta2_ClusterVariable(in, out, s)
 }
 
-func Convert_v1beta1_MachineSetSpec_To_v1beta2_MachineSetSpec(in *MachineSetSpec, out *clusterv1.MachineSetSpec, s apimachineryconversion.Scope) error {
-	return autoConvert_v1beta1_MachineSetSpec_To_v1beta2_MachineSetSpec(in, out, s)
-}
-
 func Convert_v1beta2_MachineSpec_To_v1beta1_MachineSpec(in *clusterv1.MachineSpec, out *MachineSpec, s apimachineryconversion.Scope) error {
 	if err := autoConvert_v1beta2_MachineSpec_To_v1beta1_MachineSpec(in, out, s); err != nil {
 		return err
 	}
-	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.NodeDrainTimeoutSeconds)
-	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.NodeVolumeDetachTimeoutSeconds)
-	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.NodeDeletionTimeoutSeconds)
+	out.NodeDrainTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDrainTimeoutSeconds)
+	out.NodeVolumeDetachTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeVolumeDetachTimeoutSeconds)
+	out.NodeDeletionTimeout = clusterv1.ConvertFromSeconds(in.Deletion.NodeDeletionTimeoutSeconds)
 	return nil
 }
 
@@ -1646,22 +2012,204 @@ func Convert_v1beta2_ClusterClassTemplateReference_To_v1beta1_LocalObjectTemplat
 	}
 }
 
-func Convert_v1beta1_MachineRollingUpdateDeployment_To_v1beta2_MachineRollingUpdateDeployment(in *MachineRollingUpdateDeployment, out *clusterv1.MachineRollingUpdateDeployment, s apimachineryconversion.Scope) error {
-	if err := autoConvert_v1beta1_MachineRollingUpdateDeployment_To_v1beta2_MachineRollingUpdateDeployment(in, out, s); err != nil {
+func Convert_v1beta1_MachineSetSpec_To_v1beta2_MachineSetSpec(in *MachineSetSpec, out *clusterv1.MachineSetSpec, s apimachineryconversion.Scope) error {
+	if err := autoConvert_v1beta1_MachineSetSpec_To_v1beta2_MachineSetSpec(in, out, s); err != nil {
 		return err
 	}
-	if in.DeletePolicy != nil {
-		out.DeletePolicy = clusterv1.MachineSetDeletePolicy(*in.DeletePolicy)
+
+	out.Deletion.Order = clusterv1.MachineSetDeletionOrder(in.DeletePolicy)
+	if in.MachineNamingStrategy != nil {
+		out.MachineNaming = clusterv1.MachineNamingSpec{
+			Template: in.MachineNamingStrategy.Template,
+		}
 	}
 	return nil
 }
 
-func Convert_v1beta2_MachineRollingUpdateDeployment_To_v1beta1_MachineRollingUpdateDeployment(in *clusterv1.MachineRollingUpdateDeployment, out *MachineRollingUpdateDeployment, s apimachineryconversion.Scope) error {
-	if err := autoConvert_v1beta2_MachineRollingUpdateDeployment_To_v1beta1_MachineRollingUpdateDeployment(in, out, s); err != nil {
+func Convert_v1beta2_MachineSetSpec_To_v1beta1_MachineSetSpec(in *clusterv1.MachineSetSpec, out *MachineSetSpec, s apimachineryconversion.Scope) error {
+	if err := autoConvert_v1beta2_MachineSetSpec_To_v1beta1_MachineSetSpec(in, out, s); err != nil {
 		return err
 	}
-	if in.DeletePolicy != "" {
-		out.DeletePolicy = ptr.To(string(in.DeletePolicy))
+
+	out.DeletePolicy = string(in.Deletion.Order)
+	if in.MachineNaming.Template != "" {
+		out.MachineNamingStrategy = &MachineNamingStrategy{
+			Template: in.MachineNaming.Template,
+		}
+	}
+	return nil
+}
+
+func Convert_v1beta1_ClusterSpec_To_v1beta2_ClusterSpec(in *ClusterSpec, out *clusterv1.ClusterSpec, s apimachineryconversion.Scope) error {
+	if err := autoConvert_v1beta1_ClusterSpec_To_v1beta2_ClusterSpec(in, out, s); err != nil {
+		return err
+	}
+	if in.ClusterNetwork != nil {
+		if err := Convert_v1beta1_ClusterNetwork_To_v1beta2_ClusterNetwork(in.ClusterNetwork, &out.ClusterNetwork, s); err != nil {
+			return err
+		}
+	}
+	if in.Topology != nil {
+		if err := Convert_v1beta1_Topology_To_v1beta2_Topology(in.Topology, &out.Topology, s); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func Convert_v1beta2_ClusterSpec_To_v1beta1_ClusterSpec(in *clusterv1.ClusterSpec, out *ClusterSpec, s apimachineryconversion.Scope) error {
+	if err := autoConvert_v1beta2_ClusterSpec_To_v1beta1_ClusterSpec(in, out, s); err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(in.ClusterNetwork, clusterv1.ClusterNetwork{}) {
+		out.ClusterNetwork = &ClusterNetwork{}
+		if err := Convert_v1beta2_ClusterNetwork_To_v1beta1_ClusterNetwork(&in.ClusterNetwork, out.ClusterNetwork, s); err != nil {
+			return err
+		}
+	}
+	if !reflect.DeepEqual(in.Topology, clusterv1.Topology{}) {
+		out.Topology = &Topology{}
+		if err := Convert_v1beta2_Topology_To_v1beta1_Topology(&in.Topology, out.Topology, s); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func Convert_v1beta1_ClusterNetwork_To_v1beta2_ClusterNetwork(in *ClusterNetwork, out *clusterv1.ClusterNetwork, s apimachineryconversion.Scope) error {
+	if err := autoConvert_v1beta1_ClusterNetwork_To_v1beta2_ClusterNetwork(in, out, s); err != nil {
+		return err
+	}
+	if in.Services != nil {
+		if err := autoConvert_v1beta1_NetworkRanges_To_v1beta2_NetworkRanges(in.Services, &out.Services, s); err != nil {
+			return err
+		}
+	}
+	if in.Pods != nil {
+		if err := autoConvert_v1beta1_NetworkRanges_To_v1beta2_NetworkRanges(in.Pods, &out.Pods, s); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func Convert_v1beta2_ClusterNetwork_To_v1beta1_ClusterNetwork(in *clusterv1.ClusterNetwork, out *ClusterNetwork, s apimachineryconversion.Scope) error {
+	if err := autoConvert_v1beta2_ClusterNetwork_To_v1beta1_ClusterNetwork(in, out, s); err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(in.Services, clusterv1.NetworkRanges{}) {
+		out.Services = &NetworkRanges{}
+		if err := autoConvert_v1beta2_NetworkRanges_To_v1beta1_NetworkRanges(&in.Services, out.Services, s); err != nil {
+			return err
+		}
+	}
+
+	if !reflect.DeepEqual(in.Pods, clusterv1.NetworkRanges{}) {
+		out.Pods = &NetworkRanges{}
+		if err := autoConvert_v1beta2_NetworkRanges_To_v1beta1_NetworkRanges(&in.Pods, out.Pods, s); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func Convert_v1beta1_MachineDeploymentSpec_To_v1beta2_MachineDeploymentSpec(in *MachineDeploymentSpec, out *clusterv1.MachineDeploymentSpec, s apimachineryconversion.Scope) error {
+	// NOTE: v1beta2 MachineDeploymentSpec does not have ProgressDeadlineSeconds anymore. But it's fine to just lose this field it was never used.
+	if err := autoConvert_v1beta1_MachineDeploymentSpec_To_v1beta2_MachineDeploymentSpec(in, out, s); err != nil {
+		return err
+	}
+	if in.Strategy != nil {
+		out.Rollout.Strategy.Type = clusterv1.MachineDeploymentRolloutStrategyType(in.Strategy.Type)
+		if in.Strategy.RollingUpdate != nil {
+			out.Rollout.Strategy.RollingUpdate.MaxUnavailable = in.Strategy.RollingUpdate.MaxUnavailable
+			out.Rollout.Strategy.RollingUpdate.MaxSurge = in.Strategy.RollingUpdate.MaxSurge
+			if in.Strategy.RollingUpdate.DeletePolicy != nil {
+				out.Deletion.Order = clusterv1.MachineSetDeletionOrder(*in.Strategy.RollingUpdate.DeletePolicy)
+			}
+		}
+		if in.Strategy.Remediation != nil && in.Strategy.Remediation.MaxInFlight != nil {
+			out.Remediation.MaxInFlight = in.Strategy.Remediation.MaxInFlight
+		}
+	}
+	if in.RolloutAfter != nil && !reflect.DeepEqual(in.RolloutAfter, &metav1.Time{}) {
+		out.Rollout.After = *in.RolloutAfter
+	}
+	if in.MachineNamingStrategy != nil {
+		out.MachineNaming = clusterv1.MachineNamingSpec{
+			Template: in.MachineNamingStrategy.Template,
+		}
+	}
+
+	return nil
+}
+
+func Convert_v1beta2_MachineDeploymentSpec_To_v1beta1_MachineDeploymentSpec(in *clusterv1.MachineDeploymentSpec, out *MachineDeploymentSpec, s apimachineryconversion.Scope) error {
+	if err := autoConvert_v1beta2_MachineDeploymentSpec_To_v1beta1_MachineDeploymentSpec(in, out, s); err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(in.Rollout.Strategy, clusterv1.MachineDeploymentRolloutStrategy{}) {
+		out.Strategy = &MachineDeploymentStrategy{}
+		out.Strategy.Type = MachineDeploymentStrategyType(in.Rollout.Strategy.Type)
+		if !reflect.DeepEqual(in.Rollout.Strategy.RollingUpdate, clusterv1.MachineDeploymentRolloutStrategyRollingUpdate{}) {
+			out.Strategy.RollingUpdate = &MachineRollingUpdateDeployment{}
+			out.Strategy.RollingUpdate.MaxUnavailable = in.Rollout.Strategy.RollingUpdate.MaxUnavailable
+			out.Strategy.RollingUpdate.MaxSurge = in.Rollout.Strategy.RollingUpdate.MaxSurge
+		}
+	}
+	if in.Deletion.Order != "" {
+		if out.Strategy == nil {
+			out.Strategy = &MachineDeploymentStrategy{}
+		}
+		if out.Strategy.RollingUpdate == nil {
+			out.Strategy.RollingUpdate = &MachineRollingUpdateDeployment{}
+		}
+		out.Strategy.RollingUpdate.DeletePolicy = ptr.To(string(in.Deletion.Order))
+	}
+	if in.Remediation.MaxInFlight != nil {
+		if out.Strategy == nil {
+			out.Strategy = &MachineDeploymentStrategy{}
+		}
+		if out.Strategy.Remediation == nil {
+			out.Strategy.Remediation = &RemediationStrategy{}
+		}
+		out.Strategy.Remediation.MaxInFlight = in.Remediation.MaxInFlight
+	}
+	if !reflect.DeepEqual(in.Rollout.After, metav1.Time{}) {
+		out.RolloutAfter = ptr.To(in.Rollout.After)
+	}
+	if in.MachineNaming.Template != "" {
+		out.MachineNamingStrategy = &MachineNamingStrategy{
+			Template: in.MachineNaming.Template,
+		}
+	}
+	return nil
+}
+
+func Convert_v1beta1_Bootstrap_To_v1beta2_Bootstrap(in *Bootstrap, out *clusterv1.Bootstrap, s apimachineryconversion.Scope) error {
+	if err := autoConvert_v1beta1_Bootstrap_To_v1beta2_Bootstrap(in, out, s); err != nil {
+		return err
+	}
+	if in.ConfigRef != nil {
+		if err := Convert_v1_ObjectReference_To_v1beta2_ContractVersionedObjectReference(in.ConfigRef, &out.ConfigRef, s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func Convert_v1beta2_Bootstrap_To_v1beta1_Bootstrap(in *clusterv1.Bootstrap, out *Bootstrap, s apimachineryconversion.Scope) error {
+	if err := autoConvert_v1beta2_Bootstrap_To_v1beta1_Bootstrap(in, out, s); err != nil {
+		return err
+	}
+	if in.ConfigRef.IsDefined() {
+		out.ConfigRef = &corev1.ObjectReference{}
+		if err := Convert_v1beta2_ContractVersionedObjectReference_To_v1_ObjectReference(&in.ConfigRef, out.ConfigRef, s); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1671,7 +2219,7 @@ func convertMachineSpecToContractVersionedObjectReference(src *MachineSpec, dst 
 	if err != nil {
 		return err
 	}
-	dst.InfrastructureRef = *infraRef
+	dst.InfrastructureRef = infraRef
 
 	if src.Bootstrap.ConfigRef != nil {
 		bootstrapRef, err := convertToContractVersionedObjectReference(src.Bootstrap.ConfigRef)
@@ -1685,13 +2233,13 @@ func convertMachineSpecToContractVersionedObjectReference(src *MachineSpec, dst 
 }
 
 func convertMachineSpecToObjectReference(src *clusterv1.MachineSpec, dst *MachineSpec, namespace string) error {
-	infraRef, err := convertToObjectReference(&src.InfrastructureRef, namespace)
+	infraRef, err := convertToObjectReference(src.InfrastructureRef, namespace)
 	if err != nil {
 		return err
 	}
 	dst.InfrastructureRef = *infraRef
 
-	if src.Bootstrap.ConfigRef != nil {
+	if src.Bootstrap.ConfigRef.IsDefined() {
 		bootstrapRef, err := convertToObjectReference(src.Bootstrap.ConfigRef, namespace)
 		if err != nil {
 			return err
@@ -1702,23 +2250,23 @@ func convertMachineSpecToObjectReference(src *clusterv1.MachineSpec, dst *Machin
 	return nil
 }
 
-func convertToContractVersionedObjectReference(ref *corev1.ObjectReference) (*clusterv1.ContractVersionedObjectReference, error) {
+func convertToContractVersionedObjectReference(ref *corev1.ObjectReference) (clusterv1.ContractVersionedObjectReference, error) {
 	var apiGroup string
 	if ref.APIVersion != "" {
 		gv, err := schema.ParseGroupVersion(ref.APIVersion)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert object: failed to parse apiVersion: %v", err)
+			return clusterv1.ContractVersionedObjectReference{}, fmt.Errorf("failed to convert object: failed to parse apiVersion: %v", err)
 		}
 		apiGroup = gv.Group
 	}
-	return &clusterv1.ContractVersionedObjectReference{
+	return clusterv1.ContractVersionedObjectReference{
 		APIGroup: apiGroup,
 		Kind:     ref.Kind,
 		Name:     ref.Name,
 	}, nil
 }
 
-func convertToObjectReference(ref *clusterv1.ContractVersionedObjectReference, namespace string) (*corev1.ObjectReference, error) {
+func convertToObjectReference(ref clusterv1.ContractVersionedObjectReference, namespace string) (*corev1.ObjectReference, error) {
 	apiVersion, err := apiVersionGetter(schema.GroupKind{
 		Group: ref.APIGroup,
 		Kind:  ref.Kind,
@@ -1735,23 +2283,37 @@ func convertToObjectReference(ref *clusterv1.ContractVersionedObjectReference, n
 }
 
 func Convert_v1beta1_JSONSchemaProps_To_v1beta2_JSONSchemaProps(in *JSONSchemaProps, out *clusterv1.JSONSchemaProps, s apimachineryconversion.Scope) error {
-	// This conversion func is required due to a bug in conversion gen that does not recognize the changes for converting bool to *bool.
+	// This conversion func is also required due to a bug in conversion gen that does not recognize the changes for converting bool to *bool.
 	// By implementing this func, autoConvert_v1beta1_JSONSchemaProps_To_v1beta2_JSONSchemaProps is generated properly.
-	return autoConvert_v1beta1_JSONSchemaProps_To_v1beta2_JSONSchemaProps(in, out, s)
+	if err := autoConvert_v1beta1_JSONSchemaProps_To_v1beta2_JSONSchemaProps(in, out, s); err != nil {
+		return err
+	}
+	if in.XMetadata != nil {
+		if err := Convert_v1beta1_VariableSchemaMetadata_To_v1beta2_VariableSchemaMetadata(in.XMetadata, &out.XMetadata, s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func Convert_v1beta2_JSONSchemaProps_To_v1beta1_JSONSchemaProps(in *clusterv1.JSONSchemaProps, out *JSONSchemaProps, s apimachineryconversion.Scope) error {
+	if err := autoConvert_v1beta2_JSONSchemaProps_To_v1beta1_JSONSchemaProps(in, out, s); err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(in.XMetadata, clusterv1.VariableSchemaMetadata{}) {
+		out.XMetadata = &VariableSchemaMetadata{}
+		if err := Convert_v1beta2_VariableSchemaMetadata_To_v1beta1_VariableSchemaMetadata(&in.XMetadata, out.XMetadata, s); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func dropEmptyStringsCluster(dst *Cluster) {
 	if dst.Spec.Topology != nil {
-		if dst.Spec.Topology.ControlPlane.MachineHealthCheck != nil {
-			dropEmptyString(&dst.Spec.Topology.ControlPlane.MachineHealthCheck.UnhealthyRange)
-		}
-
 		if dst.Spec.Topology.Workers != nil {
 			for i, md := range dst.Spec.Topology.Workers.MachineDeployments {
 				dropEmptyString(&md.FailureDomain)
-				if md.MachineHealthCheck != nil {
-					dropEmptyString(&md.MachineHealthCheck.UnhealthyRange)
-				}
 				dst.Spec.Topology.Workers.MachineDeployments[i] = md
 			}
 		}
@@ -1766,18 +2328,12 @@ func dropEmptyStringsClusterClass(dst *ClusterClass) {
 	if dst.Spec.ControlPlane.NamingStrategy != nil {
 		dropEmptyString(&dst.Spec.ControlPlane.NamingStrategy.Template)
 	}
-	if dst.Spec.ControlPlane.MachineHealthCheck != nil {
-		dropEmptyString(&dst.Spec.ControlPlane.MachineHealthCheck.UnhealthyRange)
-	}
 
 	for i, md := range dst.Spec.Workers.MachineDeployments {
 		if md.NamingStrategy != nil {
 			dropEmptyString(&md.NamingStrategy.Template)
 		}
 		dropEmptyString(&md.FailureDomain)
-		if md.MachineHealthCheck != nil {
-			dropEmptyString(&md.MachineHealthCheck.UnhealthyRange)
-		}
 		dst.Spec.Workers.MachineDeployments[i] = md
 	}
 
@@ -1818,12 +2374,28 @@ func dropEmptyStringsMachineSpec(spec *MachineSpec) {
 	dropEmptyString(&spec.FailureDomain)
 }
 
-func dropEmptyStringsMachineHealthCheck(dst *MachineHealthCheck) {
-	dropEmptyString(&dst.Spec.UnhealthyRange)
-}
-
 func dropEmptyString(s **string) {
 	if *s != nil && **s == "" {
 		*s = nil
 	}
+}
+
+func Convert_v1beta1_MachineDeletionStatus_To_v1beta2_MachineDeletionStatus(in *MachineDeletionStatus, out *clusterv1.MachineDeletionStatus, _ apimachineryconversion.Scope) error {
+	if in.NodeDrainStartTime != nil && !reflect.DeepEqual(in.NodeDrainStartTime, &metav1.Time{}) {
+		out.NodeDrainStartTime = *in.NodeDrainStartTime
+	}
+	if in.WaitForNodeVolumeDetachStartTime != nil && !reflect.DeepEqual(in.WaitForNodeVolumeDetachStartTime, &metav1.Time{}) {
+		out.WaitForNodeVolumeDetachStartTime = *in.WaitForNodeVolumeDetachStartTime
+	}
+	return nil
+}
+
+func Convert_v1beta2_MachineDeletionStatus_To_v1beta1_MachineDeletionStatus(in *clusterv1.MachineDeletionStatus, out *MachineDeletionStatus, _ apimachineryconversion.Scope) error {
+	if !reflect.DeepEqual(in.NodeDrainStartTime, metav1.Time{}) {
+		out.NodeDrainStartTime = ptr.To(in.NodeDrainStartTime)
+	}
+	if !reflect.DeepEqual(in.WaitForNodeVolumeDetachStartTime, metav1.Time{}) {
+		out.WaitForNodeVolumeDetachStartTime = ptr.To(in.WaitForNodeVolumeDetachStartTime)
+	}
+	return nil
 }

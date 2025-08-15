@@ -51,8 +51,6 @@ const (
 	ClusterResourceSetFinalizer = "addons.cluster.x-k8s.io"
 )
 
-// ANCHOR: ClusterResourceSetSpec
-
 // ClusterResourceSetSpec defines the desired state of ClusterResourceSet.
 type ClusterResourceSetSpec struct {
 	// clusterSelector is the label selector for Clusters. The Clusters that are
@@ -60,11 +58,12 @@ type ClusterResourceSetSpec struct {
 	// It must match the Cluster labels. This field is immutable.
 	// Label selector cannot be empty.
 	// +required
-	ClusterSelector metav1.LabelSelector `json:"clusterSelector"`
+	ClusterSelector metav1.LabelSelector `json:"clusterSelector,omitempty,omitzero"`
 
 	// resources is a list of Secrets/ConfigMaps where each contains 1 or more resources to be applied to remote clusters.
-	// +optional
+	// +required
 	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=100
 	Resources []ResourceRef `json:"resources,omitempty"`
 
@@ -73,8 +72,6 @@ type ClusterResourceSetSpec struct {
 	// +optional
 	Strategy string `json:"strategy,omitempty"`
 }
-
-// ANCHOR_END: ClusterResourceSetSpec
 
 // ClusterResourceSetResourceKind is a string representation of a ClusterResourceSet resource kind.
 type ClusterResourceSetResourceKind string
@@ -91,12 +88,12 @@ type ResourceRef struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// kind of the resource. Supported kinds are: Secrets and ConfigMaps.
 	// +kubebuilder:validation:Enum=Secret;ConfigMap
 	// +required
-	Kind string `json:"kind"`
+	Kind string `json:"kind,omitempty"`
 }
 
 // ClusterResourceSetStrategy is a string representation of a ClusterResourceSet Strategy.
@@ -115,8 +112,6 @@ const (
 func (c *ClusterResourceSetSpec) SetTypedStrategy(p ClusterResourceSetStrategy) {
 	c.Strategy = string(p)
 }
-
-// ANCHOR: ClusterResourceSetStatus
 
 // ClusterResourceSetStatus defines the observed state of ClusterResourceSet.
 // +kubebuilder:validation:MinProperties=1
@@ -158,8 +153,6 @@ type ClusterResourceSetV1Beta1DeprecatedStatus struct {
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 }
 
-// ANCHOR_END: ClusterResourceSetStatus
-
 // GetV1Beta1Conditions returns the set of conditions for this object.
 func (m *ClusterResourceSet) GetV1Beta1Conditions() clusterv1.Conditions {
 	if m.Status.Deprecated == nil || m.Status.Deprecated.V1Beta1 == nil {
@@ -193,6 +186,8 @@ func (m *ClusterResourceSet) SetConditions(conditions []metav1.Condition) {
 // +kubebuilder:resource:path=clusterresourcesets,scope=Namespaced,categories=cluster-api
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="Applied",type="string",JSONPath=`.status.conditions[?(@.type=="ResourcesApplied")].status`,description="Resource applied"
+// +kubebuilder:printcolumn:name="Paused",type="string",JSONPath=`.status.conditions[?(@.type=="Paused")].status`,description="Reconciliation paused",priority=10
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of ClusterResourceSet"
 
 // ClusterResourceSet is the Schema for the clusterresourcesets API.

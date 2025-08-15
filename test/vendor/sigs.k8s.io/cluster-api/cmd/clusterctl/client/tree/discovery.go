@@ -19,7 +19,6 @@ package tree
 import (
 	"context"
 
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -90,10 +89,9 @@ func Discovery(ctx context.Context, c client.Client, namespace, name string, opt
 
 	// Adds cluster infra
 	clusterInfra, err := external.GetObjectFromContractVersionedRef(ctx, c, cluster.Spec.InfrastructureRef, cluster.Namespace)
-	if err != nil {
-		return nil, errors.Wrap(err, "get InfraCluster reference from Cluster")
+	if err == nil {
+		tree.Add(cluster, clusterInfra, ObjectMetaName("ClusterInfrastructure"))
 	}
-	tree.Add(cluster, clusterInfra, ObjectMetaName("ClusterInfrastructure"))
 
 	if options.ShowClusterResourceSets {
 		addClusterResourceSetsToObjectTree(ctx, c, cluster, tree)
@@ -127,12 +125,12 @@ func Discovery(ctx context.Context, c client.Client, namespace, name string, opt
 
 		if visible {
 			if (m.Spec.InfrastructureRef != clusterv1.ContractVersionedObjectReference{}) {
-				if machineInfra, err := external.GetObjectFromContractVersionedRef(ctx, c, &m.Spec.InfrastructureRef, m.Namespace); err == nil {
+				if machineInfra, err := external.GetObjectFromContractVersionedRef(ctx, c, m.Spec.InfrastructureRef, m.Namespace); err == nil {
 					tree.Add(m, machineInfra, ObjectMetaName("MachineInfrastructure"), NoEcho(true))
 				}
 			}
 
-			if m.Spec.Bootstrap.ConfigRef != nil {
+			if m.Spec.Bootstrap.ConfigRef.IsDefined() {
 				if machineBootstrap, err := external.GetObjectFromContractVersionedRef(ctx, c, m.Spec.Bootstrap.ConfigRef, m.Namespace); err == nil {
 					tree.Add(m, machineBootstrap, ObjectMetaName("BootstrapConfig"), NoEcho(true))
 				}
@@ -261,7 +259,7 @@ func addMachineDeploymentToObjectTree(ctx context.Context, c client.Client, clus
 			}
 
 			// md.Spec.Template.Spec.Bootstrap.ConfigRef is optional
-			if md.Spec.Template.Spec.Bootstrap.ConfigRef != nil {
+			if md.Spec.Template.Spec.Bootstrap.ConfigRef.IsDefined() {
 				apiVersion, err := contract.GetAPIVersion(ctx, c, md.Spec.Template.Spec.Bootstrap.ConfigRef.GroupKind())
 				if err != nil {
 					return err
@@ -318,7 +316,7 @@ func addMachinePoolsToObjectTree(ctx context.Context, c client.Client, workers *
 				tree.Add(mp, machinePoolBootstrap, ObjectMetaName("BootstrapConfig"), NoEcho(true))
 			}
 
-			if machinePoolInfra, err := external.GetObjectFromContractVersionedRef(ctx, c, &mp.Spec.Template.Spec.InfrastructureRef, mp.Namespace); err == nil {
+			if machinePoolInfra, err := external.GetObjectFromContractVersionedRef(ctx, c, mp.Spec.Template.Spec.InfrastructureRef, mp.Namespace); err == nil {
 				tree.Add(mp, machinePoolInfra, ObjectMetaName("MachinePoolInfrastructure"), NoEcho(true))
 			}
 		}

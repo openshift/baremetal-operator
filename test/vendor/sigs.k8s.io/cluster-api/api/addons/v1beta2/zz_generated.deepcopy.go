@@ -259,9 +259,11 @@ func (in *ClusterResourceSetV1Beta1DeprecatedStatus) DeepCopy() *ClusterResource
 func (in *ResourceBinding) DeepCopyInto(out *ResourceBinding) {
 	*out = *in
 	out.ResourceRef = in.ResourceRef
-	if in.LastAppliedTime != nil {
-		in, out := &in.LastAppliedTime, &out.LastAppliedTime
-		*out = (*in).DeepCopy()
+	in.LastAppliedTime.DeepCopyInto(&out.LastAppliedTime)
+	if in.Applied != nil {
+		in, out := &in.Applied, &out.Applied
+		*out = new(bool)
+		**out = **in
 	}
 }
 

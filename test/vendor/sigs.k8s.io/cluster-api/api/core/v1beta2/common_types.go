@@ -106,7 +106,7 @@ const (
 	PausedAnnotation = "cluster.x-k8s.io/paused"
 
 	// DisableMachineCreateAnnotation is an annotation that can be used to signal a MachineSet to stop creating new machines.
-	// It is utilized in the OnDelete MachineDeploymentStrategy to allow the MachineDeployment controller to scale down
+	// It is utilized in the OnDelete rollout strategy to allow the MachineDeployment controller to scale down
 	// older MachineSets when Machines are deleted and add the new replicas to the latest MachineSet.
 	DisableMachineCreateAnnotation = "cluster.x-k8s.io/disable-machine-create"
 
@@ -292,13 +292,13 @@ const (
 type MachineAddress struct {
 	// type is the machine address type, one of Hostname, ExternalIP, InternalIP, ExternalDNS or InternalDNS.
 	// +required
-	Type MachineAddressType `json:"type"`
+	Type MachineAddressType `json:"type,omitempty"`
 
 	// address is the machine address.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Address string `json:"address"`
+	Address string `json:"address,omitempty"`
 }
 
 // MachineAddresses is a slice of MachineAddress items to be used by infrastructure providers.
@@ -365,7 +365,7 @@ type ContractVersionedObjectReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
-	Kind string `json:"kind"`
+	Kind string `json:"kind,omitempty"`
 
 	// name of the resource being referenced.
 	// name must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.
@@ -373,7 +373,7 @@ type ContractVersionedObjectReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// apiGroup is the group of the resource being referenced.
 	// apiGroup must be fully qualified domain name.
@@ -383,7 +383,15 @@ type ContractVersionedObjectReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-	APIGroup string `json:"apiGroup"`
+	APIGroup string `json:"apiGroup,omitempty"`
+}
+
+// IsDefined returns true if the ContractVersionedObjectReference is set.
+func (r *ContractVersionedObjectReference) IsDefined() bool {
+	if r == nil {
+		return false
+	}
+	return r.Kind != "" || r.Name != "" || r.APIGroup != ""
 }
 
 // GroupKind returns the GroupKind of the reference.

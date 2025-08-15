@@ -46,53 +46,46 @@ var (
 	DefaultNodeStartupTimeoutSeconds = int32(600)
 )
 
-// ANCHOR: MachineHealthCheckSpec
-
 // MachineHealthCheckSpec defines the desired state of MachineHealthCheck.
 type MachineHealthCheckSpec struct {
 	// clusterName is the name of the Cluster this object belongs to.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
-	ClusterName string `json:"clusterName"`
+	ClusterName string `json:"clusterName,omitempty"`
 
 	// selector is a label selector to match machines whose health will be exercised
 	// +required
-	Selector metav1.LabelSelector `json:"selector"`
+	Selector metav1.LabelSelector `json:"selector,omitempty,omitzero"`
 
-	// unhealthyNodeConditions contains a list of conditions that determine
-	// whether a node is considered unhealthy. The conditions are combined in a
-	// logical OR, i.e. if any of the conditions is met, the node is unhealthy.
+	// checks are the checks that are used to evaluate if a Machine is healthy.
+	//
+	// Independent of this configuration the MachineHealthCheck controller will always
+	// flag Machines with `cluster.x-k8s.io/remediate-machine` annotation and
+	// Machines with deleted Nodes as unhealthy.
+	//
+	// Furthermore, if checks.nodeStartupTimeoutSeconds is not set it
+	// is defaulted to 10 minutes and evaluated accordingly.
 	//
 	// +optional
-	// +listType=atomic
-	// +kubebuilder:validation:MaxItems=100
-	UnhealthyNodeConditions []UnhealthyNodeCondition `json:"unhealthyNodeConditions,omitempty"`
+	Checks MachineHealthCheckChecks `json:"checks,omitempty,omitzero"`
 
-	// maxUnhealthy specifies the maximum number of unhealthy machines allowed.
-	// Any further remediation is only allowed if at most "maxUnhealthy" machines selected by
-	// "selector" are not healthy.
+	// remediation configures if and how remediations are triggered if a Machine is unhealthy.
 	//
-	// Deprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/issues/10722 for more details.
+	// If remediation or remediation.triggerIf is not set,
+	// remediation will always be triggered for unhealthy Machines.
+	//
+	// If remediation or remediation.templateRef is not set,
+	// the OwnerRemediated condition will be set on unhealthy Machines to trigger remediation via
+	// the owner of the Machines, for example a MachineSet or a KubeadmControlPlane.
 	//
 	// +optional
-	MaxUnhealthy *intstr.IntOrString `json:"maxUnhealthy,omitempty"`
+	Remediation MachineHealthCheckRemediation `json:"remediation,omitempty,omitzero"`
+}
 
-	// unhealthyRange specifies the range of unhealthy machines allowed.
-	// Any further remediation is only allowed if the number of machines selected by "selector" as not healthy
-	// is within the range of "unhealthyRange". Takes precedence over maxUnhealthy.
-	// Eg. "[3-5]" - This means that remediation will be allowed only when:
-	// (a) there are at least 3 unhealthy machines (and)
-	// (b) there are at most 5 unhealthy machines
-	//
-	// Deprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/issues/10722 for more details.
-	//
-	// +optional
-	// +kubebuilder:validation:Pattern=^\[[0-9]+-[0-9]+\]$
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=32
-	UnhealthyRange string `json:"unhealthyRange,omitempty"`
-
+// MachineHealthCheckChecks are the checks that are used to evaluate if a Machine is healthy.
+// +kubebuilder:validation:MinProperties=1
+type MachineHealthCheckChecks struct {
 	// nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck
 	// to consider a Machine unhealthy if a corresponding Node isn't associated
 	// through a `Spec.ProviderID` field.
@@ -109,14 +102,57 @@ type MachineHealthCheckSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	NodeStartupTimeoutSeconds *int32 `json:"nodeStartupTimeoutSeconds,omitempty"`
 
-	// remediationTemplate is a reference to a remediation template
+	// unhealthyNodeConditions contains a list of conditions that determine
+	// whether a node is considered unhealthy. The conditions are combined in a
+	// logical OR, i.e. if any of the conditions is met, the node is unhealthy.
+	//
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=100
+	UnhealthyNodeConditions []UnhealthyNodeCondition `json:"unhealthyNodeConditions,omitempty"`
+}
+
+// MachineHealthCheckRemediation configures if and how remediations are triggered if a Machine is unhealthy.
+// +kubebuilder:validation:MinProperties=1
+type MachineHealthCheckRemediation struct {
+	// triggerIf configures if remediations are triggered.
+	// If this field is not set, remediations are always triggered.
+	// +optional
+	TriggerIf MachineHealthCheckRemediationTriggerIf `json:"triggerIf,omitempty,omitzero"`
+
+	// templateRef is a reference to a remediation template
 	// provided by an infrastructure provider.
 	//
 	// This field is completely optional, when filled, the MachineHealthCheck controller
 	// creates a new object from the template referenced and hands off remediation of the machine to
 	// a controller that lives outside of Cluster API.
 	// +optional
-	RemediationTemplate *MachineHealthCheckRemediationTemplateReference `json:"remediationTemplate,omitempty"`
+	TemplateRef MachineHealthCheckRemediationTemplateReference `json:"templateRef,omitempty,omitzero"`
+}
+
+// MachineHealthCheckRemediationTriggerIf configures if remediations are triggered.
+// +kubebuilder:validation:MinProperties=1
+type MachineHealthCheckRemediationTriggerIf struct {
+	// unhealthyLessThanOrEqualTo specifies that remediations are only triggered if the number of
+	// unhealthy Machines is less than or equal to the configured value.
+	// unhealthyInRange takes precedence if set.
+	//
+	// +optional
+	UnhealthyLessThanOrEqualTo *intstr.IntOrString `json:"unhealthyLessThanOrEqualTo,omitempty"`
+
+	// unhealthyInRange specifies that remediations are only triggered if the number of
+	// unhealthy Machines is in the configured range.
+	// Takes precedence over unhealthyLessThanOrEqualTo.
+	// Eg. "[3-5]" - This means that remediation will be allowed only when:
+	// (a) there are at least 3 unhealthy Machines (and)
+	// (b) there are at most 5 unhealthy Machines
+	//
+	// +optional
+	// +kubebuilder:validation:Pattern=^\[[0-9]+-[0-9]+\]$
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=32
+	UnhealthyInRange string `json:"unhealthyInRange,omitempty"`
 }
 
 // MachineHealthCheckRemediationTemplateReference is a reference to a remediation template.
@@ -127,7 +163,7 @@ type MachineHealthCheckRemediationTemplateReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
-	Kind string `json:"kind"`
+	Kind string `json:"kind,omitempty"`
 
 	// name of the remediation template.
 	// name must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.
@@ -135,7 +171,7 @@ type MachineHealthCheckRemediationTemplateReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// apiVersion of the remediation template.
 	// apiVersion must be fully qualified domain name followed by / and a version.
@@ -144,7 +180,15 @@ type MachineHealthCheckRemediationTemplateReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=317
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*\/[a-z]([-a-z0-9]*[a-z0-9])?$`
-	APIVersion string `json:"apiVersion"`
+	APIVersion string `json:"apiVersion,omitempty"`
+}
+
+// IsDefined returns true if the MachineHealthCheckRemediationTemplateReference is set.
+func (r *MachineHealthCheckRemediationTemplateReference) IsDefined() bool {
+	if r == nil {
+		return false
+	}
+	return r.Kind != "" || r.Name != "" || r.APIVersion != ""
 }
 
 // ToObjectReference returns an object reference for the MachineHealthCheckRemediationTemplateReference in a given namespace.
@@ -165,10 +209,6 @@ func (r *MachineHealthCheckRemediationTemplateReference) GroupVersionKind() sche
 	return schema.FromAPIVersionAndKind(r.APIVersion, r.Kind)
 }
 
-// ANCHOR_END: MachineHealthCHeckSpec
-
-// ANCHOR: UnhealthyNodeCondition
-
 // UnhealthyNodeCondition represents a Node condition type and value with a timeout
 // specified as a duration.  When the named condition has been in the given
 // status for at least the timeout value, a node is considered unhealthy.
@@ -177,13 +217,13 @@ type UnhealthyNodeCondition struct {
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:MinLength=1
 	// +required
-	Type corev1.NodeConditionType `json:"type"`
+	Type corev1.NodeConditionType `json:"type,omitempty"`
 
 	// status of the condition, one of True, False, Unknown.
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:MinLength=1
 	// +required
-	Status corev1.ConditionStatus `json:"status"`
+	Status corev1.ConditionStatus `json:"status,omitempty"`
 
 	// timeoutSeconds is the duration that a node must be in a given status for,
 	// after which the node is considered unhealthy.
@@ -191,12 +231,8 @@ type UnhealthyNodeCondition struct {
 	// for at least 1 hour before being considered unhealthy.
 	// +required
 	// +kubebuilder:validation:Minimum=0
-	TimeoutSeconds int32 `json:"timeoutSeconds"`
+	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
 }
-
-// ANCHOR_END: UnhealthyNodeCondition
-
-// ANCHOR: MachineHealthCheckStatus
 
 // MachineHealthCheckStatus defines the observed state of MachineHealthCheck.
 // +kubebuilder:validation:MinProperties=1
@@ -262,16 +298,14 @@ type MachineHealthCheckV1Beta1DeprecatedStatus struct {
 	Conditions Conditions `json:"conditions,omitempty"`
 }
 
-// ANCHOR_END: MachineHealthCheckStatus
-
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=machinehealthchecks,shortName=mhc;mhcs,scope=Namespaced,categories=cluster-api
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".spec.clusterName",description="Cluster"
-// +kubebuilder:printcolumn:name="ExpectedMachines",type="integer",JSONPath=".status.expectedMachines",description="Number of machines currently monitored"
-// +kubebuilder:printcolumn:name="MaxUnhealthy",type="string",JSONPath=".spec.maxUnhealthy",description="Maximum number of unhealthy machines allowed"
-// +kubebuilder:printcolumn:name="CurrentHealthy",type="integer",JSONPath=".status.currentHealthy",description="Current observed healthy machines"
+// +kubebuilder:printcolumn:name="Replicas",type="integer",JSONPath=".status.expectedMachines",description="Number of machines currently monitored"
+// +kubebuilder:printcolumn:name="Healthy",type="integer",JSONPath=".status.currentHealthy",description="Current observed healthy machines"
+// +kubebuilder:printcolumn:name="Paused",type="string",JSONPath=`.status.conditions[?(@.type=="Paused")].status`,description="Reconciliation paused",priority=10
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of MachineHealthCheck"
 
 // MachineHealthCheck is the Schema for the machinehealthchecks API.

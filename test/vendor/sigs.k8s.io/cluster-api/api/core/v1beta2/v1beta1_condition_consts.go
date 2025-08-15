@@ -16,8 +16,6 @@ limitations under the License.
 
 package v1beta2
 
-// ANCHOR: CommonConditions
-
 // Common ConditionTypes used by Cluster API objects.
 const (
 	// ReadyV1Beta1Condition defines the Ready condition type that summarizes the operational state of a Cluster API object.
@@ -52,8 +50,6 @@ const (
 	// NOTE: This reason is used only as a fallback when the infrastructure object is not reporting its own ready condition.
 	WaitingForInfrastructureFallbackV1Beta1Reason = "WaitingForInfrastructure"
 )
-
-// ANCHOR_END: CommonConditions
 
 // Conditions and condition Reasons for the ClusterClass object.
 const (
@@ -234,7 +230,7 @@ const (
 
 const (
 	// MachineDeploymentAvailableV1Beta1Condition means the MachineDeployment is available, that is, at least the minimum available
-	// machines required (i.e. Spec.Replicas-MaxUnavailable when MachineDeploymentStrategyType = RollingUpdate) are up and running for at least minReadySeconds.
+	// machines required (i.e. Spec.Replicas-MaxUnavailable when spec.rollout.strategy.type = RollingUpdate) are up and running for at least minReadySeconds.
 	MachineDeploymentAvailableV1Beta1Condition ConditionType = "Available"
 
 	// MachineSetReadyV1Beta1Condition reports a summary of current status of the MachineSet owned by the MachineDeployment.

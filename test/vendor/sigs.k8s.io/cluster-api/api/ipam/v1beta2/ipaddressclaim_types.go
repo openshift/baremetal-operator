@@ -50,7 +50,7 @@ type IPAddressClaimSpec struct {
 
 	// poolRef is a reference to the pool from which an IP address should be created.
 	// +required
-	PoolRef IPPoolReference `json:"poolRef"`
+	PoolRef IPPoolReference `json:"poolRef,omitempty,omitzero"`
 }
 
 // IPAddressClaimStatus is the observed status of a IPAddressClaim.
@@ -81,7 +81,7 @@ type IPAddressReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 }
 
 // IPAddressClaimDeprecatedStatus groups all the status fields that are deprecated and will be removed in a future version.

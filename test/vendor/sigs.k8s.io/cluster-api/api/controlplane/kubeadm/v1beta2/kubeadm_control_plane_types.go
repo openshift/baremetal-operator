@@ -25,14 +25,14 @@ import (
 	"sigs.k8s.io/cluster-api/errors"
 )
 
-// RolloutStrategyType defines the rollout strategies for a KubeadmControlPlane.
+// KubeadmControlPlaneRolloutStrategyType defines the rollout strategies for a KubeadmControlPlane.
 // +kubebuilder:validation:Enum=RollingUpdate
-type RolloutStrategyType string
+type KubeadmControlPlaneRolloutStrategyType string
 
 const (
 	// RollingUpdateStrategyType replaces the old control planes by new one using rolling update
 	// i.e. gradually scale up or down the old control planes and scale up or down the new one.
-	RollingUpdateStrategyType RolloutStrategyType = "RollingUpdate"
+	RollingUpdateStrategyType KubeadmControlPlaneRolloutStrategyType = "RollingUpdate"
 )
 
 const (
@@ -432,46 +432,32 @@ type KubeadmControlPlaneSpec struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Version string `json:"version"`
+	Version string `json:"version,omitempty"`
 
 	// machineTemplate contains information about how machines
 	// should be shaped when creating or updating a control plane.
 	// +required
-	MachineTemplate KubeadmControlPlaneMachineTemplate `json:"machineTemplate"`
+	MachineTemplate KubeadmControlPlaneMachineTemplate `json:"machineTemplate,omitempty,omitzero"`
 
 	// kubeadmConfigSpec is a KubeadmConfigSpec
 	// to use for initializing and joining machines to the control plane.
 	// +optional
 	KubeadmConfigSpec bootstrapv1.KubeadmConfigSpec `json:"kubeadmConfigSpec,omitempty,omitzero"`
 
-	// rolloutBefore is a field to indicate a rollout should be performed
-	// if the specified criteria is met.
+	// rollout allows you to configure the behaviour of rolling updates to the control plane Machines.
+	// It allows you to require that all Machines are replaced before or after a certain time,
+	// and allows you to define the strategy used during rolling replacements.
 	// +optional
-	RolloutBefore *RolloutBefore `json:"rolloutBefore,omitempty"`
+	Rollout KubeadmControlPlaneRolloutSpec `json:"rollout,omitempty,omitzero"`
 
-	// rolloutAfter is a field to indicate a rollout should be performed
-	// after the specified time even if no changes have been made to the
-	// KubeadmControlPlane.
-	// Example: In the YAML the time can be specified in the RFC3339 format.
-	// To specify the rolloutAfter target as March 9, 2023, at 9 am UTC
-	// use "2023-03-09T09:00:00Z".
+	// remediation controls how unhealthy Machines are remediated.
 	// +optional
-	RolloutAfter *metav1.Time `json:"rolloutAfter,omitempty"`
+	Remediation KubeadmControlPlaneRemediationSpec `json:"remediation,omitempty,omitzero"`
 
-	// rolloutStrategy is the RolloutStrategy to use to replace control plane machines with
-	// new ones.
-	// +optional
-	// +kubebuilder:default={type: "RollingUpdate", rollingUpdate: {maxSurge: 1}}
-	RolloutStrategy *RolloutStrategy `json:"rolloutStrategy,omitempty"`
-
-	// remediationStrategy is the RemediationStrategy that controls how control plane machine remediation happens.
-	// +optional
-	RemediationStrategy *RemediationStrategy `json:"remediationStrategy,omitempty"`
-
-	// machineNamingStrategy allows changing the naming pattern used when creating Machines.
+	// machineNaming allows changing the naming pattern used when creating Machines.
 	// InfraMachines & KubeadmConfigs will use the same name as the corresponding Machines.
 	// +optional
-	MachineNamingStrategy *MachineNamingStrategy `json:"machineNamingStrategy,omitempty"`
+	MachineNaming MachineNamingSpec `json:"machineNaming,omitempty,omitzero"`
 }
 
 // KubeadmControlPlaneMachineTemplate defines the template for Machines
@@ -482,10 +468,19 @@ type KubeadmControlPlaneMachineTemplate struct {
 	// +optional
 	ObjectMeta clusterv1.ObjectMeta `json:"metadata,omitempty,omitzero"`
 
+	// spec defines the spec for Machines
+	// in a KubeadmControlPlane object.
+	// +required
+	Spec KubeadmControlPlaneMachineTemplateSpec `json:"spec,omitempty,omitzero"`
+}
+
+// KubeadmControlPlaneMachineTemplateSpec defines the spec for Machines
+// in a KubeadmControlPlane object.
+type KubeadmControlPlaneMachineTemplateSpec struct {
 	// infrastructureRef is a required reference to a custom resource
 	// offered by an infrastructure provider.
 	// +required
-	InfrastructureRef clusterv1.ContractVersionedObjectReference `json:"infrastructureRef"`
+	InfrastructureRef clusterv1.ContractVersionedObjectReference `json:"infrastructureRef,omitempty,omitzero"`
 
 	// readinessGates specifies additional conditions to include when evaluating Machine Ready condition;
 	// KubeadmControlPlane will always add readinessGates for the condition it is setting on the Machine:
@@ -498,9 +493,18 @@ type KubeadmControlPlaneMachineTemplate struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=conditionType
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=32
 	ReadinessGates []clusterv1.MachineReadinessGate `json:"readinessGates,omitempty"`
 
+	// deletion contains configuration options for Machine deletion.
+	// +optional
+	Deletion KubeadmControlPlaneMachineTemplateDeletionSpec `json:"deletion,omitempty,omitzero"`
+}
+
+// KubeadmControlPlaneMachineTemplateDeletionSpec contains configuration options for Machine deletion.
+// +kubebuilder:validation:MinProperties=1
+type KubeadmControlPlaneMachineTemplateDeletionSpec struct {
 	// nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a controlplane node
 	// The default value is 0, meaning that the node can be drained without any time limitations.
 	// NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`
@@ -522,31 +526,60 @@ type KubeadmControlPlaneMachineTemplate struct {
 	NodeDeletionTimeoutSeconds *int32 `json:"nodeDeletionTimeoutSeconds,omitempty"`
 }
 
-// RolloutBefore describes when a rollout should be performed on the KCP machines.
-type RolloutBefore struct {
-	// certificatesExpiryDays indicates a rollout needs to be performed if the
-	// certificates of the machine will expire within the specified days.
+// KubeadmControlPlaneRolloutSpec allows you to configure the behaviour of rolling updates to the control plane Machines.
+// It allows you to require that all Machines are replaced before or after a certain time,
+// and allows you to define the strategy used during rolling replacements.
+// +kubebuilder:validation:MinProperties=1
+type KubeadmControlPlaneRolloutSpec struct {
+	// before is a field to indicate a rollout should be performed
+	// if the specified criteria is met.
 	// +optional
-	CertificatesExpiryDays *int32 `json:"certificatesExpiryDays,omitempty"`
+	Before KubeadmControlPlaneRolloutBeforeSpec `json:"before,omitempty,omitzero"`
+
+	// after is a field to indicate a rollout should be performed
+	// after the specified time even if no changes have been made to the
+	// KubeadmControlPlane.
+	// Example: In the YAML the time can be specified in the RFC3339 format.
+	// To specify the rolloutAfter target as March 9, 2023, at 9 am UTC
+	// use "2023-03-09T09:00:00Z".
+	// +optional
+	After metav1.Time `json:"after,omitempty,omitzero"`
+
+	// strategy specifies how to roll out control plane Machines.
+	// +optional
+	Strategy KubeadmControlPlaneRolloutStrategy `json:"strategy,omitempty,omitzero"`
 }
 
-// RolloutStrategy describes how to replace existing machines
+// KubeadmControlPlaneRolloutBeforeSpec describes when a rollout should be performed on the KCP machines.
+// +kubebuilder:validation:MinProperties=1
+type KubeadmControlPlaneRolloutBeforeSpec struct {
+	// certificatesExpiryDays indicates a rollout needs to be performed if the
+	// certificates of the machine will expire within the specified days.
+	// The minimum for this field is 7.
+	// +optional
+	// +kubebuilder:validation:Minimum=7
+	CertificatesExpiryDays int32 `json:"certificatesExpiryDays,omitempty"`
+}
+
+// KubeadmControlPlaneRolloutStrategy describes how to replace existing machines
 // with new ones.
-type RolloutStrategy struct {
+// +kubebuilder:validation:MinProperties=1
+type KubeadmControlPlaneRolloutStrategy struct {
 	// type of rollout. Currently the only supported strategy is
 	// "RollingUpdate".
 	// Default is RollingUpdate.
-	// +optional
-	Type RolloutStrategyType `json:"type,omitempty"`
+	// +required
+	Type KubeadmControlPlaneRolloutStrategyType `json:"type,omitempty"`
 
 	// rollingUpdate is the rolling update config params. Present only if
-	// RolloutStrategyType = RollingUpdate.
+	// type = RollingUpdate.
 	// +optional
-	RollingUpdate *RollingUpdate `json:"rollingUpdate,omitempty"`
+	RollingUpdate KubeadmControlPlaneRolloutStrategyRollingUpdate `json:"rollingUpdate,omitempty,omitzero"`
 }
 
-// RollingUpdate is used to control the desired behavior of rolling update.
-type RollingUpdate struct {
+// KubeadmControlPlaneRolloutStrategyRollingUpdate is used to control the desired behavior of rolling update.
+// +kubebuilder:validation:MinProperties=1
+type KubeadmControlPlaneRolloutStrategyRollingUpdate struct {
 	// maxSurge is the maximum number of control planes that can be scheduled above or under the
 	// desired number of control planes.
 	// Value can be an absolute number 1 or 0.
@@ -557,8 +590,9 @@ type RollingUpdate struct {
 	MaxSurge *intstr.IntOrString `json:"maxSurge,omitempty"`
 }
 
-// RemediationStrategy allows to define how control plane machine remediation happens.
-type RemediationStrategy struct {
+// KubeadmControlPlaneRemediationSpec controls how unhealthy control plane Machines are remediated.
+// +kubebuilder:validation:MinProperties=1
+type KubeadmControlPlaneRemediationSpec struct {
 	// maxRetry is the Max number of retries while attempting to remediate an unhealthy machine.
 	// A retry happens when a machine that was created as a replacement for an unhealthy machine also fails.
 	// For example, given a control plane with three machines M1, M2, M3:
@@ -603,9 +637,10 @@ type RemediationStrategy struct {
 	MinHealthyPeriodSeconds *int32 `json:"minHealthyPeriodSeconds,omitempty"`
 }
 
-// MachineNamingStrategy allows changing the naming pattern used when creating Machines.
+// MachineNamingSpec allows changing the naming pattern used when creating Machines.
 // InfraMachines & KubeadmConfigs will use the same name as the corresponding Machines.
-type MachineNamingStrategy struct {
+// +kubebuilder:validation:MinProperties=1
+type MachineNamingSpec struct {
 	// template defines the template to use for generating the names of the Machine objects.
 	// If not defined, it will fallback to `{{ .kubeadmControlPlane.name }}-{{ .random }}`.
 	// If the generated name string exceeds 63 characters, it will be trimmed to 58 characters and will
@@ -680,7 +715,7 @@ type KubeadmControlPlaneStatus struct {
 
 	// lastRemediation stores info about last remediation performed.
 	// +optional
-	LastRemediation *LastRemediationStatus `json:"lastRemediation,omitempty"`
+	LastRemediation LastRemediationStatus `json:"lastRemediation,omitempty,omitzero"`
 
 	// deprecated groups all the status fields that are deprecated and will be removed when all the nested field are removed.
 	// +optional
@@ -770,16 +805,17 @@ type LastRemediationStatus struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	Machine string `json:"machine"`
+	Machine string `json:"machine,omitempty"`
 
 	// time is when last remediation happened. It is represented in RFC3339 form and is in UTC.
 	// +required
-	Time metav1.Time `json:"time"`
+	Time metav1.Time `json:"time,omitempty,omitzero"`
 
 	// retryCount used to keep track of remediation retry for the last remediated machine.
 	// A retry happens when a machine that was created as a replacement for an unhealthy machine also fails.
 	// +required
-	RetryCount int32 `json:"retryCount"`
+	// +kubebuilder:validation:Minimum=0
+	RetryCount *int32 `json:"retryCount,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -788,13 +824,14 @@ type LastRemediationStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".metadata.labels['cluster\\.x-k8s\\.io/cluster-name']",description="Cluster"
-// +kubebuilder:printcolumn:name="Initialized",type=boolean,JSONPath=".status.initialized",description="This denotes whether or not the control plane has the uploaded kubeadm-config configmap"
-// +kubebuilder:printcolumn:name="API Server Available",type=boolean,JSONPath=".status.ready",description="KubeadmControlPlane API Server is ready to receive requests"
-// +kubebuilder:printcolumn:name="Desired",type=integer,JSONPath=".spec.replicas",description="Total number of machines desired by this control plane",priority=10
-// +kubebuilder:printcolumn:name="Replicas",type=integer,JSONPath=".status.replicas",description="Total number of non-terminated machines targeted by this control plane"
-// +kubebuilder:printcolumn:name="Ready",type=integer,JSONPath=".status.deprecated.v1beta1.readyReplicas",description="Total number of fully running and ready control plane machines"
-// +kubebuilder:printcolumn:name="Updated",type=integer,JSONPath=".status.deprecated.v1beta1.updatedReplicas",description="Total number of non-terminated machines targeted by this control plane that have the desired template spec"
-// +kubebuilder:printcolumn:name="Unavailable",type=integer,JSONPath=".status.deprecated.v1beta1.unavailableReplicas",description="Total number of unavailable machines targeted by this control plane"
+// +kubebuilder:printcolumn:name="Available",type="string",JSONPath=`.status.conditions[?(@.type=="Available")].status`,description="Cluster pass all availability checks"
+// +kubebuilder:printcolumn:name="Desired",type=integer,JSONPath=".spec.replicas",description="The desired number of machines"
+// +kubebuilder:printcolumn:name="Current",type="integer",JSONPath=".status.replicas",description="The number of machines"
+// +kubebuilder:printcolumn:name="Ready",type="integer",JSONPath=".status.readyReplicas",description="The number of machines with Ready condition true"
+// +kubebuilder:printcolumn:name="Available",type=integer,JSONPath=".status.availableReplicas",description="The number of machines with Available condition true"
+// +kubebuilder:printcolumn:name="Up-to-date",type=integer,JSONPath=".status.upToDateReplicas",description="The number of machines with UpToDate condition true"
+// +kubebuilder:printcolumn:name="Paused",type="string",JSONPath=`.status.conditions[?(@.type=="Paused")].status`,description="Reconciliation paused",priority=10
+// +kubebuilder:printcolumn:name="Initialized",type=boolean,JSONPath=".status.initialization.controlPlaneInitialized",description="This denotes whether or not the control plane can accept requests"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of KubeadmControlPlane"
 // +kubebuilder:printcolumn:name="Version",type=string,JSONPath=".spec.version",description="Kubernetes version associated with this control plane"
 

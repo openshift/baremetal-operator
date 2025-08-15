@@ -35,15 +35,13 @@ const (
 	MachineSetFinalizer = "cluster.x-k8s.io/machineset"
 )
 
-// ANCHOR: MachineSetSpec
-
 // MachineSetSpec defines the desired state of MachineSet.
 type MachineSetSpec struct {
 	// clusterName is the name of the Cluster this object belongs to.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
-	ClusterName string `json:"clusterName"`
+	ClusterName string `json:"clusterName,omitempty"`
 
 	// replicas is the number of desired replicas.
 	// This is a pointer to distinguish between explicit zero and unspecified.
@@ -65,28 +63,36 @@ type MachineSetSpec struct {
 	// +optional
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// deletePolicy defines the policy used to identify nodes to delete when downscaling.
-	// Defaults to "Random".  Valid values are "Random, "Newest", "Oldest"
-	// +optional
-	DeletePolicy MachineSetDeletePolicy `json:"deletePolicy,omitempty"`
-
 	// selector is a label query over machines that should match the replica count.
 	// Label keys and values that must match in order to be controlled by this MachineSet.
 	// It must match the machine template's labels.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
 	// +required
-	Selector metav1.LabelSelector `json:"selector"`
+	Selector metav1.LabelSelector `json:"selector,omitempty,omitzero"`
 
 	// template is the object that describes the machine that will be created if
 	// insufficient replicas are detected.
 	// Object references to custom resources are treated as templates.
 	// +required
-	Template MachineTemplateSpec `json:"template"`
+	Template MachineTemplateSpec `json:"template,omitempty,omitzero"`
 
-	// machineNamingStrategy allows changing the naming pattern used when creating Machines.
+	// machineNaming allows changing the naming pattern used when creating Machines.
 	// Note: InfraMachines & BootstrapConfigs will use the same name as the corresponding Machines.
 	// +optional
-	MachineNamingStrategy *MachineNamingStrategy `json:"machineNamingStrategy,omitempty"`
+	MachineNaming MachineNamingSpec `json:"machineNaming,omitempty,omitzero"`
+
+	// deletion contains configuration options for MachineSet deletion.
+	// +optional
+	Deletion MachineSetDeletionSpec `json:"deletion,omitempty,omitzero"`
+}
+
+// MachineSetDeletionSpec contains configuration options for MachineSet deletion.
+// +kubebuilder:validation:MinProperties=1
+type MachineSetDeletionSpec struct {
+	// order defines the order in which Machines are deleted when downscaling.
+	// Defaults to "Random".  Valid values are "Random, "Newest", "Oldest"
+	// +optional
+	Order MachineSetDeletionOrder `json:"order,omitempty"`
 }
 
 // MachineSet's ScalingUp condition and corresponding reasons.
@@ -227,10 +233,6 @@ const (
 	MachineSetDeletingInternalErrorReason = InternalErrorReason
 )
 
-// ANCHOR_END: MachineSetSpec
-
-// ANCHOR: MachineTemplateSpec
-
 // MachineTemplateSpec describes the data needed to create a Machine from a template.
 type MachineTemplateSpec struct {
 	// metadata is the standard object's metadata.
@@ -241,40 +243,36 @@ type MachineTemplateSpec struct {
 	// spec is the specification of the desired behavior of the machine.
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
 	// +required
-	Spec MachineSpec `json:"spec"`
+	Spec MachineSpec `json:"spec,omitempty,omitzero"`
 }
 
-// ANCHOR_END: MachineTemplateSpec
-
-// MachineSetDeletePolicy defines how priority is assigned to nodes to delete when
+// MachineSetDeletionOrder defines how priority is assigned to nodes to delete when
 // downscaling a MachineSet. Defaults to "Random".
 // +kubebuilder:validation:Enum=Random;Newest;Oldest
-type MachineSetDeletePolicy string
+type MachineSetDeletionOrder string
 
 const (
-	// RandomMachineSetDeletePolicy prioritizes both Machines that have the annotation
+	// RandomMachineSetDeletionOrder prioritizes both Machines that have the annotation
 	// "cluster.x-k8s.io/delete-machine=yes" and Machines that are unhealthy
 	// (Status.FailureReason or Status.FailureMessage are set to a non-empty value
 	// or NodeHealthy type of Status.Conditions is not true).
 	// Finally, it picks Machines at random to delete.
-	RandomMachineSetDeletePolicy MachineSetDeletePolicy = "Random"
+	RandomMachineSetDeletionOrder MachineSetDeletionOrder = "Random"
 
-	// NewestMachineSetDeletePolicy prioritizes both Machines that have the annotation
+	// NewestMachineSetDeletionOrder prioritizes both Machines that have the annotation
 	// "cluster.x-k8s.io/delete-machine=yes" and Machines that are unhealthy
 	// (Status.FailureReason or Status.FailureMessage are set to a non-empty value
 	// or NodeHealthy type of Status.Conditions is not true).
 	// It then prioritizes the newest Machines for deletion based on the Machine's CreationTimestamp.
-	NewestMachineSetDeletePolicy MachineSetDeletePolicy = "Newest"
+	NewestMachineSetDeletionOrder MachineSetDeletionOrder = "Newest"
 
-	// OldestMachineSetDeletePolicy prioritizes both Machines that have the annotation
+	// OldestMachineSetDeletionOrder prioritizes both Machines that have the annotation
 	// "cluster.x-k8s.io/delete-machine=yes" and Machines that are unhealthy
 	// (Status.FailureReason or Status.FailureMessage are set to a non-empty value
 	// or NodeHealthy type of Status.Conditions is not true).
 	// It then prioritizes the oldest Machines for deletion based on the Machine's CreationTimestamp.
-	OldestMachineSetDeletePolicy MachineSetDeletePolicy = "Oldest"
+	OldestMachineSetDeletionOrder MachineSetDeletionOrder = "Oldest"
 )
-
-// ANCHOR: MachineSetStatus
 
 // MachineSetStatus defines the observed state of MachineSet.
 // +kubebuilder:validation:MinProperties=1
@@ -400,8 +398,6 @@ type MachineSetV1Beta1DeprecatedStatus struct {
 	AvailableReplicas int32 `json:"availableReplicas"` //nolint:kubeapilinter // field will be removed when v1beta1 is removed
 }
 
-// ANCHOR_END: MachineSetStatus
-
 // Validate validates the MachineSet fields.
 func (m *MachineSet) Validate() field.ErrorList {
 	errors := field.ErrorList{}
@@ -431,10 +427,12 @@ func (m *MachineSet) Validate() field.ErrorList {
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".spec.clusterName",description="Cluster"
-// +kubebuilder:printcolumn:name="Desired",type=integer,JSONPath=".spec.replicas",description="Total number of machines desired by this machineset",priority=10
-// +kubebuilder:printcolumn:name="Replicas",type="integer",JSONPath=".status.replicas",description="Total number of non-terminated machines targeted by this machineset"
-// +kubebuilder:printcolumn:name="Ready",type="integer",JSONPath=".status.deprecated.v1beta1.readyReplicas",description="Total number of ready machines targeted by this machineset."
-// +kubebuilder:printcolumn:name="Available",type="integer",JSONPath=".status.deprecated.v1beta1.availableReplicas",description="Total number of available machines (ready for at least minReadySeconds)"
+// +kubebuilder:printcolumn:name="Desired",type=integer,JSONPath=".spec.replicas",description="The desired number of machines"
+// +kubebuilder:printcolumn:name="Current",type="integer",JSONPath=".status.replicas",description="The number of machines"
+// +kubebuilder:printcolumn:name="Ready",type="integer",JSONPath=".status.readyReplicas",description="The number of machines with Ready condition true"
+// +kubebuilder:printcolumn:name="Available",type=integer,JSONPath=".status.availableReplicas",description="The number of machines with Available condition true"
+// +kubebuilder:printcolumn:name="Up-to-date",type=integer,JSONPath=".status.upToDateReplicas",description="The number of machines with UpToDate condition true"
+// +kubebuilder:printcolumn:name="Paused",type="string",JSONPath=`.status.conditions[?(@.type=="Paused")].status`,description="Reconciliation paused",priority=10
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of MachineSet"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.template.spec.version",description="Kubernetes version associated with this MachineSet"
 

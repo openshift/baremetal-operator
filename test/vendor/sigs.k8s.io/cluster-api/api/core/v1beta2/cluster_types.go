@@ -20,11 +20,13 @@ import (
 	"cmp"
 	"fmt"
 	"net"
+	"reflect"
 	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	capierrors "sigs.k8s.io/cluster-api/errors"
 )
@@ -455,8 +457,6 @@ const (
 	ClusterDeletingInternalErrorReason = InternalErrorReason
 )
 
-// ANCHOR: ClusterSpec
-
 // ClusterSpec defines the desired state of Cluster.
 // +kubebuilder:validation:MinProperties=1
 type ClusterSpec struct {
@@ -466,7 +466,7 @@ type ClusterSpec struct {
 
 	// clusterNetwork represents the cluster network configuration.
 	// +optional
-	ClusterNetwork *ClusterNetwork `json:"clusterNetwork,omitempty"`
+	ClusterNetwork ClusterNetwork `json:"clusterNetwork,omitempty,omitzero"`
 
 	// controlPlaneEndpoint represents the endpoint used to communicate with the control plane.
 	// +optional
@@ -475,19 +475,19 @@ type ClusterSpec struct {
 	// controlPlaneRef is an optional reference to a provider-specific resource that holds
 	// the details for provisioning the Control Plane for a Cluster.
 	// +optional
-	ControlPlaneRef *ContractVersionedObjectReference `json:"controlPlaneRef,omitempty"`
+	ControlPlaneRef ContractVersionedObjectReference `json:"controlPlaneRef,omitempty,omitzero"`
 
 	// infrastructureRef is a reference to a provider-specific resource that holds the details
 	// for provisioning infrastructure for a cluster in said provider.
 	// +optional
-	InfrastructureRef *ContractVersionedObjectReference `json:"infrastructureRef,omitempty"`
+	InfrastructureRef ContractVersionedObjectReference `json:"infrastructureRef,omitempty,omitzero"`
 
 	// topology encapsulates the topology for the cluster.
 	// NOTE: It is required to enable the ClusterTopology
 	// feature gate flag to activate managed topologies support;
 	// this feature is highly experimental, and parts of it might still be not implemented.
 	// +optional
-	Topology *Topology `json:"topology,omitempty"`
+	Topology Topology `json:"topology,omitempty,omitzero"`
 
 	// availabilityGates specifies additional conditions to include when evaluating Cluster Available condition.
 	//
@@ -497,11 +497,13 @@ type ClusterSpec struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=conditionType
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=32
 	AvailabilityGates []ClusterAvailabilityGate `json:"availabilityGates,omitempty"`
 }
 
 // ConditionPolarity defines the polarity for a metav1.Condition.
+// +kubebuilder:validation:Enum=Positive;Negative
 type ConditionPolarity string
 
 const (
@@ -523,14 +525,13 @@ type ClusterAvailabilityGate struct {
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=316
-	ConditionType string `json:"conditionType"`
+	ConditionType string `json:"conditionType,omitempty"`
 
 	// polarity of the conditionType specified in this availabilityGate.
 	// Valid values are Positive, Negative and omitted.
 	// When omitted, the default behaviour will be Positive.
 	// A positive polarity means that the condition should report a true status under normal conditions.
 	// A negative polarity means that the condition should report a false status under normal conditions.
-	// +kubebuilder:validation:Enum=Positive;Negative
 	// +optional
 	Polarity ConditionPolarity `json:"polarity,omitempty"`
 }
@@ -539,13 +540,13 @@ type ClusterAvailabilityGate struct {
 type Topology struct {
 	// classRef is the ref to the ClusterClass that should be used for the topology.
 	// +required
-	ClassRef ClusterClassRef `json:"classRef"`
+	ClassRef ClusterClassRef `json:"classRef,omitempty,omitzero"`
 
 	// version is the Kubernetes version of the cluster.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Version string `json:"version"`
+	Version string `json:"version,omitempty"`
 
 	// controlPlane describes the cluster control plane.
 	// +optional
@@ -554,7 +555,7 @@ type Topology struct {
 	// workers encapsulates the different constructs that form the worker nodes
 	// for the cluster.
 	// +optional
-	Workers *WorkersTopology `json:"workers,omitempty"`
+	Workers WorkersTopology `json:"workers,omitempty,omitzero"`
 
 	// variables can be used to customize the Cluster through
 	// patches. They must comply to the corresponding
@@ -562,8 +563,14 @@ type Topology struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=name
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=1000
 	Variables []ClusterVariable `json:"variables,omitempty"`
+}
+
+// IsDefined returns true if the Topology is defined.
+func (r *Topology) IsDefined() bool {
+	return !reflect.DeepEqual(r, &Topology{})
 }
 
 // ClusterClassRef is the ref to the ClusterClass that should be used for the topology.
@@ -576,7 +583,7 @@ type ClusterClassRef struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// namespace is the namespace of the ClusterClass that should be used for the topology.
 	// If namespace is empty or not set, it is defaulted to the namespace of the Cluster object.
@@ -601,17 +608,170 @@ type ControlPlaneTopology struct {
 	Metadata ObjectMeta `json:"metadata,omitempty,omitzero"`
 
 	// replicas is the number of control plane nodes.
-	// If the value is nil, the ControlPlane object is created without the number of Replicas
+	// If the value is not set, the ControlPlane object is created without the number of Replicas
 	// and it's assumed that the control plane controller does not implement support for this field.
 	// When specified against a control plane provider that lacks support for this field, this value will be ignored.
 	// +optional
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// machineHealthCheck allows to enable, disable and override
-	// the MachineHealthCheck configuration in the ClusterClass for this control plane.
+	// healthCheck allows to enable, disable and override control plane health check
+	// configuration from the ClusterClass for this control plane.
 	// +optional
-	MachineHealthCheck *MachineHealthCheckTopology `json:"machineHealthCheck,omitempty"`
+	HealthCheck ControlPlaneTopologyHealthCheck `json:"healthCheck,omitempty,omitzero"`
 
+	// deletion contains configuration options for Machine deletion.
+	// +optional
+	Deletion ControlPlaneTopologyMachineDeletionSpec `json:"deletion,omitempty,omitzero"`
+
+	// readinessGates specifies additional conditions to include when evaluating Machine Ready condition.
+	//
+	// This field can be used e.g. to instruct the machine controller to include in the computation for Machine's ready
+	// computation a condition, managed by an external controllers, reporting the status of special software/hardware installed on the Machine.
+	//
+	// If this field is not defined, readinessGates from the corresponding ControlPlaneClass will be used, if any.
+	//
+	// NOTE: Specific control plane provider implementations might automatically extend the list of readinessGates;
+	// e.g. the kubeadm control provider adds ReadinessGates for the APIServerPodHealthy, SchedulerPodHealthy conditions, etc.
+	// +optional
+	// +listType=map
+	// +listMapKey=conditionType
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=32
+	ReadinessGates []MachineReadinessGate `json:"readinessGates,omitempty"`
+
+	// variables can be used to customize the ControlPlane through patches.
+	// +optional
+	Variables ControlPlaneVariables `json:"variables,omitempty,omitzero"`
+}
+
+// ControlPlaneTopologyHealthCheck defines a MachineHealthCheck for control plane machines.
+// +kubebuilder:validation:MinProperties=1
+type ControlPlaneTopologyHealthCheck struct {
+	// enabled controls if a MachineHealthCheck should be created for the target machines.
+	//
+	// If false: No MachineHealthCheck will be created.
+	//
+	// If not set(default): A MachineHealthCheck will be created if it is defined here or
+	//  in the associated ClusterClass. If no MachineHealthCheck is defined then none will be created.
+	//
+	// If true: A MachineHealthCheck is guaranteed to be created. Cluster validation will
+	// block if `enable` is true and no MachineHealthCheck definition is available.
+	// +optional
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// checks are the checks that are used to evaluate if a Machine is healthy.
+	//
+	// If one of checks and remediation fields are set, the system assumes that an healthCheck override is defined,
+	// and as a consequence the checks and remediation fields from Cluster will be used instead of the
+	// corresponding fields in ClusterClass.
+	//
+	// Independent of this configuration the MachineHealthCheck controller will always
+	// flag Machines with `cluster.x-k8s.io/remediate-machine` annotation and
+	// Machines with deleted Nodes as unhealthy.
+	//
+	// Furthermore, if checks.nodeStartupTimeoutSeconds is not set it
+	// is defaulted to 10 minutes and evaluated accordingly.
+	//
+	// +optional
+	Checks ControlPlaneTopologyHealthCheckChecks `json:"checks,omitempty,omitzero"`
+
+	// remediation configures if and how remediations are triggered if a Machine is unhealthy.
+	//
+	// If one of checks and remediation fields are set, the system assumes that an healthCheck override is defined,
+	// and as a consequence the checks and remediation fields from cluster will be used instead of the
+	// corresponding fields in ClusterClass.
+	//
+	// If an health check override is defined and remediation or remediation.triggerIf is not set,
+	// remediation will always be triggered for unhealthy Machines.
+	//
+	// If an health check override is defined and remediation or remediation.templateRef is not set,
+	// the OwnerRemediated condition will be set on unhealthy Machines to trigger remediation via
+	// the owner of the Machines, for example a MachineSet or a KubeadmControlPlane.
+	//
+	// +optional
+	Remediation ControlPlaneTopologyHealthCheckRemediation `json:"remediation,omitempty,omitzero"`
+}
+
+// IsDefined returns true if one of checks and remediation are not zero.
+func (m *ControlPlaneTopologyHealthCheck) IsDefined() bool {
+	return !reflect.ValueOf(m.Checks).IsZero() || !reflect.ValueOf(m.Remediation).IsZero()
+}
+
+// ControlPlaneTopologyHealthCheckChecks are the checks that are used to evaluate if a control plane Machine is healthy.
+// +kubebuilder:validation:MinProperties=1
+type ControlPlaneTopologyHealthCheckChecks struct {
+	// nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck
+	// to consider a Machine unhealthy if a corresponding Node isn't associated
+	// through a `Spec.ProviderID` field.
+	//
+	// The duration set in this field is compared to the greatest of:
+	// - Cluster's infrastructure ready condition timestamp (if and when available)
+	// - Control Plane's initialized condition timestamp (if and when available)
+	// - Machine's infrastructure ready condition timestamp (if and when available)
+	// - Machine's metadata creation timestamp
+	//
+	// Defaults to 10 minutes.
+	// If you wish to disable this feature, set the value explicitly to 0.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	NodeStartupTimeoutSeconds *int32 `json:"nodeStartupTimeoutSeconds,omitempty"`
+
+	// unhealthyNodeConditions contains a list of conditions that determine
+	// whether a node is considered unhealthy. The conditions are combined in a
+	// logical OR, i.e. if any of the conditions is met, the node is unhealthy.
+	//
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=100
+	UnhealthyNodeConditions []UnhealthyNodeCondition `json:"unhealthyNodeConditions,omitempty"`
+}
+
+// ControlPlaneTopologyHealthCheckRemediation configures if and how remediations are triggered if a control plane Machine is unhealthy.
+// +kubebuilder:validation:MinProperties=1
+type ControlPlaneTopologyHealthCheckRemediation struct {
+	// triggerIf configures if remediations are triggered.
+	// If this field is not set, remediations are always triggered.
+	// +optional
+	TriggerIf ControlPlaneTopologyHealthCheckRemediationTriggerIf `json:"triggerIf,omitempty,omitzero"`
+
+	// templateRef is a reference to a remediation template
+	// provided by an infrastructure provider.
+	//
+	// This field is completely optional, when filled, the MachineHealthCheck controller
+	// creates a new object from the template referenced and hands off remediation of the machine to
+	// a controller that lives outside of Cluster API.
+	// +optional
+	TemplateRef MachineHealthCheckRemediationTemplateReference `json:"templateRef,omitempty,omitzero"`
+}
+
+// ControlPlaneTopologyHealthCheckRemediationTriggerIf configures if remediations are triggered.
+// +kubebuilder:validation:MinProperties=1
+type ControlPlaneTopologyHealthCheckRemediationTriggerIf struct {
+	// unhealthyLessThanOrEqualTo specifies that remediations are only triggered if the number of
+	// unhealthy Machines is less than or equal to the configured value.
+	// unhealthyInRange takes precedence if set.
+	//
+	// +optional
+	UnhealthyLessThanOrEqualTo *intstr.IntOrString `json:"unhealthyLessThanOrEqualTo,omitempty"`
+
+	// unhealthyInRange specifies that remediations are only triggered if the number of
+	// unhealthy Machines is in the configured range.
+	// Takes precedence over unhealthyLessThanOrEqualTo.
+	// Eg. "[3-5]" - This means that remediation will be allowed only when:
+	// (a) there are at least 3 unhealthy Machines (and)
+	// (b) there are at most 5 unhealthy Machines
+	//
+	// +optional
+	// +kubebuilder:validation:Pattern=^\[[0-9]+-[0-9]+\]$
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=32
+	UnhealthyInRange string `json:"unhealthyInRange,omitempty"`
+}
+
+// ControlPlaneTopologyMachineDeletionSpec contains configuration options for Machine deletion.
+// +kubebuilder:validation:MinProperties=1
+type ControlPlaneTopologyMachineDeletionSpec struct {
 	// nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node.
 	// The default value is 0, meaning that the node can be drained without any time limitations.
 	// NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`
@@ -631,33 +791,16 @@ type ControlPlaneTopology struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	NodeDeletionTimeoutSeconds *int32 `json:"nodeDeletionTimeoutSeconds,omitempty"`
-
-	// readinessGates specifies additional conditions to include when evaluating Machine Ready condition.
-	//
-	// This field can be used e.g. to instruct the machine controller to include in the computation for Machine's ready
-	// computation a condition, managed by an external controllers, reporting the status of special software/hardware installed on the Machine.
-	//
-	// If this field is not defined, readinessGates from the corresponding ControlPlaneClass will be used, if any.
-	//
-	// NOTE: Specific control plane provider implementations might automatically extend the list of readinessGates;
-	// e.g. the kubeadm control provider adds ReadinessGates for the APIServerPodHealthy, SchedulerPodHealthy conditions, etc.
-	// +optional
-	// +listType=map
-	// +listMapKey=conditionType
-	// +kubebuilder:validation:MaxItems=32
-	ReadinessGates []MachineReadinessGate `json:"readinessGates,omitempty"`
-
-	// variables can be used to customize the ControlPlane through patches.
-	// +optional
-	Variables *ControlPlaneVariables `json:"variables,omitempty"`
 }
 
 // WorkersTopology represents the different sets of worker nodes in the cluster.
+// +kubebuilder:validation:MinProperties=1
 type WorkersTopology struct {
 	// machineDeployments is a list of machine deployments in the cluster.
 	// +optional
 	// +listType=map
 	// +listMapKey=name
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=2000
 	MachineDeployments []MachineDeploymentTopology `json:"machineDeployments,omitempty"`
 
@@ -665,6 +808,7 @@ type WorkersTopology struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=name
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=2000
 	MachinePools []MachinePoolTopology `json:"machinePools,omitempty"`
 }
@@ -683,7 +827,7 @@ type MachineDeploymentTopology struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Class string `json:"class"`
+	Class string `json:"class,omitempty"`
 
 	// name is the unique identifier for this MachineDeploymentTopology.
 	// The value is used with other unique identifiers to create a MachineDeployment's Name
@@ -692,7 +836,8 @@ type MachineDeploymentTopology struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
-	Name string `json:"name"`
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+	Name string `json:"name,omitempty"`
 
 	// failureDomain is the failure domain the machines will be created in.
 	// Must match a key in the FailureDomains map stored on the cluster object.
@@ -708,30 +853,14 @@ type MachineDeploymentTopology struct {
 	// +optional
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// machineHealthCheck allows to enable, disable and override
-	// the MachineHealthCheck configuration in the ClusterClass for this MachineDeployment.
+	// healthCheck allows to enable, disable and override MachineDeployment health check
+	// configuration from the ClusterClass for this MachineDeployment.
 	// +optional
-	MachineHealthCheck *MachineHealthCheckTopology `json:"machineHealthCheck,omitempty"`
+	HealthCheck MachineDeploymentTopologyHealthCheck `json:"healthCheck,omitempty,omitzero"`
 
-	// nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node.
-	// The default value is 0, meaning that the node can be drained without any time limitations.
-	// NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`
+	// deletion contains configuration options for Machine deletion.
 	// +optional
-	// +kubebuilder:validation:Minimum=0
-	NodeDrainTimeoutSeconds *int32 `json:"nodeDrainTimeoutSeconds,omitempty"`
-
-	// nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes
-	// to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.
-	// +optional
-	// +kubebuilder:validation:Minimum=0
-	NodeVolumeDetachTimeoutSeconds *int32 `json:"nodeVolumeDetachTimeoutSeconds,omitempty"`
-
-	// nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine
-	// hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely.
-	// Defaults to 10 seconds.
-	// +optional
-	// +kubebuilder:validation:Minimum=0
-	NodeDeletionTimeoutSeconds *int32 `json:"nodeDeletionTimeoutSeconds,omitempty"`
+	Deletion MachineDeploymentTopologyMachineDeletionSpec `json:"deletion,omitempty,omitzero"`
 
 	// minReadySeconds is the minimum number of seconds for which a newly created machine should
 	// be ready.
@@ -751,22 +880,24 @@ type MachineDeploymentTopology struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=conditionType
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=32
 	ReadinessGates []MachineReadinessGate `json:"readinessGates,omitempty"`
 
-	// strategy is the deployment strategy to use to replace existing machines with
-	// new ones.
+	// rollout allows you to configure the behaviour of rolling updates to the MachineDeployment Machines.
+	// It allows you to define the strategy used during rolling replacements.
 	// +optional
-	Strategy *MachineDeploymentStrategy `json:"strategy,omitempty"`
+	Rollout MachineDeploymentTopologyRolloutSpec `json:"rollout,omitempty,omitzero"`
 
 	// variables can be used to customize the MachineDeployment through patches.
 	// +optional
-	Variables *MachineDeploymentVariables `json:"variables,omitempty"`
+	Variables MachineDeploymentVariables `json:"variables,omitempty,omitzero"`
 }
 
-// MachineHealthCheckTopology defines a MachineHealthCheck for a group of machines.
-type MachineHealthCheckTopology struct {
-	// enable controls if a MachineHealthCheck should be created for the target machines.
+// MachineDeploymentTopologyHealthCheck defines a MachineHealthCheck for MachineDeployment machines.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentTopologyHealthCheck struct {
+	// enabled controls if a MachineHealthCheck should be created for the target machines.
 	//
 	// If false: No MachineHealthCheck will be created.
 	//
@@ -776,11 +907,221 @@ type MachineHealthCheckTopology struct {
 	// If true: A MachineHealthCheck is guaranteed to be created. Cluster validation will
 	// block if `enable` is true and no MachineHealthCheck definition is available.
 	// +optional
-	Enable *bool `json:"enable,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 
-	// MachineHealthCheckClass defines a MachineHealthCheck for a group of machines.
-	// If specified (any field is set), it entirely overrides the MachineHealthCheckClass defined in ClusterClass.
-	MachineHealthCheckClass `json:",inline"`
+	// checks are the checks that are used to evaluate if a Machine is healthy.
+	//
+	// If one of checks and remediation fields are set, the system assumes that an healthCheck override is defined,
+	// and as a consequence the checks and remediation fields from Cluster will be used instead of the
+	// corresponding fields in ClusterClass.
+	//
+	// Independent of this configuration the MachineHealthCheck controller will always
+	// flag Machines with `cluster.x-k8s.io/remediate-machine` annotation and
+	// Machines with deleted Nodes as unhealthy.
+	//
+	// Furthermore, if checks.nodeStartupTimeoutSeconds is not set it
+	// is defaulted to 10 minutes and evaluated accordingly.
+	//
+	// +optional
+	Checks MachineDeploymentTopologyHealthCheckChecks `json:"checks,omitempty,omitzero"`
+
+	// remediation configures if and how remediations are triggered if a Machine is unhealthy.
+	//
+	// If one of checks and remediation fields are set, the system assumes that an healthCheck override is defined,
+	// and as a consequence the checks and remediation fields from cluster will be used instead of the
+	// corresponding fields in ClusterClass.
+	//
+	// If an health check override is defined and remediation or remediation.triggerIf is not set,
+	// remediation will always be triggered for unhealthy Machines.
+	//
+	// If an health check override is defined and remediation or remediation.templateRef is not set,
+	// the OwnerRemediated condition will be set on unhealthy Machines to trigger remediation via
+	// the owner of the Machines, for example a MachineSet or a KubeadmControlPlane.
+	//
+	// +optional
+	Remediation MachineDeploymentTopologyHealthCheckRemediation `json:"remediation,omitempty,omitzero"`
+}
+
+// IsDefined returns true if one of checks and remediation are not zero.
+func (m *MachineDeploymentTopologyHealthCheck) IsDefined() bool {
+	return !reflect.ValueOf(m.Checks).IsZero() || !reflect.ValueOf(m.Remediation).IsZero()
+}
+
+// MachineDeploymentTopologyHealthCheckChecks are the checks that are used to evaluate if a MachineDeployment Machine is healthy.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentTopologyHealthCheckChecks struct {
+	// nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck
+	// to consider a Machine unhealthy if a corresponding Node isn't associated
+	// through a `Spec.ProviderID` field.
+	//
+	// The duration set in this field is compared to the greatest of:
+	// - Cluster's infrastructure ready condition timestamp (if and when available)
+	// - Control Plane's initialized condition timestamp (if and when available)
+	// - Machine's infrastructure ready condition timestamp (if and when available)
+	// - Machine's metadata creation timestamp
+	//
+	// Defaults to 10 minutes.
+	// If you wish to disable this feature, set the value explicitly to 0.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	NodeStartupTimeoutSeconds *int32 `json:"nodeStartupTimeoutSeconds,omitempty"`
+
+	// unhealthyNodeConditions contains a list of conditions that determine
+	// whether a node is considered unhealthy. The conditions are combined in a
+	// logical OR, i.e. if any of the conditions is met, the node is unhealthy.
+	//
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=100
+	UnhealthyNodeConditions []UnhealthyNodeCondition `json:"unhealthyNodeConditions,omitempty"`
+}
+
+// MachineDeploymentTopologyHealthCheckRemediation configures if and how remediations are triggered if a MachineDeployment Machine is unhealthy.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentTopologyHealthCheckRemediation struct {
+	// maxInFlight determines how many in flight remediations should happen at the same time.
+	//
+	// Remediation only happens on the MachineSet with the most current revision, while
+	// older MachineSets (usually present during rollout operations) aren't allowed to remediate.
+	//
+	// Note: In general (independent of remediations), unhealthy machines are always
+	// prioritized during scale down operations over healthy ones.
+	//
+	// MaxInFlight can be set to a fixed number or a percentage.
+	// Example: when this is set to 20%, the MachineSet controller deletes at most 20% of
+	// the desired replicas.
+	//
+	// If not set, remediation is limited to all machines (bounded by replicas)
+	// under the active MachineSet's management.
+	//
+	// +optional
+	MaxInFlight *intstr.IntOrString `json:"maxInFlight,omitempty"`
+
+	// triggerIf configures if remediations are triggered.
+	// If this field is not set, remediations are always triggered.
+	// +optional
+	TriggerIf MachineDeploymentTopologyHealthCheckRemediationTriggerIf `json:"triggerIf,omitempty,omitzero"`
+
+	// templateRef is a reference to a remediation template
+	// provided by an infrastructure provider.
+	//
+	// This field is completely optional, when filled, the MachineHealthCheck controller
+	// creates a new object from the template referenced and hands off remediation of the machine to
+	// a controller that lives outside of Cluster API.
+	// +optional
+	TemplateRef MachineHealthCheckRemediationTemplateReference `json:"templateRef,omitempty,omitzero"`
+}
+
+// MachineDeploymentTopologyHealthCheckRemediationTriggerIf configures if remediations are triggered.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentTopologyHealthCheckRemediationTriggerIf struct {
+	// unhealthyLessThanOrEqualTo specifies that remediations are only triggered if the number of
+	// unhealthy Machines is less than or equal to the configured value.
+	// unhealthyInRange takes precedence if set.
+	//
+	// +optional
+	UnhealthyLessThanOrEqualTo *intstr.IntOrString `json:"unhealthyLessThanOrEqualTo,omitempty"`
+
+	// unhealthyInRange specifies that remediations are only triggered if the number of
+	// unhealthy Machines is in the configured range.
+	// Takes precedence over unhealthyLessThanOrEqualTo.
+	// Eg. "[3-5]" - This means that remediation will be allowed only when:
+	// (a) there are at least 3 unhealthy Machines (and)
+	// (b) there are at most 5 unhealthy Machines
+	//
+	// +optional
+	// +kubebuilder:validation:Pattern=^\[[0-9]+-[0-9]+\]$
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=32
+	UnhealthyInRange string `json:"unhealthyInRange,omitempty"`
+}
+
+// MachineDeploymentTopologyMachineDeletionSpec contains configuration options for Machine deletion.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentTopologyMachineDeletionSpec struct {
+	// order defines the order in which Machines are deleted when downscaling.
+	// Defaults to "Random".  Valid values are "Random, "Newest", "Oldest"
+	// +optional
+	Order MachineSetDeletionOrder `json:"order,omitempty"`
+
+	// nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node.
+	// The default value is 0, meaning that the node can be drained without any time limitations.
+	// NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	NodeDrainTimeoutSeconds *int32 `json:"nodeDrainTimeoutSeconds,omitempty"`
+
+	// nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes
+	// to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	NodeVolumeDetachTimeoutSeconds *int32 `json:"nodeVolumeDetachTimeoutSeconds,omitempty"`
+
+	// nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine
+	// hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely.
+	// Defaults to 10 seconds.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	NodeDeletionTimeoutSeconds *int32 `json:"nodeDeletionTimeoutSeconds,omitempty"`
+}
+
+// MachineDeploymentTopologyRolloutSpec defines the rollout behavior.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentTopologyRolloutSpec struct {
+	// strategy specifies how to roll out control plane Machines.
+	// +optional
+	Strategy MachineDeploymentTopologyRolloutStrategy `json:"strategy,omitempty,omitzero"`
+}
+
+// MachineDeploymentTopologyRolloutStrategy describes how to replace existing machines
+// with new ones.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentTopologyRolloutStrategy struct {
+	// type of rollout. Allowed values are RollingUpdate and OnDelete.
+	// Default is RollingUpdate.
+	// +required
+	Type MachineDeploymentRolloutStrategyType `json:"type,omitempty"`
+
+	// rollingUpdate is the rolling update config params. Present only if
+	// type = RollingUpdate.
+	// +optional
+	RollingUpdate MachineDeploymentTopologyRolloutStrategyRollingUpdate `json:"rollingUpdate,omitempty,omitzero"`
+}
+
+// MachineDeploymentTopologyRolloutStrategyRollingUpdate is used to control the desired behavior of rolling update.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentTopologyRolloutStrategyRollingUpdate struct {
+	// maxUnavailable is the maximum number of machines that can be unavailable during the update.
+	// Value can be an absolute number (ex: 5) or a percentage of desired
+	// machines (ex: 10%).
+	// Absolute number is calculated from percentage by rounding down.
+	// This can not be 0 if MaxSurge is 0.
+	// Defaults to 0.
+	// Example: when this is set to 30%, the old MachineSet can be scaled
+	// down to 70% of desired machines immediately when the rolling update
+	// starts. Once new machines are ready, old MachineSet can be scaled
+	// down further, followed by scaling up the new MachineSet, ensuring
+	// that the total number of machines available at all times
+	// during the update is at least 70% of desired machines.
+	// +optional
+	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty"`
+
+	// maxSurge is the maximum number of machines that can be scheduled above the
+	// desired number of machines.
+	// Value can be an absolute number (ex: 5) or a percentage of
+	// desired machines (ex: 10%).
+	// This can not be 0 if MaxUnavailable is 0.
+	// Absolute number is calculated from percentage by rounding up.
+	// Defaults to 1.
+	// Example: when this is set to 30%, the new MachineSet can be scaled
+	// up immediately when the rolling update starts, such that the total
+	// number of old and new machines do not exceed 130% of desired
+	// machines. Once old machines have been killed, new MachineSet can
+	// be scaled up further, ensuring that total number of machines running
+	// at any time during the update is at most 130% of desired machines.
+	// +optional
+	MaxSurge *intstr.IntOrString `json:"maxSurge,omitempty"`
 }
 
 // MachinePoolTopology specifies the different parameters for a pool of worker nodes in the topology.
@@ -797,7 +1138,7 @@ type MachinePoolTopology struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Class string `json:"class"`
+	Class string `json:"class,omitempty"`
 
 	// name is the unique identifier for this MachinePoolTopology.
 	// The value is used with other unique identifiers to create a MachinePool's Name
@@ -806,17 +1147,46 @@ type MachinePoolTopology struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
-	Name string `json:"name"`
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+	Name string `json:"name,omitempty"`
 
 	// failureDomains is the list of failure domains the machine pool will be created in.
 	// Must match a key in the FailureDomains map stored on the cluster object.
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=100
 	// +kubebuilder:validation:items:MinLength=1
 	// +kubebuilder:validation:items:MaxLength=256
 	FailureDomains []string `json:"failureDomains,omitempty"`
 
+	// deletion contains configuration options for Machine deletion.
+	// +optional
+	Deletion MachinePoolTopologyMachineDeletionSpec `json:"deletion,omitempty,omitzero"`
+
+	// minReadySeconds is the minimum number of seconds for which a newly created machine pool should
+	// be ready.
+	// Defaults to 0 (machine will be considered available as soon as it
+	// is ready)
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	MinReadySeconds *int32 `json:"minReadySeconds,omitempty"`
+
+	// replicas is the number of nodes belonging to this pool.
+	// If the value is nil, the MachinePool is created without the number of Replicas (defaulting to 1)
+	// and it's assumed that an external entity (like cluster autoscaler) is responsible for the management
+	// of this value.
+	// +optional
+	Replicas *int32 `json:"replicas,omitempty"`
+
+	// variables can be used to customize the MachinePool through patches.
+	// +optional
+	Variables MachinePoolVariables `json:"variables,omitempty,omitzero"`
+}
+
+// MachinePoolTopologyMachineDeletionSpec contains configuration options for Machine deletion.
+// +kubebuilder:validation:MinProperties=1
+type MachinePoolTopologyMachineDeletionSpec struct {
 	// nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node.
 	// The default value is 0, meaning that the node can be drained without any time limitations.
 	// NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`
@@ -836,25 +1206,6 @@ type MachinePoolTopology struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	NodeDeletionTimeoutSeconds *int32 `json:"nodeDeletionTimeoutSeconds,omitempty"`
-
-	// minReadySeconds is the minimum number of seconds for which a newly created machine pool should
-	// be ready.
-	// Defaults to 0 (machine will be considered available as soon as it
-	// is ready)
-	// +optional
-	// +kubebuilder:validation:Minimum=0
-	MinReadySeconds *int32 `json:"minReadySeconds,omitempty"`
-
-	// replicas is the number of nodes belonging to this pool.
-	// If the value is nil, the MachinePool is created without the number of Replicas (defaulting to 1)
-	// and it's assumed that an external entity (like cluster autoscaler) is responsible for the management
-	// of this value.
-	// +optional
-	Replicas *int32 `json:"replicas,omitempty"`
-
-	// variables can be used to customize the MachinePool through patches.
-	// +optional
-	Variables *MachinePoolVariables `json:"variables,omitempty"`
 }
 
 // ClusterVariable can be used to customize the Cluster through patches. Each ClusterVariable is associated with a
@@ -864,7 +1215,7 @@ type ClusterVariable struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// value of the variable.
 	// Note: the value will be validated against the schema of the corresponding ClusterClassVariable
@@ -874,58 +1225,63 @@ type ClusterVariable struct {
 	// i.e. it is not possible to have no type field.
 	// Ref: https://github.com/kubernetes-sigs/controller-tools/blob/d0e03a142d0ecdd5491593e941ee1d6b5d91dba6/pkg/crd/known_types.go#L106-L111
 	// +required
-	Value apiextensionsv1.JSON `json:"value"`
+	Value apiextensionsv1.JSON `json:"value,omitempty,omitzero"`
 }
 
 // ControlPlaneVariables can be used to provide variables for the ControlPlane.
+// +kubebuilder:validation:MinProperties=1
 type ControlPlaneVariables struct {
 	// overrides can be used to override Cluster level variables.
 	// +optional
 	// +listType=map
 	// +listMapKey=name
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=1000
 	Overrides []ClusterVariable `json:"overrides,omitempty"`
 }
 
 // MachineDeploymentVariables can be used to provide variables for a specific MachineDeployment.
+// +kubebuilder:validation:MinProperties=1
 type MachineDeploymentVariables struct {
 	// overrides can be used to override Cluster level variables.
 	// +optional
 	// +listType=map
 	// +listMapKey=name
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=1000
 	Overrides []ClusterVariable `json:"overrides,omitempty"`
 }
 
 // MachinePoolVariables can be used to provide variables for a specific MachinePool.
+// +kubebuilder:validation:MinProperties=1
 type MachinePoolVariables struct {
 	// overrides can be used to override Cluster level variables.
 	// +optional
 	// +listType=map
 	// +listMapKey=name
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=1000
 	Overrides []ClusterVariable `json:"overrides,omitempty"`
 }
 
-// ANCHOR_END: ClusterSpec
-
-// ANCHOR: ClusterNetwork
-
 // ClusterNetwork specifies the different networking
 // parameters for a cluster.
+// +kubebuilder:validation:MinProperties=1
 type ClusterNetwork struct {
 	// apiServerPort specifies the port the API Server should bind to.
 	// Defaults to 6443.
 	// +optional
-	APIServerPort *int32 `json:"apiServerPort,omitempty"`
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	APIServerPort int32 `json:"apiServerPort,omitempty"`
 
 	// services is the network ranges from which service VIPs are allocated.
 	// +optional
-	Services *NetworkRanges `json:"services,omitempty"`
+	Services NetworkRanges `json:"services,omitempty,omitzero"`
 
 	// pods is the network ranges from which Pod networks are allocated.
 	// +optional
-	Pods *NetworkRanges `json:"pods,omitempty"`
+	Pods NetworkRanges `json:"pods,omitempty,omitzero"`
 
 	// serviceDomain is the domain name for services.
 	// +optional
@@ -934,19 +1290,16 @@ type ClusterNetwork struct {
 	ServiceDomain string `json:"serviceDomain,omitempty"`
 }
 
-// ANCHOR_END: ClusterNetwork
-
-// ANCHOR: NetworkRanges
-
 // NetworkRanges represents ranges of network addresses.
 type NetworkRanges struct {
 	// cidrBlocks is a list of CIDR blocks.
 	// +required
 	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=100
 	// +kubebuilder:validation:items:MinLength=1
 	// +kubebuilder:validation:items:MaxLength=43
-	CIDRBlocks []string `json:"cidrBlocks"`
+	CIDRBlocks []string `json:"cidrBlocks,omitempty"`
 }
 
 func (n NetworkRanges) String() string {
@@ -955,10 +1308,6 @@ func (n NetworkRanges) String() string {
 	}
 	return strings.Join(n.CIDRBlocks, ",")
 }
-
-// ANCHOR_END: NetworkRanges
-
-// ANCHOR: ClusterStatus
 
 // ClusterStatus defines the observed state of Cluster.
 // +kubebuilder:validation:MinProperties=1
@@ -1115,8 +1464,6 @@ type WorkersStatus struct {
 	AvailableReplicas *int32 `json:"availableReplicas,omitempty"`
 }
 
-// ANCHOR_END: ClusterStatus
-
 // SetTypedPhase sets the Phase field to the string representation of ClusterPhase.
 func (c *ClusterStatus) SetTypedPhase(p ClusterPhase) {
 	c.Phase = string(p)
@@ -1137,8 +1484,6 @@ func (c *ClusterStatus) GetTypedPhase() ClusterPhase {
 		return ClusterPhaseUnknown
 	}
 }
-
-// ANCHOR: APIEndpoint
 
 // APIEndpoint represents a reachable Kubernetes API endpoint.
 // +kubebuilder:validation:MinProperties=1
@@ -1171,13 +1516,23 @@ func (v APIEndpoint) String() string {
 	return net.JoinHostPort(v.Host, fmt.Sprintf("%d", v.Port))
 }
 
-// ANCHOR_END: APIEndpoint
-
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=clusters,shortName=cl,scope=Namespaced,categories=cluster-api
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ClusterClass",type="string",JSONPath=".spec.topology.classRef.name",description="ClusterClass of this Cluster, empty if the Cluster is not using a ClusterClass"
+// +kubebuilder:printcolumn:name="Available",type="string",JSONPath=`.status.conditions[?(@.type=="Available")].status`,description="Cluster pass all availability checks"
+// +kubebuilder:printcolumn:name="CP Desired",type=integer,JSONPath=".status.controlPlane.desiredReplicas",description="The desired number of control plane machines"
+// +kubebuilder:printcolumn:name="CP Current",type="integer",JSONPath=".status.controlPlane.replicas",description="The number of control plane machines",priority=10
+// +kubebuilder:printcolumn:name="CP Ready",type="integer",JSONPath=".status.controlPlane.readyReplicas",description="The number of control plane machines with Ready condition true",priority=10
+// +kubebuilder:printcolumn:name="CP Available",type=integer,JSONPath=".status.controlPlane.availableReplicas",description="The number of control plane machines with Available condition true"
+// +kubebuilder:printcolumn:name="CP Up-to-date",type=integer,JSONPath=".status.controlPlane.upToDateReplicas",description="The number of control plane machines with UpToDate condition true"
+// +kubebuilder:printcolumn:name="W Desired",type=integer,JSONPath=".status.workers.desiredReplicas",description="The desired number of worker machines"
+// +kubebuilder:printcolumn:name="W Current",type="integer",JSONPath=".status.workers.replicas",description="The number of worker machines",priority=10
+// +kubebuilder:printcolumn:name="W Ready",type="integer",JSONPath=".status.workers.readyReplicas",description="The number of worker machines with Ready condition true",priority=10
+// +kubebuilder:printcolumn:name="W Available",type=integer,JSONPath=".status.workers.availableReplicas",description="The number of worker machines with Available condition true"
+// +kubebuilder:printcolumn:name="W Up-to-date",type=integer,JSONPath=".status.workers.upToDateReplicas",description="The number of worker machines with UpToDate condition true"
+// +kubebuilder:printcolumn:name="Paused",type="string",JSONPath=`.status.conditions[?(@.type=="Paused")].status`,description="Reconciliation paused",priority=10
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="Cluster status such as Pending/Provisioning/Provisioned/Deleting/Failed"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of Cluster"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.topology.version",description="Kubernetes version associated with this Cluster"
@@ -1200,7 +1555,7 @@ type Cluster struct {
 
 // GetClassKey returns the namespaced name for the class associated with this object.
 func (c *Cluster) GetClassKey() types.NamespacedName {
-	if c.Spec.Topology == nil {
+	if !c.Spec.Topology.IsDefined() {
 		return types.NamespacedName{}
 	}
 
@@ -1261,7 +1616,7 @@ type FailureDomain struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// controlPlane determines if this failure domain is suitable for use by control plane machines.
 	// +optional

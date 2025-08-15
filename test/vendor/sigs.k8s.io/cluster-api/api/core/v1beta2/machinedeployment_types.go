@@ -31,16 +31,17 @@ const (
 	MachineDeploymentFinalizer = "cluster.x-k8s.io/machinedeployment"
 )
 
-// MachineDeploymentStrategyType defines the type of MachineDeployment rollout strategies.
-type MachineDeploymentStrategyType string
+// MachineDeploymentRolloutStrategyType defines the type of MachineDeployment rollout strategies.
+// +kubebuilder:validation:Enum=RollingUpdate;OnDelete
+type MachineDeploymentRolloutStrategyType string
 
 const (
 	// RollingUpdateMachineDeploymentStrategyType replaces the old MachineSet by new one using rolling update
 	// i.e. gradually scale down the old MachineSet and scale up the new one.
-	RollingUpdateMachineDeploymentStrategyType MachineDeploymentStrategyType = "RollingUpdate"
+	RollingUpdateMachineDeploymentStrategyType MachineDeploymentRolloutStrategyType = "RollingUpdate"
 
 	// OnDeleteMachineDeploymentStrategyType replaces old MachineSets when the deletion of the associated machines are completed.
-	OnDeleteMachineDeploymentStrategyType MachineDeploymentStrategyType = "OnDelete"
+	OnDeleteMachineDeploymentStrategyType MachineDeploymentRolloutStrategyType = "OnDelete"
 
 	// RevisionAnnotation is the revision annotation of a machine deployment's machine sets which records its rollout sequence.
 	RevisionAnnotation = "machinedeployment.clusters.x-k8s.io/revision"
@@ -231,15 +232,13 @@ const (
 	MachineDeploymentDeletingInternalErrorReason = InternalErrorReason
 )
 
-// ANCHOR: MachineDeploymentSpec
-
 // MachineDeploymentSpec defines the desired state of MachineDeployment.
 type MachineDeploymentSpec struct {
 	// clusterName is the name of the Cluster this object belongs to.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
-	ClusterName string `json:"clusterName"`
+	ClusterName string `json:"clusterName,omitempty"`
 
 	// replicas is the number of desired machines.
 	// This is a pointer to distinguish between explicit zero and not specified.
@@ -261,70 +260,75 @@ type MachineDeploymentSpec struct {
 	// +optional
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// rolloutAfter is a field to indicate a rollout should be performed
-	// after the specified time even if no changes have been made to the
-	// MachineDeployment.
-	// Example: In the YAML the time can be specified in the RFC3339 format.
-	// To specify the rolloutAfter target as March 9, 2023, at 9 am UTC
-	// use "2023-03-09T09:00:00Z".
+	// rollout allows you to configure the behaviour of rolling updates to the MachineDeployment Machines.
+	// It allows you to require that all Machines are replaced after a certain time,
+	// and allows you to define the strategy used during rolling replacements.
 	// +optional
-	RolloutAfter *metav1.Time `json:"rolloutAfter,omitempty"`
+	Rollout MachineDeploymentRolloutSpec `json:"rollout,omitempty,omitzero"`
 
 	// selector is the label selector for machines. Existing MachineSets whose machines are
 	// selected by this will be the ones affected by this deployment.
 	// It must match the machine template's labels.
 	// +required
-	Selector metav1.LabelSelector `json:"selector"`
+	Selector metav1.LabelSelector `json:"selector,omitempty,omitzero"`
 
 	// template describes the machines that will be created.
 	// +required
-	Template MachineTemplateSpec `json:"template"`
+	Template MachineTemplateSpec `json:"template,omitempty,omitzero"`
 
-	// strategy is the deployment strategy to use to replace existing machines with
-	// new ones.
-	// +optional
-	Strategy *MachineDeploymentStrategy `json:"strategy,omitempty"`
-
-	// machineNamingStrategy allows changing the naming pattern used when creating Machines.
+	// machineNaming allows changing the naming pattern used when creating Machines.
 	// Note: InfraMachines & BootstrapConfigs will use the same name as the corresponding Machines.
 	// +optional
-	MachineNamingStrategy *MachineNamingStrategy `json:"machineNamingStrategy,omitempty"`
+	MachineNaming MachineNamingSpec `json:"machineNaming,omitempty,omitzero"`
+
+	// remediation controls how unhealthy Machines are remediated.
+	// +optional
+	Remediation MachineDeploymentRemediationSpec `json:"remediation,omitempty,omitzero"`
+
+	// deletion contains configuration options for MachineDeployment deletion.
+	// +optional
+	Deletion MachineDeploymentDeletionSpec `json:"deletion,omitempty,omitzero"`
 
 	// paused indicates that the deployment is paused.
 	// +optional
 	Paused *bool `json:"paused,omitempty"`
 }
 
-// ANCHOR_END: MachineDeploymentSpec
-
-// ANCHOR: MachineDeploymentStrategy
-
-// MachineDeploymentStrategy describes how to replace existing machines
-// with new ones.
-type MachineDeploymentStrategy struct {
-	// type of deployment. Allowed values are RollingUpdate and OnDelete.
-	// The default is RollingUpdate.
-	// +kubebuilder:validation:Enum=RollingUpdate;OnDelete
+// MachineDeploymentRolloutSpec defines the rollout behavior.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentRolloutSpec struct {
+	// after is a field to indicate a rollout should be performed
+	// after the specified time even if no changes have been made to the
+	// MachineDeployment.
+	// Example: In the YAML the time can be specified in the RFC3339 format.
+	// To specify the rolloutAfter target as March 9, 2023, at 9 am UTC
+	// use "2023-03-09T09:00:00Z".
 	// +optional
-	Type MachineDeploymentStrategyType `json:"type,omitempty"`
+	After metav1.Time `json:"after,omitempty,omitzero"`
 
-	// rollingUpdate is the rolling update config params. Present only if
-	// MachineDeploymentStrategyType = RollingUpdate.
+	// strategy specifies how to roll out control plane Machines.
 	// +optional
-	RollingUpdate *MachineRollingUpdateDeployment `json:"rollingUpdate,omitempty"`
-
-	// remediation controls the strategy of remediating unhealthy machines
-	// and how remediating operations should occur during the lifecycle of the dependant MachineSets.
-	// +optional
-	Remediation *RemediationStrategy `json:"remediation,omitempty"`
+	Strategy MachineDeploymentRolloutStrategy `json:"strategy,omitempty,omitzero"`
 }
 
-// ANCHOR_END: MachineDeploymentStrategy
+// MachineDeploymentRolloutStrategy describes how to replace existing machines
+// with new ones.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentRolloutStrategy struct {
+	// type of rollout. Allowed values are RollingUpdate and OnDelete.
+	// Default is RollingUpdate.
+	// +required
+	Type MachineDeploymentRolloutStrategyType `json:"type,omitempty"`
 
-// ANCHOR: MachineRollingUpdateDeployment
+	// rollingUpdate is the rolling update config params. Present only if
+	// type = RollingUpdate.
+	// +optional
+	RollingUpdate MachineDeploymentRolloutStrategyRollingUpdate `json:"rollingUpdate,omitempty,omitzero"`
+}
 
-// MachineRollingUpdateDeployment is used to control the desired behavior of rolling update.
-type MachineRollingUpdateDeployment struct {
+// MachineDeploymentRolloutStrategyRollingUpdate is used to control the desired behavior of rolling update.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentRolloutStrategyRollingUpdate struct {
 	// maxUnavailable is the maximum number of machines that can be unavailable during the update.
 	// Value can be an absolute number (ex: 5) or a percentage of desired
 	// machines (ex: 10%).
@@ -355,20 +359,11 @@ type MachineRollingUpdateDeployment struct {
 	// at any time during the update is at most 130% of desired machines.
 	// +optional
 	MaxSurge *intstr.IntOrString `json:"maxSurge,omitempty"`
-
-	// deletePolicy defines the policy used by the MachineDeployment to identify nodes to delete when downscaling.
-	// Valid values are "Random, "Newest", "Oldest"
-	// When no value is supplied, the default DeletePolicy of MachineSet is used
-	// +optional
-	DeletePolicy MachineSetDeletePolicy `json:"deletePolicy,omitempty"`
 }
 
-// ANCHOR_END: MachineRollingUpdateDeployment
-
-// ANCHOR: RemediationStrategy
-
-// RemediationStrategy allows to define how the MachineSet can control scaling operations.
-type RemediationStrategy struct {
+// MachineDeploymentRemediationSpec controls how unhealthy Machines are remediated.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentRemediationSpec struct {
 	// maxInFlight determines how many in flight remediations should happen at the same time.
 	//
 	// Remediation only happens on the MachineSet with the most current revision, while
@@ -388,12 +383,11 @@ type RemediationStrategy struct {
 	MaxInFlight *intstr.IntOrString `json:"maxInFlight,omitempty"`
 }
 
-// ANCHOR_END: RemediationStrategy
-
-// MachineNamingStrategy allows changing the naming pattern used when creating
+// MachineNamingSpec allows changing the naming pattern used when creating
 // Machines.
 // Note: InfraMachines & BootstrapConfigs will use the same name as the corresponding Machines.
-type MachineNamingStrategy struct {
+// +kubebuilder:validation:MinProperties=1
+type MachineNamingSpec struct {
 	// template defines the template to use for generating the names of the
 	// Machine objects.
 	// If not defined, it will fallback to `{{ .machineSet.name }}-{{ .random }}`.
@@ -416,7 +410,14 @@ type MachineNamingStrategy struct {
 	Template string `json:"template,omitempty"`
 }
 
-// ANCHOR: MachineDeploymentStatus
+// MachineDeploymentDeletionSpec contains configuration options for MachineDeployment deletion.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeploymentDeletionSpec struct {
+	// order defines the order in which Machines are deleted when downscaling.
+	// Defaults to "Random".  Valid values are "Random, "Newest", "Oldest"
+	// +optional
+	Order MachineSetDeletionOrder `json:"order,omitempty"`
+}
 
 // MachineDeploymentStatus defines the observed state of MachineDeployment.
 // +kubebuilder:validation:MinProperties=1
@@ -522,8 +523,6 @@ type MachineDeploymentV1Beta1DeprecatedStatus struct {
 	UnavailableReplicas int32 `json:"unavailableReplicas"` //nolint:kubeapilinter // field will be removed when v1beta1 is removed
 }
 
-// ANCHOR_END: MachineDeploymentStatus
-
 // MachineDeploymentPhase indicates the progress of the machine deployment.
 type MachineDeploymentPhase string
 
@@ -575,11 +574,13 @@ func (md *MachineDeploymentStatus) GetTypedPhase() MachineDeploymentPhase {
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".spec.clusterName",description="Cluster"
-// +kubebuilder:printcolumn:name="Desired",type=integer,JSONPath=".spec.replicas",description="Total number of machines desired by this MachineDeployment",priority=10
-// +kubebuilder:printcolumn:name="Replicas",type="integer",JSONPath=".status.replicas",description="Total number of non-terminated machines targeted by this MachineDeployment"
-// +kubebuilder:printcolumn:name="Ready",type="integer",JSONPath=".status.deprecated.v1beta1.readyReplicas",description="Total number of ready machines targeted by this MachineDeployment"
-// +kubebuilder:printcolumn:name="Updated",type=integer,JSONPath=".status.deprecated.v1beta1.updatedReplicas",description="Total number of non-terminated machines targeted by this deployment that have the desired template spec"
-// +kubebuilder:printcolumn:name="Unavailable",type=integer,JSONPath=".status.deprecated.v1beta1.unavailableReplicas",description="Total number of unavailable machines targeted by this MachineDeployment"
+// +kubebuilder:printcolumn:name="Available",type="string",JSONPath=`.status.conditions[?(@.type=="Available")].status`,description="Cluster pass all availability checks"
+// +kubebuilder:printcolumn:name="Desired",type=integer,JSONPath=".spec.replicas",description="The desired number of machines"
+// +kubebuilder:printcolumn:name="Current",type="integer",JSONPath=".status.replicas",description="The number of machines"
+// +kubebuilder:printcolumn:name="Ready",type="integer",JSONPath=".status.readyReplicas",description="The number of machines with Ready condition true"
+// +kubebuilder:printcolumn:name="Available",type=integer,JSONPath=".status.availableReplicas",description="The number of machines with Available condition true"
+// +kubebuilder:printcolumn:name="Up-to-date",type=integer,JSONPath=".status.upToDateReplicas",description="The number of machines with UpToDate condition true"
+// +kubebuilder:printcolumn:name="Paused",type="string",JSONPath=`.status.conditions[?(@.type=="Paused")].status`,description="Reconciliation paused",priority=10
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="MachineDeployment status such as ScalingUp/ScalingDown/Running/Failed/Unknown"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of MachineDeployment"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.template.spec.version",description="Kubernetes version associated with this MachineDeployment"

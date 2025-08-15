@@ -138,7 +138,7 @@ func WaitForMachineDeploymentNodesToExist(ctx context.Context, input WaitForMach
 		g.Expect(err).ToNot(HaveOccurred())
 		count := 0
 		for _, machine := range machines.Items {
-			if machine.Status.NodeRef != nil {
+			if machine.Status.NodeRef.IsDefined() {
 				count++
 			}
 		}
@@ -294,7 +294,7 @@ func UpgradeMachineDeploymentInfrastructureRefAndWait(ctx context.Context, input
 
 		log.Logf("Patching the new infrastructure ref to Machine Deployment %s", klog.KObj(deployment))
 		// Retrieve infra object.
-		infraRef := &deployment.Spec.Template.Spec.InfrastructureRef
+		infraRef := deployment.Spec.Template.Spec.InfrastructureRef
 		var infraObj *unstructured.Unstructured
 		Eventually(func() error {
 			infraObj, err = external.GetObjectFromContractVersionedRef(ctx, mgmtClient, infraRef, deployment.Namespace)
@@ -314,7 +314,7 @@ func UpgradeMachineDeploymentInfrastructureRefAndWait(ctx context.Context, input
 		patchHelper, err := patch.NewHelper(deployment, mgmtClient)
 		Expect(err).ToNot(HaveOccurred())
 		infraRef.Name = newInfraObjName
-		deployment.Spec.Template.Spec.InfrastructureRef = *infraRef
+		deployment.Spec.Template.Spec.InfrastructureRef = infraRef
 		Eventually(func() error {
 			return patchHelper.Patch(ctx, deployment)
 		}, retryableOperationTimeout, retryableOperationInterval).Should(Succeed(), "Failed to patch new infrastructure ref to MachineDeployment %s", klog.KObj(deployment))
@@ -388,9 +388,9 @@ func UpgradeMachineDeploymentInPlaceMutableFieldsAndWait(ctx context.Context, in
 			deployment.Spec.Template.Annotations = map[string]string{}
 		}
 		deployment.Spec.Template.Annotations["new-annotation"] = "new-annotation-value"
-		deployment.Spec.Template.Spec.NodeDrainTimeoutSeconds = ptr.To(rand.Int31n(20))        //nolint:gosec
-		deployment.Spec.Template.Spec.NodeDeletionTimeoutSeconds = ptr.To(rand.Int31n(20))     //nolint:gosec
-		deployment.Spec.Template.Spec.NodeVolumeDetachTimeoutSeconds = ptr.To(rand.Int31n(20)) //nolint:gosec
+		deployment.Spec.Template.Spec.Deletion.NodeDrainTimeoutSeconds = ptr.To(rand.Int31n(20))        //nolint:gosec
+		deployment.Spec.Template.Spec.Deletion.NodeDeletionTimeoutSeconds = ptr.To(rand.Int31n(20))     //nolint:gosec
+		deployment.Spec.Template.Spec.Deletion.NodeVolumeDetachTimeoutSeconds = ptr.To(rand.Int31n(20)) //nolint:gosec
 		Eventually(func() error {
 			return patchHelper.Patch(ctx, deployment)
 		}, retryableOperationTimeout, retryableOperationInterval).Should(Succeed(), "Failed to patch in-place mutable fields of MachineDeployment %s", klog.KObj(deployment))
@@ -422,9 +422,9 @@ func UpgradeMachineDeploymentInPlaceMutableFieldsAndWait(ctx context.Context, in
 			g.Expect(machineSetAfterUpgrade.Spec.Template.Labels).To(HaveKeyWithValue("new-label", "new-label-value"))
 			g.Expect(machineSetAfterUpgrade.Spec.Template.Annotations).To(HaveKeyWithValue("new-annotation", "new-annotation-value"))
 			// Timeouts should be propagated.
-			g.Expect(machineSetAfterUpgrade.Spec.Template.Spec.NodeDrainTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.NodeDrainTimeoutSeconds))
-			g.Expect(machineSetAfterUpgrade.Spec.Template.Spec.NodeDeletionTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.NodeDeletionTimeoutSeconds))
-			g.Expect(machineSetAfterUpgrade.Spec.Template.Spec.NodeVolumeDetachTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.NodeVolumeDetachTimeoutSeconds))
+			g.Expect(machineSetAfterUpgrade.Spec.Template.Spec.Deletion.NodeDrainTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.Deletion.NodeDrainTimeoutSeconds))
+			g.Expect(machineSetAfterUpgrade.Spec.Template.Spec.Deletion.NodeDeletionTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.Deletion.NodeDeletionTimeoutSeconds))
+			g.Expect(machineSetAfterUpgrade.Spec.Template.Spec.Deletion.NodeVolumeDetachTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.Deletion.NodeVolumeDetachTimeoutSeconds))
 
 			log.Logf("Verify fields have been propagated to Machines")
 			for _, m := range machinesAfterUpgrade {
@@ -432,9 +432,9 @@ func UpgradeMachineDeploymentInPlaceMutableFieldsAndWait(ctx context.Context, in
 				g.Expect(m.Labels).To(HaveKeyWithValue("new-label", "new-label-value"))
 				g.Expect(m.Annotations).To(HaveKeyWithValue("new-annotation", "new-annotation-value"))
 				// Timeouts should be propagated.
-				g.Expect(m.Spec.NodeDrainTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.NodeDrainTimeoutSeconds))
-				g.Expect(m.Spec.NodeDeletionTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.NodeDeletionTimeoutSeconds))
-				g.Expect(m.Spec.NodeVolumeDetachTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.NodeVolumeDetachTimeoutSeconds))
+				g.Expect(m.Spec.Deletion.NodeDrainTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.Deletion.NodeDrainTimeoutSeconds))
+				g.Expect(m.Spec.Deletion.NodeDeletionTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.Deletion.NodeDeletionTimeoutSeconds))
+				g.Expect(m.Spec.Deletion.NodeVolumeDetachTimeoutSeconds).To(Equal(deployment.Spec.Template.Spec.Deletion.NodeVolumeDetachTimeoutSeconds))
 			}
 		}, input.WaitForMachinesToBeUpgraded...).Should(Succeed())
 	}
@@ -550,7 +550,7 @@ func ScaleAndWaitMachineDeployment(ctx context.Context, input ScaleAndWaitMachin
 		}
 		nodeRefCount := 0
 		for _, machine := range machines.Items {
-			if machine.Status.NodeRef != nil {
+			if machine.Status.NodeRef.IsDefined() {
 				nodeRefCount++
 			}
 		}
@@ -632,7 +632,6 @@ func ScaleAndWaitMachineDeploymentTopology(ctx context.Context, input ScaleAndWa
 	Expect(ctx).NotTo(BeNil(), "ctx is required for ScaleAndWaitMachineDeployment")
 	Expect(input.ClusterProxy).ToNot(BeNil(), "Invalid argument. input.ClusterProxy can't be nil when calling ScaleAndWaitMachineDeployment")
 	Expect(input.Cluster).ToNot(BeNil(), "Invalid argument. input.Cluster can't be nil when calling ScaleAndWaitMachineDeployment")
-	Expect(input.Cluster.Spec.Topology.Workers).ToNot(BeNil(), "Invalid argument. input.Cluster must have MachineDeployment topologies")
 	Expect(input.Cluster.Spec.Topology.Workers.MachineDeployments).NotTo(BeEmpty(), "Invalid argument. input.Cluster must have at least one MachineDeployment topology")
 
 	mdTopology := input.Cluster.Spec.Topology.Workers.MachineDeployments[0]
@@ -687,7 +686,7 @@ func ScaleAndWaitMachineDeploymentTopology(ctx context.Context, input ScaleAndWa
 		}
 		nodeRefCount := 0
 		for _, machine := range machines.Items {
-			if machine.Status.NodeRef != nil {
+			if machine.Status.NodeRef.IsDefined() {
 				nodeRefCount++
 			}
 		}
