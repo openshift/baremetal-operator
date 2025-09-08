@@ -861,6 +861,14 @@ type BareMetalHostStatus struct {
 	// ErrorCount records how many times the host has encoutered an error since the last successful operation
 	// +kubebuilder:default:=0
 	ErrorCount int `json:"errorCount"`
+
+	// ServicingTriggeredBySettings indicates if the current servicing operation was triggered by firmware settings changes
+	// +optional
+	ServicingTriggeredBySettings bool `json:"servicingTriggeredBySettings,omitempty"`
+
+	// ServicingTriggeredByComponents indicates if the current servicing operation was triggered by firmware component changes
+	// +optional
+	ServicingTriggeredByComponents bool `json:"servicingTriggeredByComponents,omitempty"`
 }
 
 // ProvisionStatus holds the state information for a single target.
