@@ -47,7 +47,7 @@ const (
 type MachineDrainRuleSpec struct {
 	// drain configures if and how Pods are drained.
 	// +required
-	Drain MachineDrainRuleDrainConfig `json:"drain"`
+	Drain MachineDrainRuleDrainConfig `json:"drain,omitempty,omitzero"`
 
 	// machines defines to which Machines this MachineDrainRule should be applied.
 	//
@@ -129,7 +129,7 @@ type MachineDrainRuleDrainConfig struct {
 	// "WaitCompleted" means that the pods to which this MachineDrainRule applies will never be evicted
 	// and we wait for them to be completed, it is enforced that pods marked with this behavior always have Order=0.
 	// +required
-	Behavior MachineDrainRuleDrainBehavior `json:"behavior"`
+	Behavior MachineDrainRuleDrainBehavior `json:"behavior,omitempty"`
 
 	// order defines the order in which Pods are drained.
 	// Pods with higher order are drained after Pods with lower order.
@@ -212,7 +212,7 @@ type MachineDrainRule struct {
 
 	// spec defines the spec of a MachineDrainRule.
 	// +required
-	Spec MachineDrainRuleSpec `json:"spec"`
+	Spec MachineDrainRuleSpec `json:"spec,omitempty,omitzero"`
 }
 
 // +kubebuilder:object:root=true

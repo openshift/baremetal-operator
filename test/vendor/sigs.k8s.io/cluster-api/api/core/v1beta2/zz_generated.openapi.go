@@ -28,125 +28,156 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.APIEndpoint":                                    schema_cluster_api_api_core_v1beta2_APIEndpoint(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.Bootstrap":                                      schema_cluster_api_api_core_v1beta2_Bootstrap(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.Cluster":                                        schema_cluster_api_api_core_v1beta2_Cluster(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterAvailabilityGate":                        schema_cluster_api_api_core_v1beta2_ClusterAvailabilityGate(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClass":                                   schema_cluster_api_api_core_v1beta2_ClusterClass(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassDeprecatedStatus":                   schema_cluster_api_api_core_v1beta2_ClusterClassDeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassList":                               schema_cluster_api_api_core_v1beta2_ClusterClassList(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassPatch":                              schema_cluster_api_api_core_v1beta2_ClusterClassPatch(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassRef":                                schema_cluster_api_api_core_v1beta2_ClusterClassRef(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassSpec":                               schema_cluster_api_api_core_v1beta2_ClusterClassSpec(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassStatus":                             schema_cluster_api_api_core_v1beta2_ClusterClassStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassStatusVariable":                     schema_cluster_api_api_core_v1beta2_ClusterClassStatusVariable(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassStatusVariableDefinition":           schema_cluster_api_api_core_v1beta2_ClusterClassStatusVariableDefinition(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassTemplateReference":                  schema_cluster_api_api_core_v1beta2_ClusterClassTemplateReference(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassV1Beta1DeprecatedStatus":            schema_cluster_api_api_core_v1beta2_ClusterClassV1Beta1DeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassVariable":                           schema_cluster_api_api_core_v1beta2_ClusterClassVariable(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassVariableMetadata":                   schema_cluster_api_api_core_v1beta2_ClusterClassVariableMetadata(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterControlPlaneStatus":                      schema_cluster_api_api_core_v1beta2_ClusterControlPlaneStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterDeprecatedStatus":                        schema_cluster_api_api_core_v1beta2_ClusterDeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterInitializationStatus":                    schema_cluster_api_api_core_v1beta2_ClusterInitializationStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterList":                                    schema_cluster_api_api_core_v1beta2_ClusterList(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterNetwork":                                 schema_cluster_api_api_core_v1beta2_ClusterNetwork(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterSpec":                                    schema_cluster_api_api_core_v1beta2_ClusterSpec(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterStatus":                                  schema_cluster_api_api_core_v1beta2_ClusterStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterV1Beta1DeprecatedStatus":                 schema_cluster_api_api_core_v1beta2_ClusterV1Beta1DeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterVariable":                                schema_cluster_api_api_core_v1beta2_ClusterVariable(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.Condition":                                      schema_cluster_api_api_core_v1beta2_Condition(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ContractVersionedObjectReference":               schema_cluster_api_api_core_v1beta2_ContractVersionedObjectReference(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClass":                              schema_cluster_api_api_core_v1beta2_ControlPlaneClass(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassMachineInfrastructureTemplate": schema_cluster_api_api_core_v1beta2_ControlPlaneClassMachineInfrastructureTemplate(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassNamingStrategy":                schema_cluster_api_api_core_v1beta2_ControlPlaneClassNamingStrategy(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopology":                           schema_cluster_api_api_core_v1beta2_ControlPlaneTopology(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneVariables":                          schema_cluster_api_api_core_v1beta2_ControlPlaneVariables(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ExternalPatchDefinition":                        schema_cluster_api_api_core_v1beta2_ExternalPatchDefinition(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.FailureDomain":                                  schema_cluster_api_api_core_v1beta2_FailureDomain(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.InfrastructureClass":                            schema_cluster_api_api_core_v1beta2_InfrastructureClass(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.InfrastructureClassNamingStrategy":              schema_cluster_api_api_core_v1beta2_InfrastructureClassNamingStrategy(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.JSONPatch":                                      schema_cluster_api_api_core_v1beta2_JSONPatch(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.JSONPatchValue":                                 schema_cluster_api_api_core_v1beta2_JSONPatchValue(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.JSONSchemaProps":                                schema_cluster_api_api_core_v1beta2_JSONSchemaProps(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.Machine":                                        schema_cluster_api_api_core_v1beta2_Machine(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineAddress":                                 schema_cluster_api_api_core_v1beta2_MachineAddress(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeletionStatus":                          schema_cluster_api_api_core_v1beta2_MachineDeletionStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeployment":                              schema_cluster_api_api_core_v1beta2_MachineDeployment(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClass":                         schema_cluster_api_api_core_v1beta2_MachineDeploymentClass(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassBootstrapTemplate":        schema_cluster_api_api_core_v1beta2_MachineDeploymentClassBootstrapTemplate(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassInfrastructureTemplate":   schema_cluster_api_api_core_v1beta2_MachineDeploymentClassInfrastructureTemplate(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassNamingStrategy":           schema_cluster_api_api_core_v1beta2_MachineDeploymentClassNamingStrategy(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassTemplate":                 schema_cluster_api_api_core_v1beta2_MachineDeploymentClassTemplate(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentDeprecatedStatus":              schema_cluster_api_api_core_v1beta2_MachineDeploymentDeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentList":                          schema_cluster_api_api_core_v1beta2_MachineDeploymentList(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentSpec":                          schema_cluster_api_api_core_v1beta2_MachineDeploymentSpec(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentStatus":                        schema_cluster_api_api_core_v1beta2_MachineDeploymentStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentStrategy":                      schema_cluster_api_api_core_v1beta2_MachineDeploymentStrategy(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopology":                      schema_cluster_api_api_core_v1beta2_MachineDeploymentTopology(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentV1Beta1DeprecatedStatus":       schema_cluster_api_api_core_v1beta2_MachineDeploymentV1Beta1DeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentVariables":                     schema_cluster_api_api_core_v1beta2_MachineDeploymentVariables(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeprecatedStatus":                        schema_cluster_api_api_core_v1beta2_MachineDeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRule":                               schema_cluster_api_api_core_v1beta2_MachineDrainRule(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRuleDrainConfig":                    schema_cluster_api_api_core_v1beta2_MachineDrainRuleDrainConfig(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRuleList":                           schema_cluster_api_api_core_v1beta2_MachineDrainRuleList(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRuleMachineSelector":                schema_cluster_api_api_core_v1beta2_MachineDrainRuleMachineSelector(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRulePodSelector":                    schema_cluster_api_api_core_v1beta2_MachineDrainRulePodSelector(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRuleSpec":                           schema_cluster_api_api_core_v1beta2_MachineDrainRuleSpec(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheck":                             schema_cluster_api_api_core_v1beta2_MachineHealthCheck(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckClass":                        schema_cluster_api_api_core_v1beta2_MachineHealthCheckClass(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckDeprecatedStatus":             schema_cluster_api_api_core_v1beta2_MachineHealthCheckDeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckList":                         schema_cluster_api_api_core_v1beta2_MachineHealthCheckList(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference": schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediationTemplateReference(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckSpec":                         schema_cluster_api_api_core_v1beta2_MachineHealthCheckSpec(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckStatus":                       schema_cluster_api_api_core_v1beta2_MachineHealthCheckStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckTopology":                     schema_cluster_api_api_core_v1beta2_MachineHealthCheckTopology(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckV1Beta1DeprecatedStatus":      schema_cluster_api_api_core_v1beta2_MachineHealthCheckV1Beta1DeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineInitializationStatus":                    schema_cluster_api_api_core_v1beta2_MachineInitializationStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineList":                                    schema_cluster_api_api_core_v1beta2_MachineList(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNamingStrategy":                          schema_cluster_api_api_core_v1beta2_MachineNamingStrategy(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNodeReference":                           schema_cluster_api_api_core_v1beta2_MachineNodeReference(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePool":                                    schema_cluster_api_api_core_v1beta2_MachinePool(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClass":                               schema_cluster_api_api_core_v1beta2_MachinePoolClass(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassBootstrapTemplate":              schema_cluster_api_api_core_v1beta2_MachinePoolClassBootstrapTemplate(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassInfrastructureTemplate":         schema_cluster_api_api_core_v1beta2_MachinePoolClassInfrastructureTemplate(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassNamingStrategy":                 schema_cluster_api_api_core_v1beta2_MachinePoolClassNamingStrategy(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassTemplate":                       schema_cluster_api_api_core_v1beta2_MachinePoolClassTemplate(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolDeprecatedStatus":                    schema_cluster_api_api_core_v1beta2_MachinePoolDeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolInitializationStatus":                schema_cluster_api_api_core_v1beta2_MachinePoolInitializationStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolList":                                schema_cluster_api_api_core_v1beta2_MachinePoolList(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolSpec":                                schema_cluster_api_api_core_v1beta2_MachinePoolSpec(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolStatus":                              schema_cluster_api_api_core_v1beta2_MachinePoolStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolTopology":                            schema_cluster_api_api_core_v1beta2_MachinePoolTopology(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolV1Beta1DeprecatedStatus":             schema_cluster_api_api_core_v1beta2_MachinePoolV1Beta1DeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolVariables":                           schema_cluster_api_api_core_v1beta2_MachinePoolVariables(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate":                           schema_cluster_api_api_core_v1beta2_MachineReadinessGate(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineRollingUpdateDeployment":                 schema_cluster_api_api_core_v1beta2_MachineRollingUpdateDeployment(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSet":                                     schema_cluster_api_api_core_v1beta2_MachineSet(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetDeprecatedStatus":                     schema_cluster_api_api_core_v1beta2_MachineSetDeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetList":                                 schema_cluster_api_api_core_v1beta2_MachineSetList(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetSpec":                                 schema_cluster_api_api_core_v1beta2_MachineSetSpec(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetStatus":                               schema_cluster_api_api_core_v1beta2_MachineSetStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetV1Beta1DeprecatedStatus":              schema_cluster_api_api_core_v1beta2_MachineSetV1Beta1DeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSpec":                                    schema_cluster_api_api_core_v1beta2_MachineSpec(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineStatus":                                  schema_cluster_api_api_core_v1beta2_MachineStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineTemplateSpec":                            schema_cluster_api_api_core_v1beta2_MachineTemplateSpec(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineV1Beta1DeprecatedStatus":                 schema_cluster_api_api_core_v1beta2_MachineV1Beta1DeprecatedStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.NetworkRanges":                                  schema_cluster_api_api_core_v1beta2_NetworkRanges(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta":                                     schema_cluster_api_api_core_v1beta2_ObjectMeta(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.PatchDefinition":                                schema_cluster_api_api_core_v1beta2_PatchDefinition(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.PatchSelector":                                  schema_cluster_api_api_core_v1beta2_PatchSelector(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.PatchSelectorMatch":                             schema_cluster_api_api_core_v1beta2_PatchSelectorMatch(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.PatchSelectorMatchMachineDeploymentClass":       schema_cluster_api_api_core_v1beta2_PatchSelectorMatchMachineDeploymentClass(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.PatchSelectorMatchMachinePoolClass":             schema_cluster_api_api_core_v1beta2_PatchSelectorMatchMachinePoolClass(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.RemediationStrategy":                            schema_cluster_api_api_core_v1beta2_RemediationStrategy(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.Topology":                                       schema_cluster_api_api_core_v1beta2_Topology(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition":                         schema_cluster_api_api_core_v1beta2_UnhealthyNodeCondition(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.ValidationRule":                                 schema_cluster_api_api_core_v1beta2_ValidationRule(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.VariableSchema":                                 schema_cluster_api_api_core_v1beta2_VariableSchema(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.VariableSchemaMetadata":                         schema_cluster_api_api_core_v1beta2_VariableSchemaMetadata(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.WorkersClass":                                   schema_cluster_api_api_core_v1beta2_WorkersClass(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.WorkersStatus":                                  schema_cluster_api_api_core_v1beta2_WorkersStatus(ref),
-		"sigs.k8s.io/cluster-api/api/core/v1beta2.WorkersTopology":                                schema_cluster_api_api_core_v1beta2_WorkersTopology(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.APIEndpoint":                                              schema_cluster_api_api_core_v1beta2_APIEndpoint(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.Bootstrap":                                                schema_cluster_api_api_core_v1beta2_Bootstrap(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.Cluster":                                                  schema_cluster_api_api_core_v1beta2_Cluster(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterAvailabilityGate":                                  schema_cluster_api_api_core_v1beta2_ClusterAvailabilityGate(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClass":                                             schema_cluster_api_api_core_v1beta2_ClusterClass(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassDeprecatedStatus":                             schema_cluster_api_api_core_v1beta2_ClusterClassDeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassList":                                         schema_cluster_api_api_core_v1beta2_ClusterClassList(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassPatch":                                        schema_cluster_api_api_core_v1beta2_ClusterClassPatch(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassRef":                                          schema_cluster_api_api_core_v1beta2_ClusterClassRef(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassSpec":                                         schema_cluster_api_api_core_v1beta2_ClusterClassSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassStatus":                                       schema_cluster_api_api_core_v1beta2_ClusterClassStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassStatusVariable":                               schema_cluster_api_api_core_v1beta2_ClusterClassStatusVariable(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassStatusVariableDefinition":                     schema_cluster_api_api_core_v1beta2_ClusterClassStatusVariableDefinition(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassTemplateReference":                            schema_cluster_api_api_core_v1beta2_ClusterClassTemplateReference(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassV1Beta1DeprecatedStatus":                      schema_cluster_api_api_core_v1beta2_ClusterClassV1Beta1DeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassVariable":                                     schema_cluster_api_api_core_v1beta2_ClusterClassVariable(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassVariableMetadata":                             schema_cluster_api_api_core_v1beta2_ClusterClassVariableMetadata(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterControlPlaneStatus":                                schema_cluster_api_api_core_v1beta2_ClusterControlPlaneStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterDeprecatedStatus":                                  schema_cluster_api_api_core_v1beta2_ClusterDeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterInitializationStatus":                              schema_cluster_api_api_core_v1beta2_ClusterInitializationStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterList":                                              schema_cluster_api_api_core_v1beta2_ClusterList(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterNetwork":                                           schema_cluster_api_api_core_v1beta2_ClusterNetwork(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterSpec":                                              schema_cluster_api_api_core_v1beta2_ClusterSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterStatus":                                            schema_cluster_api_api_core_v1beta2_ClusterStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterV1Beta1DeprecatedStatus":                           schema_cluster_api_api_core_v1beta2_ClusterV1Beta1DeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterVariable":                                          schema_cluster_api_api_core_v1beta2_ClusterVariable(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.Condition":                                                schema_cluster_api_api_core_v1beta2_Condition(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ContractVersionedObjectReference":                         schema_cluster_api_api_core_v1beta2_ContractVersionedObjectReference(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClass":                                        schema_cluster_api_api_core_v1beta2_ControlPlaneClass(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheck":                             schema_cluster_api_api_core_v1beta2_ControlPlaneClassHealthCheck(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheckChecks":                       schema_cluster_api_api_core_v1beta2_ControlPlaneClassHealthCheckChecks(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheckRemediation":                  schema_cluster_api_api_core_v1beta2_ControlPlaneClassHealthCheckRemediation(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheckRemediationTriggerIf":         schema_cluster_api_api_core_v1beta2_ControlPlaneClassHealthCheckRemediationTriggerIf(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassMachineDeletionSpec":                     schema_cluster_api_api_core_v1beta2_ControlPlaneClassMachineDeletionSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassMachineInfrastructureTemplate":           schema_cluster_api_api_core_v1beta2_ControlPlaneClassMachineInfrastructureTemplate(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassNamingSpec":                              schema_cluster_api_api_core_v1beta2_ControlPlaneClassNamingSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopology":                                     schema_cluster_api_api_core_v1beta2_ControlPlaneTopology(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheck":                          schema_cluster_api_api_core_v1beta2_ControlPlaneTopologyHealthCheck(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheckChecks":                    schema_cluster_api_api_core_v1beta2_ControlPlaneTopologyHealthCheckChecks(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheckRemediation":               schema_cluster_api_api_core_v1beta2_ControlPlaneTopologyHealthCheckRemediation(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheckRemediationTriggerIf":      schema_cluster_api_api_core_v1beta2_ControlPlaneTopologyHealthCheckRemediationTriggerIf(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyMachineDeletionSpec":                  schema_cluster_api_api_core_v1beta2_ControlPlaneTopologyMachineDeletionSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneVariables":                                    schema_cluster_api_api_core_v1beta2_ControlPlaneVariables(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ExternalPatchDefinition":                                  schema_cluster_api_api_core_v1beta2_ExternalPatchDefinition(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.FailureDomain":                                            schema_cluster_api_api_core_v1beta2_FailureDomain(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.InfrastructureClass":                                      schema_cluster_api_api_core_v1beta2_InfrastructureClass(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.InfrastructureClassNamingSpec":                            schema_cluster_api_api_core_v1beta2_InfrastructureClassNamingSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.JSONPatch":                                                schema_cluster_api_api_core_v1beta2_JSONPatch(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.JSONPatchValue":                                           schema_cluster_api_api_core_v1beta2_JSONPatchValue(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.JSONSchemaProps":                                          schema_cluster_api_api_core_v1beta2_JSONSchemaProps(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.Machine":                                                  schema_cluster_api_api_core_v1beta2_Machine(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineAddress":                                           schema_cluster_api_api_core_v1beta2_MachineAddress(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeletionSpec":                                      schema_cluster_api_api_core_v1beta2_MachineDeletionSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeletionStatus":                                    schema_cluster_api_api_core_v1beta2_MachineDeletionStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeployment":                                        schema_cluster_api_api_core_v1beta2_MachineDeployment(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClass":                                   schema_cluster_api_api_core_v1beta2_MachineDeploymentClass(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassBootstrapTemplate":                  schema_cluster_api_api_core_v1beta2_MachineDeploymentClassBootstrapTemplate(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheck":                        schema_cluster_api_api_core_v1beta2_MachineDeploymentClassHealthCheck(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheckChecks":                  schema_cluster_api_api_core_v1beta2_MachineDeploymentClassHealthCheckChecks(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheckRemediation":             schema_cluster_api_api_core_v1beta2_MachineDeploymentClassHealthCheckRemediation(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheckRemediationTriggerIf":    schema_cluster_api_api_core_v1beta2_MachineDeploymentClassHealthCheckRemediationTriggerIf(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassInfrastructureTemplate":             schema_cluster_api_api_core_v1beta2_MachineDeploymentClassInfrastructureTemplate(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassMachineDeletionSpec":                schema_cluster_api_api_core_v1beta2_MachineDeploymentClassMachineDeletionSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassNamingSpec":                         schema_cluster_api_api_core_v1beta2_MachineDeploymentClassNamingSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassRolloutSpec":                        schema_cluster_api_api_core_v1beta2_MachineDeploymentClassRolloutSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassRolloutStrategy":                    schema_cluster_api_api_core_v1beta2_MachineDeploymentClassRolloutStrategy(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassRolloutStrategyRollingUpdate":       schema_cluster_api_api_core_v1beta2_MachineDeploymentClassRolloutStrategyRollingUpdate(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentDeletionSpec":                            schema_cluster_api_api_core_v1beta2_MachineDeploymentDeletionSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentDeprecatedStatus":                        schema_cluster_api_api_core_v1beta2_MachineDeploymentDeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentList":                                    schema_cluster_api_api_core_v1beta2_MachineDeploymentList(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRemediationSpec":                         schema_cluster_api_api_core_v1beta2_MachineDeploymentRemediationSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRolloutSpec":                             schema_cluster_api_api_core_v1beta2_MachineDeploymentRolloutSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRolloutStrategy":                         schema_cluster_api_api_core_v1beta2_MachineDeploymentRolloutStrategy(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRolloutStrategyRollingUpdate":            schema_cluster_api_api_core_v1beta2_MachineDeploymentRolloutStrategyRollingUpdate(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentSpec":                                    schema_cluster_api_api_core_v1beta2_MachineDeploymentSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentStatus":                                  schema_cluster_api_api_core_v1beta2_MachineDeploymentStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopology":                                schema_cluster_api_api_core_v1beta2_MachineDeploymentTopology(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheck":                     schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyHealthCheck(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheckChecks":               schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyHealthCheckChecks(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheckRemediation":          schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyHealthCheckRemediation(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheckRemediationTriggerIf": schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyHealthCheckRemediationTriggerIf(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyMachineDeletionSpec":             schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyMachineDeletionSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyRolloutSpec":                     schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyRolloutSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyRolloutStrategy":                 schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyRolloutStrategy(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyRolloutStrategyRollingUpdate":    schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyRolloutStrategyRollingUpdate(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentV1Beta1DeprecatedStatus":                 schema_cluster_api_api_core_v1beta2_MachineDeploymentV1Beta1DeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentVariables":                               schema_cluster_api_api_core_v1beta2_MachineDeploymentVariables(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeprecatedStatus":                                  schema_cluster_api_api_core_v1beta2_MachineDeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRule":                                         schema_cluster_api_api_core_v1beta2_MachineDrainRule(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRuleDrainConfig":                              schema_cluster_api_api_core_v1beta2_MachineDrainRuleDrainConfig(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRuleList":                                     schema_cluster_api_api_core_v1beta2_MachineDrainRuleList(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRuleMachineSelector":                          schema_cluster_api_api_core_v1beta2_MachineDrainRuleMachineSelector(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRulePodSelector":                              schema_cluster_api_api_core_v1beta2_MachineDrainRulePodSelector(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDrainRuleSpec":                                     schema_cluster_api_api_core_v1beta2_MachineDrainRuleSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheck":                                       schema_cluster_api_api_core_v1beta2_MachineHealthCheck(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckChecks":                                 schema_cluster_api_api_core_v1beta2_MachineHealthCheckChecks(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckDeprecatedStatus":                       schema_cluster_api_api_core_v1beta2_MachineHealthCheckDeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckList":                                   schema_cluster_api_api_core_v1beta2_MachineHealthCheckList(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediation":                            schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediation(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference":           schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediationTemplateReference(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTriggerIf":                   schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediationTriggerIf(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckSpec":                                   schema_cluster_api_api_core_v1beta2_MachineHealthCheckSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckStatus":                                 schema_cluster_api_api_core_v1beta2_MachineHealthCheckStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckV1Beta1DeprecatedStatus":                schema_cluster_api_api_core_v1beta2_MachineHealthCheckV1Beta1DeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineInitializationStatus":                              schema_cluster_api_api_core_v1beta2_MachineInitializationStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineList":                                              schema_cluster_api_api_core_v1beta2_MachineList(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNamingSpec":                                        schema_cluster_api_api_core_v1beta2_MachineNamingSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNodeReference":                                     schema_cluster_api_api_core_v1beta2_MachineNodeReference(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePool":                                              schema_cluster_api_api_core_v1beta2_MachinePool(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClass":                                         schema_cluster_api_api_core_v1beta2_MachinePoolClass(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassBootstrapTemplate":                        schema_cluster_api_api_core_v1beta2_MachinePoolClassBootstrapTemplate(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassInfrastructureTemplate":                   schema_cluster_api_api_core_v1beta2_MachinePoolClassInfrastructureTemplate(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassMachineDeletionSpec":                      schema_cluster_api_api_core_v1beta2_MachinePoolClassMachineDeletionSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassNamingSpec":                               schema_cluster_api_api_core_v1beta2_MachinePoolClassNamingSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolDeprecatedStatus":                              schema_cluster_api_api_core_v1beta2_MachinePoolDeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolInitializationStatus":                          schema_cluster_api_api_core_v1beta2_MachinePoolInitializationStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolList":                                          schema_cluster_api_api_core_v1beta2_MachinePoolList(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolSpec":                                          schema_cluster_api_api_core_v1beta2_MachinePoolSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolStatus":                                        schema_cluster_api_api_core_v1beta2_MachinePoolStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolTopology":                                      schema_cluster_api_api_core_v1beta2_MachinePoolTopology(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolTopologyMachineDeletionSpec":                   schema_cluster_api_api_core_v1beta2_MachinePoolTopologyMachineDeletionSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolV1Beta1DeprecatedStatus":                       schema_cluster_api_api_core_v1beta2_MachinePoolV1Beta1DeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolVariables":                                     schema_cluster_api_api_core_v1beta2_MachinePoolVariables(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate":                                     schema_cluster_api_api_core_v1beta2_MachineReadinessGate(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSet":                                               schema_cluster_api_api_core_v1beta2_MachineSet(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetDeletionSpec":                                   schema_cluster_api_api_core_v1beta2_MachineSetDeletionSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetDeprecatedStatus":                               schema_cluster_api_api_core_v1beta2_MachineSetDeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetList":                                           schema_cluster_api_api_core_v1beta2_MachineSetList(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetSpec":                                           schema_cluster_api_api_core_v1beta2_MachineSetSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetStatus":                                         schema_cluster_api_api_core_v1beta2_MachineSetStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetV1Beta1DeprecatedStatus":                        schema_cluster_api_api_core_v1beta2_MachineSetV1Beta1DeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSpec":                                              schema_cluster_api_api_core_v1beta2_MachineSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineStatus":                                            schema_cluster_api_api_core_v1beta2_MachineStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineTemplateSpec":                                      schema_cluster_api_api_core_v1beta2_MachineTemplateSpec(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineV1Beta1DeprecatedStatus":                           schema_cluster_api_api_core_v1beta2_MachineV1Beta1DeprecatedStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.NetworkRanges":                                            schema_cluster_api_api_core_v1beta2_NetworkRanges(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta":                                               schema_cluster_api_api_core_v1beta2_ObjectMeta(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.PatchDefinition":                                          schema_cluster_api_api_core_v1beta2_PatchDefinition(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.PatchSelector":                                            schema_cluster_api_api_core_v1beta2_PatchSelector(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.PatchSelectorMatch":                                       schema_cluster_api_api_core_v1beta2_PatchSelectorMatch(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.PatchSelectorMatchMachineDeploymentClass":                 schema_cluster_api_api_core_v1beta2_PatchSelectorMatchMachineDeploymentClass(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.PatchSelectorMatchMachinePoolClass":                       schema_cluster_api_api_core_v1beta2_PatchSelectorMatchMachinePoolClass(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.Topology":                                                 schema_cluster_api_api_core_v1beta2_Topology(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition":                                   schema_cluster_api_api_core_v1beta2_UnhealthyNodeCondition(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.ValidationRule":                                           schema_cluster_api_api_core_v1beta2_ValidationRule(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.VariableSchema":                                           schema_cluster_api_api_core_v1beta2_VariableSchema(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.VariableSchemaMetadata":                                   schema_cluster_api_api_core_v1beta2_VariableSchemaMetadata(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.WorkersClass":                                             schema_cluster_api_api_core_v1beta2_WorkersClass(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.WorkersStatus":                                            schema_cluster_api_api_core_v1beta2_WorkersStatus(ref),
+		"sigs.k8s.io/cluster-api/api/core/v1beta2.WorkersTopology":                                          schema_cluster_api_api_core_v1beta2_WorkersTopology(ref),
 	}
 }
 
@@ -187,6 +218,7 @@ func schema_cluster_api_api_core_v1beta2_Bootstrap(ref common.ReferenceCallback)
 					"configRef": {
 						SchemaProps: spec.SchemaProps{
 							Description: "configRef is a reference to a bootstrap provider-specific resource that holds configuration details. The reference is optional to allow users/operators to specify Bootstrap.DataSecretName without the need of a controller.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ContractVersionedObjectReference"),
 						},
 					},
@@ -266,7 +298,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterAvailabilityGate(ref common.Refe
 					"conditionType": {
 						SchemaProps: spec.SchemaProps{
 							Description: "conditionType refers to a condition with matching type in the Cluster's condition list. If the conditions doesn't exist, it will be treated as unknown. Note: Both Cluster API conditions or conditions added by 3rd party controllers can be used as availability gates.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -418,7 +449,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterClassPatch(ref common.ReferenceC
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name of the patch.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -481,7 +511,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterClassRef(ref common.ReferenceCal
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name is the name of the ClusterClass that should be used for the topology. name must be a valid ClusterClass name and because of that be at most 253 characters in length and it must consist only of lower case alphanumeric characters, hyphens (-) and periods (.), and must start and end with an alphanumeric character.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -676,7 +705,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterClassStatusVariable(ref common.R
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name is the name of the variable.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -726,7 +754,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterClassStatusVariableDefinition(re
 					"from": {
 						SchemaProps: spec.SchemaProps{
 							Description: "from specifies the origin of the variable definition. This will be `inline` for variables defined in the ClusterClass or the name of a patch defined in the ClusterClass for variables discovered from a DiscoverVariables runtime extensions.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -734,7 +761,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterClassStatusVariableDefinition(re
 					"required": {
 						SchemaProps: spec.SchemaProps{
 							Description: "required specifies if the variable is required. Note: this applies to the variable as a whole and thus the top-level object defined in the schema. If nested fields are required, this will be specified inside the schema.",
-							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
@@ -772,7 +798,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterClassTemplateReference(ref commo
 					"kind": {
 						SchemaProps: spec.SchemaProps{
 							Description: "kind of the template. kind must consist of alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -780,7 +805,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterClassTemplateReference(ref commo
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name of the template. name must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -788,7 +812,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterClassTemplateReference(ref commo
 					"apiVersion": {
 						SchemaProps: spec.SchemaProps{
 							Description: "apiVersion of the template. apiVersion must be fully qualified domain name followed by / and a version.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -839,7 +862,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterClassVariable(ref common.Referen
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name of the variable.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -847,7 +869,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterClassVariable(ref common.Referen
 					"required": {
 						SchemaProps: spec.SchemaProps{
 							Description: "required specifies if the variable is required. Note: this applies to the variable as a whole and thus the top-level object defined in the schema. If nested fields are required, this will be specified inside the schema.",
-							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
@@ -1084,12 +1105,14 @@ func schema_cluster_api_api_core_v1beta2_ClusterNetwork(ref common.ReferenceCall
 					"services": {
 						SchemaProps: spec.SchemaProps{
 							Description: "services is the network ranges from which service VIPs are allocated.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.NetworkRanges"),
 						},
 					},
 					"pods": {
 						SchemaProps: spec.SchemaProps{
 							Description: "pods is the network ranges from which Pod networks are allocated.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.NetworkRanges"),
 						},
 					},
@@ -1125,6 +1148,7 @@ func schema_cluster_api_api_core_v1beta2_ClusterSpec(ref common.ReferenceCallbac
 					"clusterNetwork": {
 						SchemaProps: spec.SchemaProps{
 							Description: "clusterNetwork represents the cluster network configuration.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterNetwork"),
 						},
 					},
@@ -1138,18 +1162,21 @@ func schema_cluster_api_api_core_v1beta2_ClusterSpec(ref common.ReferenceCallbac
 					"controlPlaneRef": {
 						SchemaProps: spec.SchemaProps{
 							Description: "controlPlaneRef is an optional reference to a provider-specific resource that holds the details for provisioning the Control Plane for a Cluster.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ContractVersionedObjectReference"),
 						},
 					},
 					"infrastructureRef": {
 						SchemaProps: spec.SchemaProps{
 							Description: "infrastructureRef is a reference to a provider-specific resource that holds the details for provisioning infrastructure for a cluster in said provider.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ContractVersionedObjectReference"),
 						},
 					},
 					"topology": {
 						SchemaProps: spec.SchemaProps{
 							Description: "topology encapsulates the topology for the cluster. NOTE: It is required to enable the ClusterTopology feature gate flag to activate managed topologies support; this feature is highly experimental, and parts of it might still be not implemented.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.Topology"),
 						},
 					},
@@ -1334,7 +1361,6 @@ func schema_cluster_api_api_core_v1beta2_ClusterVariable(ref common.ReferenceCal
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name of the variable.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1423,7 +1449,6 @@ func schema_cluster_api_api_core_v1beta2_ContractVersionedObjectReference(ref co
 					"kind": {
 						SchemaProps: spec.SchemaProps{
 							Description: "kind of the resource being referenced. kind must consist of alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1431,7 +1456,6 @@ func schema_cluster_api_api_core_v1beta2_ContractVersionedObjectReference(ref co
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name of the resource being referenced. name must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1439,7 +1463,6 @@ func schema_cluster_api_api_core_v1beta2_ContractVersionedObjectReference(ref co
 					"apiGroup": {
 						SchemaProps: spec.SchemaProps{
 							Description: "apiGroup is the group of the resource being referenced. apiGroup must be fully qualified domain name. The corresponding version for this reference will be looked up from the contract labels of the corresponding CRD of the resource being referenced.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1475,40 +1498,29 @@ func schema_cluster_api_api_core_v1beta2_ControlPlaneClass(ref common.ReferenceC
 					"machineInfrastructure": {
 						SchemaProps: spec.SchemaProps{
 							Description: "machineInfrastructure defines the metadata and infrastructure information for control plane machines.\n\nThis field is supported if and only if the control plane provider template referenced above is Machine based and supports setting replicas.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassMachineInfrastructureTemplate"),
 						},
 					},
-					"machineHealthCheck": {
+					"healthCheck": {
 						SchemaProps: spec.SchemaProps{
-							Description: "machineHealthCheck defines a MachineHealthCheck for this ControlPlaneClass. This field is supported if and only if the ControlPlane provider template referenced above is Machine based and supports setting replicas.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckClass"),
+							Description: "healthCheck defines a MachineHealthCheck for this ControlPlaneClass. This field is supported if and only if the ControlPlane provider template referenced above is Machine based and supports setting replicas.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheck"),
 						},
 					},
-					"namingStrategy": {
+					"naming": {
 						SchemaProps: spec.SchemaProps{
-							Description: "namingStrategy allows changing the naming pattern used when creating the control plane provider object.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassNamingStrategy"),
+							Description: "naming allows changing the naming pattern used when creating the control plane provider object.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassNamingSpec"),
 						},
 					},
-					"nodeDrainTimeoutSeconds": {
+					"deletion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeVolumeDetachTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeDeletionTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology.",
-							Type:        []string{"integer"},
-							Format:      "int32",
+							Description: "deletion contains configuration options for Machine deletion.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassMachineDeletionSpec"),
 						},
 					},
 					"readinessGates": {
@@ -1538,7 +1550,168 @@ func schema_cluster_api_api_core_v1beta2_ControlPlaneClass(ref common.ReferenceC
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassTemplateReference", "sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassMachineInfrastructureTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassNamingStrategy", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckClass", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassTemplateReference", "sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheck", "sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassMachineDeletionSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassMachineInfrastructureTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassNamingSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_ControlPlaneClassHealthCheck(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ControlPlaneClassHealthCheck defines a MachineHealthCheck for control plane machines.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"checks": {
+						SchemaProps: spec.SchemaProps{
+							Description: "checks are the checks that are used to evaluate if a Machine is healthy.\n\nIndependent of this configuration the MachineHealthCheck controller will always flag Machines with `cluster.x-k8s.io/remediate-machine` annotation and Machines with deleted Nodes as unhealthy.\n\nFurthermore, if checks.nodeStartupTimeoutSeconds is not set it is defaulted to 10 minutes and evaluated accordingly.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheckChecks"),
+						},
+					},
+					"remediation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "remediation configures if and how remediations are triggered if a Machine is unhealthy.\n\nIf remediation or remediation.triggerIf is not set, remediation will always be triggered for unhealthy Machines.\n\nIf remediation or remediation.templateRef is not set, the OwnerRemediated condition will be set on unhealthy Machines to trigger remediation via the owner of the Machines, for example a MachineSet or a KubeadmControlPlane.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheckRemediation"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheckChecks", "sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheckRemediation"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_ControlPlaneClassHealthCheckChecks(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ControlPlaneClassHealthCheckChecks are the checks that are used to evaluate if a control plane Machine is healthy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeStartupTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"unhealthyNodeConditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyNodeConditions contains a list of conditions that determine whether a node is considered unhealthy. The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_ControlPlaneClassHealthCheckRemediation(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ControlPlaneClassHealthCheckRemediation configures if and how remediations are triggered if a control plane Machine is unhealthy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"triggerIf": {
+						SchemaProps: spec.SchemaProps{
+							Description: "triggerIf configures if remediations are triggered. If this field is not set, remediations are always triggered.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheckRemediationTriggerIf"),
+						},
+					},
+					"templateRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "templateRef is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneClassHealthCheckRemediationTriggerIf", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_ControlPlaneClassHealthCheckRemediationTriggerIf(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ControlPlaneClassHealthCheckRemediationTriggerIf configures if remediations are triggered.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"unhealthyLessThanOrEqualTo": {
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyLessThanOrEqualTo specifies that remediations are only triggered if the number of unhealthy Machines is less than or equal to the configured value. unhealthyInRange takes precedence if set.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+					"unhealthyInRange": {
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyInRange specifies that remediations are only triggered if the number of unhealthy Machines is in the configured range. Takes precedence over unhealthyLessThanOrEqualTo. Eg. \"[3-5]\" - This means that remediation will be allowed only when: (a) there are at least 3 unhealthy Machines (and) (b) there are at most 5 unhealthy Machines",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_ControlPlaneClassMachineDeletionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ControlPlaneClassMachineDeletionSpec contains configuration options for Machine deletion.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeDrainTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeVolumeDetachTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeDeletionTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -1565,11 +1738,11 @@ func schema_cluster_api_api_core_v1beta2_ControlPlaneClassMachineInfrastructureT
 	}
 }
 
-func schema_cluster_api_api_core_v1beta2_ControlPlaneClassNamingStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_cluster_api_api_core_v1beta2_ControlPlaneClassNamingSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ControlPlaneClassNamingStrategy defines the naming strategy for control plane objects.",
+				Description: "ControlPlaneClassNamingSpec defines the naming strategy for control plane objects.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"template": {
@@ -1601,36 +1774,23 @@ func schema_cluster_api_api_core_v1beta2_ControlPlaneTopology(ref common.Referen
 					},
 					"replicas": {
 						SchemaProps: spec.SchemaProps{
-							Description: "replicas is the number of control plane nodes. If the value is nil, the ControlPlane object is created without the number of Replicas and it's assumed that the control plane controller does not implement support for this field. When specified against a control plane provider that lacks support for this field, this value will be ignored.",
+							Description: "replicas is the number of control plane nodes. If the value is not set, the ControlPlane object is created without the number of Replicas and it's assumed that the control plane controller does not implement support for this field. When specified against a control plane provider that lacks support for this field, this value will be ignored.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
-					"machineHealthCheck": {
+					"healthCheck": {
 						SchemaProps: spec.SchemaProps{
-							Description: "machineHealthCheck allows to enable, disable and override the MachineHealthCheck configuration in the ClusterClass for this control plane.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckTopology"),
+							Description: "healthCheck allows to enable, disable and override control plane health check configuration from the ClusterClass for this control plane.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheck"),
 						},
 					},
-					"nodeDrainTimeoutSeconds": {
+					"deletion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeVolumeDetachTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeDeletionTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
-							Type:        []string{"integer"},
-							Format:      "int32",
+							Description: "deletion contains configuration options for Machine deletion.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyMachineDeletionSpec"),
 						},
 					},
 					"readinessGates": {
@@ -1658,6 +1818,7 @@ func schema_cluster_api_api_core_v1beta2_ControlPlaneTopology(ref common.Referen
 					"variables": {
 						SchemaProps: spec.SchemaProps{
 							Description: "variables can be used to customize the ControlPlane through patches.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneVariables"),
 						},
 					},
@@ -1665,7 +1826,175 @@ func schema_cluster_api_api_core_v1beta2_ControlPlaneTopology(ref common.Referen
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneVariables", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckTopology", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheck", "sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyMachineDeletionSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneVariables", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_ControlPlaneTopologyHealthCheck(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ControlPlaneTopologyHealthCheck defines a MachineHealthCheck for control plane machines.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "enabled controls if a MachineHealthCheck should be created for the target machines.\n\nIf false: No MachineHealthCheck will be created.\n\nIf not set(default): A MachineHealthCheck will be created if it is defined here or\n in the associated ClusterClass. If no MachineHealthCheck is defined then none will be created.\n\nIf true: A MachineHealthCheck is guaranteed to be created. Cluster validation will block if `enable` is true and no MachineHealthCheck definition is available.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"checks": {
+						SchemaProps: spec.SchemaProps{
+							Description: "checks are the checks that are used to evaluate if a Machine is healthy.\n\nIf one of checks and remediation fields are set, the system assumes that an healthCheck override is defined, and as a consequence the checks and remediation fields from Cluster will be used instead of the corresponding fields in ClusterClass.\n\nIndependent of this configuration the MachineHealthCheck controller will always flag Machines with `cluster.x-k8s.io/remediate-machine` annotation and Machines with deleted Nodes as unhealthy.\n\nFurthermore, if checks.nodeStartupTimeoutSeconds is not set it is defaulted to 10 minutes and evaluated accordingly.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheckChecks"),
+						},
+					},
+					"remediation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "remediation configures if and how remediations are triggered if a Machine is unhealthy.\n\nIf one of checks and remediation fields are set, the system assumes that an healthCheck override is defined, and as a consequence the checks and remediation fields from cluster will be used instead of the corresponding fields in ClusterClass.\n\nIf an health check override is defined and remediation or remediation.triggerIf is not set, remediation will always be triggered for unhealthy Machines.\n\nIf an health check override is defined and remediation or remediation.templateRef is not set, the OwnerRemediated condition will be set on unhealthy Machines to trigger remediation via the owner of the Machines, for example a MachineSet or a KubeadmControlPlane.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheckRemediation"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheckChecks", "sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheckRemediation"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_ControlPlaneTopologyHealthCheckChecks(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ControlPlaneTopologyHealthCheckChecks are the checks that are used to evaluate if a control plane Machine is healthy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeStartupTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"unhealthyNodeConditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyNodeConditions contains a list of conditions that determine whether a node is considered unhealthy. The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_ControlPlaneTopologyHealthCheckRemediation(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ControlPlaneTopologyHealthCheckRemediation configures if and how remediations are triggered if a control plane Machine is unhealthy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"triggerIf": {
+						SchemaProps: spec.SchemaProps{
+							Description: "triggerIf configures if remediations are triggered. If this field is not set, remediations are always triggered.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheckRemediationTriggerIf"),
+						},
+					},
+					"templateRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "templateRef is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.ControlPlaneTopologyHealthCheckRemediationTriggerIf", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_ControlPlaneTopologyHealthCheckRemediationTriggerIf(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ControlPlaneTopologyHealthCheckRemediationTriggerIf configures if remediations are triggered.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"unhealthyLessThanOrEqualTo": {
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyLessThanOrEqualTo specifies that remediations are only triggered if the number of unhealthy Machines is less than or equal to the configured value. unhealthyInRange takes precedence if set.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+					"unhealthyInRange": {
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyInRange specifies that remediations are only triggered if the number of unhealthy Machines is in the configured range. Takes precedence over unhealthyLessThanOrEqualTo. Eg. \"[3-5]\" - This means that remediation will be allowed only when: (a) there are at least 3 unhealthy Machines (and) (b) there are at most 5 unhealthy Machines",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_ControlPlaneTopologyMachineDeletionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ControlPlaneTopologyMachineDeletionSpec contains configuration options for Machine deletion.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeDrainTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeVolumeDetachTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeDeletionTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -1766,7 +2095,6 @@ func schema_cluster_api_api_core_v1beta2_FailureDomain(ref common.ReferenceCallb
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name is the name of the failure domain.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1815,10 +2143,11 @@ func schema_cluster_api_api_core_v1beta2_InfrastructureClass(ref common.Referenc
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassTemplateReference"),
 						},
 					},
-					"namingStrategy": {
+					"naming": {
 						SchemaProps: spec.SchemaProps{
-							Description: "namingStrategy allows changing the naming pattern used when creating the infrastructure cluster object.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.InfrastructureClassNamingStrategy"),
+							Description: "naming allows changing the naming pattern used when creating the infrastructure cluster object.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.InfrastructureClassNamingSpec"),
 						},
 					},
 				},
@@ -1826,15 +2155,15 @@ func schema_cluster_api_api_core_v1beta2_InfrastructureClass(ref common.Referenc
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassTemplateReference", "sigs.k8s.io/cluster-api/api/core/v1beta2.InfrastructureClassNamingStrategy"},
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.ClusterClassTemplateReference", "sigs.k8s.io/cluster-api/api/core/v1beta2.InfrastructureClassNamingSpec"},
 	}
 }
 
-func schema_cluster_api_api_core_v1beta2_InfrastructureClassNamingStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_cluster_api_api_core_v1beta2_InfrastructureClassNamingSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "InfrastructureClassNamingStrategy defines the naming strategy for infrastructure objects.",
+				Description: "InfrastructureClassNamingSpec defines the naming strategy for infrastructure objects.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"template": {
@@ -1860,7 +2189,6 @@ func schema_cluster_api_api_core_v1beta2_JSONPatch(ref common.ReferenceCallback)
 					"op": {
 						SchemaProps: spec.SchemaProps{
 							Description: "op defines the operation of the patch. Note: Only `add`, `replace` and `remove` are supported.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1868,7 +2196,6 @@ func schema_cluster_api_api_core_v1beta2_JSONPatch(ref common.ReferenceCallback)
 					"path": {
 						SchemaProps: spec.SchemaProps{
 							Description: "path defines the path of the patch. Note: Only the spec of a template can be patched, thus the path has to start with /spec/. Note: For now the only allowed array modifications are `append` and `prepend`, i.e.: * for op: `add`: only index 0 (prepend) and - (append) are allowed * for op: `replace` or `remove`: no indexes are allowed",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2142,6 +2469,7 @@ func schema_cluster_api_api_core_v1beta2_JSONSchemaProps(ref common.ReferenceCal
 					"x-metadata": {
 						SchemaProps: spec.SchemaProps{
 							Description: "x-metadata is the metadata of a variable or a nested field within a variable. It can be used to add additional data for higher level tools.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.VariableSchemaMetadata"),
 						},
 					},
@@ -2269,7 +2597,6 @@ func schema_cluster_api_api_core_v1beta2_MachineAddress(ref common.ReferenceCall
 					"type": {
 						SchemaProps: spec.SchemaProps{
 							Description: "type is the machine address type, one of Hostname, ExternalIP, InternalIP, ExternalDNS or InternalDNS.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2277,13 +2604,46 @@ func schema_cluster_api_api_core_v1beta2_MachineAddress(ref common.ReferenceCall
 					"address": {
 						SchemaProps: spec.SchemaProps{
 							Description: "address is the machine address.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 				},
 				Required: []string{"type", "address"},
+			},
+		},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeletionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeletionSpec contains configuration options for Machine deletion.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeDrainTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeVolumeDetachTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeDeletionTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
 			},
 		},
 	}
@@ -2374,25 +2734,39 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentClass(ref common.Refer
 				Description: "MachineDeploymentClass serves as a template to define a set of worker nodes of the cluster provisioned using the `ClusterClass`.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Description: "metadata is the metadata applied to the MachineDeployment and the machines of the MachineDeployment. At runtime this metadata is merged with the corresponding metadata from the topology.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"),
+						},
+					},
 					"class": {
 						SchemaProps: spec.SchemaProps{
 							Description: "class denotes a type of worker node present in the cluster, this name MUST be unique within a ClusterClass and can be referenced in the Cluster to create a managed MachineDeployment.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"template": {
+					"bootstrap": {
 						SchemaProps: spec.SchemaProps{
-							Description: "template is a local struct containing a collection of templates for creation of MachineDeployment objects representing a set of worker nodes.",
+							Description: "bootstrap contains the bootstrap template reference to be used for the creation of worker Machines.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassTemplate"),
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassBootstrapTemplate"),
 						},
 					},
-					"machineHealthCheck": {
+					"infrastructure": {
 						SchemaProps: spec.SchemaProps{
-							Description: "machineHealthCheck defines a MachineHealthCheck for this MachineDeploymentClass.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckClass"),
+							Description: "infrastructure contains the infrastructure template reference to be used for the creation of worker Machines.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassInfrastructureTemplate"),
+						},
+					},
+					"healthCheck": {
+						SchemaProps: spec.SchemaProps{
+							Description: "healthCheck defines a MachineHealthCheck for this MachineDeploymentClass.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheck"),
 						},
 					},
 					"failureDomain": {
@@ -2402,31 +2776,18 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentClass(ref common.Refer
 							Format:      "",
 						},
 					},
-					"namingStrategy": {
+					"naming": {
 						SchemaProps: spec.SchemaProps{
-							Description: "namingStrategy allows changing the naming pattern used when creating the MachineDeployment.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassNamingStrategy"),
+							Description: "naming allows changing the naming pattern used when creating the MachineDeployment.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassNamingSpec"),
 						},
 					},
-					"nodeDrainTimeoutSeconds": {
+					"deletion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeVolumeDetachTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeDeletionTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
-							Type:        []string{"integer"},
-							Format:      "int32",
+							Description: "deletion contains configuration options for Machine deletion.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassMachineDeletionSpec"),
 						},
 					},
 					"minReadySeconds": {
@@ -2458,18 +2819,19 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentClass(ref common.Refer
 							},
 						},
 					},
-					"strategy": {
+					"rollout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "strategy is the deployment strategy to use to replace existing machines with new ones. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentStrategy"),
+							Description: "rollout allows you to configure the behaviour of rolling updates to the MachineDeployment Machines. It allows you to define the strategy used during rolling replacements.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassRolloutSpec"),
 						},
 					},
 				},
-				Required: []string{"class", "template"},
+				Required: []string{"class", "bootstrap", "infrastructure"},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassNamingStrategy", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentStrategy", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckClass", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate"},
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassBootstrapTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheck", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassInfrastructureTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassMachineDeletionSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassNamingSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassRolloutSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
 	}
 }
 
@@ -2496,6 +2858,139 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassBootstrapTemplate
 	}
 }
 
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassHealthCheck(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentClassHealthCheck defines a MachineHealthCheck for MachineDeployment machines.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"checks": {
+						SchemaProps: spec.SchemaProps{
+							Description: "checks are the checks that are used to evaluate if a Machine is healthy.\n\nIndependent of this configuration the MachineHealthCheck controller will always flag Machines with `cluster.x-k8s.io/remediate-machine` annotation and Machines with deleted Nodes as unhealthy.\n\nFurthermore, if checks.nodeStartupTimeoutSeconds is not set it is defaulted to 10 minutes and evaluated accordingly.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheckChecks"),
+						},
+					},
+					"remediation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "remediation configures if and how remediations are triggered if a Machine is unhealthy.\n\nIf remediation or remediation.triggerIf is not set, remediation will always be triggered for unhealthy Machines.\n\nIf remediation or remediation.templateRef is not set, the OwnerRemediated condition will be set on unhealthy Machines to trigger remediation via the owner of the Machines, for example a MachineSet or a KubeadmControlPlane.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheckRemediation"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheckChecks", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheckRemediation"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassHealthCheckChecks(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentClassHealthCheckChecks are the checks that are used to evaluate if a MachineDeployment Machine is healthy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeStartupTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"unhealthyNodeConditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyNodeConditions contains a list of conditions that determine whether a node is considered unhealthy. The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassHealthCheckRemediation(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentClassHealthCheckRemediation configures if and how remediations are triggered if a MachineDeployment Machine is unhealthy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"maxInFlight": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxInFlight determines how many in flight remediations should happen at the same time.\n\nRemediation only happens on the MachineSet with the most current revision, while older MachineSets (usually present during rollout operations) aren't allowed to remediate.\n\nNote: In general (independent of remediations), unhealthy machines are always prioritized during scale down operations over healthy ones.\n\nMaxInFlight can be set to a fixed number or a percentage. Example: when this is set to 20%, the MachineSet controller deletes at most 20% of the desired replicas.\n\nIf not set, remediation is limited to all machines (bounded by replicas) under the active MachineSet's management.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+					"triggerIf": {
+						SchemaProps: spec.SchemaProps{
+							Description: "triggerIf configures if remediations are triggered. If this field is not set, remediations are always triggered.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheckRemediationTriggerIf"),
+						},
+					},
+					"templateRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "templateRef is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassHealthCheckRemediationTriggerIf", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassHealthCheckRemediationTriggerIf(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentClassHealthCheckRemediationTriggerIf configures if remediations are triggered.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"unhealthyLessThanOrEqualTo": {
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyLessThanOrEqualTo specifies that remediations are only triggered if the number of unhealthy Machines is less than or equal to the configured value. unhealthyInRange takes precedence if set.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+					"unhealthyInRange": {
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyInRange specifies that remediations are only triggered if the number of unhealthy Machines is in the configured range. Takes precedence over unhealthyLessThanOrEqualTo. Eg. \"[3-5]\" - This means that remediation will be allowed only when: (a) there are at least 3 unhealthy Machines (and) (b) there are at most 5 unhealthy Machines",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
+	}
+}
+
 func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassInfrastructureTemplate(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2519,11 +3014,52 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassInfrastructureTem
 	}
 }
 
-func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassNamingStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassMachineDeletionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "MachineDeploymentClassNamingStrategy defines the naming strategy for machine deployment objects.",
+				Description: "MachineDeploymentClassMachineDeletionSpec contains configuration options for Machine deletion.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"order": {
+						SchemaProps: spec.SchemaProps{
+							Description: "order defines the order in which Machines are deleted when downscaling. Defaults to \"Random\".  Valid values are \"Random, \"Newest\", \"Oldest\"",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"nodeDrainTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeVolumeDetachTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeDeletionTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology using this MachineDeploymentClass.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassNamingSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentClassNamingSpec defines the naming strategy for machine deployment objects.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"template": {
@@ -2539,40 +3075,102 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassNamingStrategy(re
 	}
 }
 
-func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassTemplate(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassRolloutSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "MachineDeploymentClassTemplate defines how a MachineDeployment generated from a MachineDeploymentClass should look like.",
+				Description: "MachineDeploymentClassRolloutSpec defines the rollout behavior.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"metadata": {
+					"strategy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "metadata is the metadata applied to the MachineDeployment and the machines of the MachineDeployment. At runtime this metadata is merged with the corresponding metadata from the topology.",
+							Description: "strategy specifies how to roll out control plane Machines.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"),
-						},
-					},
-					"bootstrap": {
-						SchemaProps: spec.SchemaProps{
-							Description: "bootstrap contains the bootstrap template reference to be used for the creation of worker Machines.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassBootstrapTemplate"),
-						},
-					},
-					"infrastructure": {
-						SchemaProps: spec.SchemaProps{
-							Description: "infrastructure contains the infrastructure template reference to be used for the creation of worker Machines.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassInfrastructureTemplate"),
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassRolloutStrategy"),
 						},
 					},
 				},
-				Required: []string{"bootstrap", "infrastructure"},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassBootstrapTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassInfrastructureTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassRolloutStrategy"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassRolloutStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentClassRolloutStrategy describes how to replace existing machines with new ones.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "type of rollout. Allowed values are RollingUpdate and OnDelete. Default is RollingUpdate.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"rollingUpdate": {
+						SchemaProps: spec.SchemaProps{
+							Description: "rollingUpdate is the rolling update config params. Present only if type = RollingUpdate.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassRolloutStrategyRollingUpdate"),
+						},
+					},
+				},
+				Required: []string{"type"},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentClassRolloutStrategyRollingUpdate"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentClassRolloutStrategyRollingUpdate(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentClassRolloutStrategyRollingUpdate is used to control the desired behavior of rolling update.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"maxUnavailable": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxUnavailable is the maximum number of machines that can be unavailable during the update. Value can be an absolute number (ex: 5) or a percentage of desired machines (ex: 10%). Absolute number is calculated from percentage by rounding down. This can not be 0 if MaxSurge is 0. Defaults to 0. Example: when this is set to 30%, the old MachineSet can be scaled down to 70% of desired machines immediately when the rolling update starts. Once new machines are ready, old MachineSet can be scaled down further, followed by scaling up the new MachineSet, ensuring that the total number of machines available at all times during the update is at least 70% of desired machines.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+					"maxSurge": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxSurge is the maximum number of machines that can be scheduled above the desired number of machines. Value can be an absolute number (ex: 5) or a percentage of desired machines (ex: 10%). This can not be 0 if MaxUnavailable is 0. Absolute number is calculated from percentage by rounding up. Defaults to 1. Example: when this is set to 30%, the new MachineSet can be scaled up immediately when the rolling update starts, such that the total number of old and new machines do not exceed 130% of desired machines. Once old machines have been killed, new MachineSet can be scaled up further, ensuring that total number of machines running at any time during the update is at most 130% of desired machines.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentDeletionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentDeletionSpec contains configuration options for MachineDeployment deletion.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"order": {
+						SchemaProps: spec.SchemaProps{
+							Description: "order defines the order in which Machines are deleted when downscaling. Defaults to \"Random\".  Valid values are \"Random, \"Newest\", \"Oldest\"",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -2648,6 +3246,112 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentList(ref common.Refere
 	}
 }
 
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentRemediationSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentRemediationSpec controls how unhealthy Machines are remediated.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"maxInFlight": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxInFlight determines how many in flight remediations should happen at the same time.\n\nRemediation only happens on the MachineSet with the most current revision, while older MachineSets (usually present during rollout operations) aren't allowed to remediate.\n\nNote: In general (independent of remediations), unhealthy machines are always prioritized during scale down operations over healthy ones.\n\nMaxInFlight can be set to a fixed number or a percentage. Example: when this is set to 20%, the MachineSet controller deletes at most 20% of the desired replicas.\n\nIf not set, remediation is limited to all machines (bounded by replicas) under the active MachineSet's management.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentRolloutSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentRolloutSpec defines the rollout behavior.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"after": {
+						SchemaProps: spec.SchemaProps{
+							Description: "after is a field to indicate a rollout should be performed after the specified time even if no changes have been made to the MachineDeployment. Example: In the YAML the time can be specified in the RFC3339 format. To specify the rolloutAfter target as March 9, 2023, at 9 am UTC use \"2023-03-09T09:00:00Z\".",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"strategy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "strategy specifies how to roll out control plane Machines.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRolloutStrategy"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRolloutStrategy"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentRolloutStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentRolloutStrategy describes how to replace existing machines with new ones.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "type of rollout. Allowed values are RollingUpdate and OnDelete. Default is RollingUpdate.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"rollingUpdate": {
+						SchemaProps: spec.SchemaProps{
+							Description: "rollingUpdate is the rolling update config params. Present only if type = RollingUpdate.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRolloutStrategyRollingUpdate"),
+						},
+					},
+				},
+				Required: []string{"type"},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRolloutStrategyRollingUpdate"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentRolloutStrategyRollingUpdate(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentRolloutStrategyRollingUpdate is used to control the desired behavior of rolling update.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"maxUnavailable": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxUnavailable is the maximum number of machines that can be unavailable during the update. Value can be an absolute number (ex: 5) or a percentage of desired machines (ex: 10%). Absolute number is calculated from percentage by rounding down. This can not be 0 if MaxSurge is 0. Defaults to 0. Example: when this is set to 30%, the old MachineSet can be scaled down to 70% of desired machines immediately when the rolling update starts. Once new machines are ready, old MachineSet can be scaled down further, followed by scaling up the new MachineSet, ensuring that the total number of machines available at all times during the update is at least 70% of desired machines.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+					"maxSurge": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxSurge is the maximum number of machines that can be scheduled above the desired number of machines. Value can be an absolute number (ex: 5) or a percentage of desired machines (ex: 10%). This can not be 0 if MaxUnavailable is 0. Absolute number is calculated from percentage by rounding up. Defaults to 1. Example: when this is set to 30%, the new MachineSet can be scaled up immediately when the rolling update starts, such that the total number of old and new machines do not exceed 130% of desired machines. Once old machines have been killed, new MachineSet can be scaled up further, ensuring that total number of machines running at any time during the update is at most 130% of desired machines.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
+	}
+}
+
 func schema_cluster_api_api_core_v1beta2_MachineDeploymentSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2658,7 +3362,6 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentSpec(ref common.Refere
 					"clusterName": {
 						SchemaProps: spec.SchemaProps{
 							Description: "clusterName is the name of the Cluster this object belongs to.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2670,10 +3373,11 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentSpec(ref common.Refere
 							Format:      "int32",
 						},
 					},
-					"rolloutAfter": {
+					"rollout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "rolloutAfter is a field to indicate a rollout should be performed after the specified time even if no changes have been made to the MachineDeployment. Example: In the YAML the time can be specified in the RFC3339 format. To specify the rolloutAfter target as March 9, 2023, at 9 am UTC use \"2023-03-09T09:00:00Z\".",
-							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+							Description: "rollout allows you to configure the behaviour of rolling updates to the MachineDeployment Machines. It allows you to require that all Machines are replaced after a certain time, and allows you to define the strategy used during rolling replacements.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRolloutSpec"),
 						},
 					},
 					"selector": {
@@ -2690,16 +3394,25 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentSpec(ref common.Refere
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineTemplateSpec"),
 						},
 					},
-					"strategy": {
+					"machineNaming": {
 						SchemaProps: spec.SchemaProps{
-							Description: "strategy is the deployment strategy to use to replace existing machines with new ones.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentStrategy"),
+							Description: "machineNaming allows changing the naming pattern used when creating Machines. Note: InfraMachines & BootstrapConfigs will use the same name as the corresponding Machines.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNamingSpec"),
 						},
 					},
-					"machineNamingStrategy": {
+					"remediation": {
 						SchemaProps: spec.SchemaProps{
-							Description: "machineNamingStrategy allows changing the naming pattern used when creating Machines. Note: InfraMachines & BootstrapConfigs will use the same name as the corresponding Machines.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNamingStrategy"),
+							Description: "remediation controls how unhealthy Machines are remediated.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRemediationSpec"),
+						},
+					},
+					"deletion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "deletion contains configuration options for MachineDeployment deletion.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentDeletionSpec"),
 						},
 					},
 					"paused": {
@@ -2714,7 +3427,7 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentSpec(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector", "k8s.io/apimachinery/pkg/apis/meta/v1.Time", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentStrategy", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNamingStrategy", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineTemplateSpec"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentDeletionSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRemediationSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentRolloutSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNamingSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineTemplateSpec"},
 	}
 }
 
@@ -2810,40 +3523,6 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentStatus(ref common.Refe
 	}
 }
 
-func schema_cluster_api_api_core_v1beta2_MachineDeploymentStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "MachineDeploymentStrategy describes how to replace existing machines with new ones.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"type": {
-						SchemaProps: spec.SchemaProps{
-							Description: "type of deployment. Allowed values are RollingUpdate and OnDelete. The default is RollingUpdate.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"rollingUpdate": {
-						SchemaProps: spec.SchemaProps{
-							Description: "rollingUpdate is the rolling update config params. Present only if MachineDeploymentStrategyType = RollingUpdate.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineRollingUpdateDeployment"),
-						},
-					},
-					"remediation": {
-						SchemaProps: spec.SchemaProps{
-							Description: "remediation controls the strategy of remediating unhealthy machines and how remediating operations should occur during the lifecycle of the dependant MachineSets.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.RemediationStrategy"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineRollingUpdateDeployment", "sigs.k8s.io/cluster-api/api/core/v1beta2.RemediationStrategy"},
-	}
-}
-
 func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopology(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2861,7 +3540,6 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopology(ref common.Re
 					"class": {
 						SchemaProps: spec.SchemaProps{
 							Description: "class is the name of the MachineDeploymentClass used to create the set of worker nodes. This should match one of the deployment classes defined in the ClusterClass object mentioned in the `Cluster.Spec.Class` field.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2869,7 +3547,6 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopology(ref common.Re
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name is the unique identifier for this MachineDeploymentTopology. The value is used with other unique identifiers to create a MachineDeployment's Name (e.g. cluster's name, etc). In case the name is greater than the allowed maximum length, the values are hashed together.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2888,31 +3565,18 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopology(ref common.Re
 							Format:      "int32",
 						},
 					},
-					"machineHealthCheck": {
+					"healthCheck": {
 						SchemaProps: spec.SchemaProps{
-							Description: "machineHealthCheck allows to enable, disable and override the MachineHealthCheck configuration in the ClusterClass for this MachineDeployment.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckTopology"),
+							Description: "healthCheck allows to enable, disable and override MachineDeployment health check configuration from the ClusterClass for this MachineDeployment.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheck"),
 						},
 					},
-					"nodeDrainTimeoutSeconds": {
+					"deletion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeVolumeDetachTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeDeletionTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
-							Type:        []string{"integer"},
-							Format:      "int32",
+							Description: "deletion contains configuration options for Machine deletion.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyMachineDeletionSpec"),
 						},
 					},
 					"minReadySeconds": {
@@ -2944,15 +3608,17 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopology(ref common.Re
 							},
 						},
 					},
-					"strategy": {
+					"rollout": {
 						SchemaProps: spec.SchemaProps{
-							Description: "strategy is the deployment strategy to use to replace existing machines with new ones.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentStrategy"),
+							Description: "rollout allows you to configure the behaviour of rolling updates to the MachineDeployment Machines. It allows you to define the strategy used during rolling replacements.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyRolloutSpec"),
 						},
 					},
 					"variables": {
 						SchemaProps: spec.SchemaProps{
 							Description: "variables can be used to customize the MachineDeployment through patches.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentVariables"),
 						},
 					},
@@ -2961,7 +3627,267 @@ func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopology(ref common.Re
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentStrategy", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentVariables", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckTopology", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheck", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyMachineDeletionSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyRolloutSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentVariables", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyHealthCheck(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentTopologyHealthCheck defines a MachineHealthCheck for MachineDeployment machines.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "enabled controls if a MachineHealthCheck should be created for the target machines.\n\nIf false: No MachineHealthCheck will be created.\n\nIf not set(default): A MachineHealthCheck will be created if it is defined here or\n in the associated ClusterClass. If no MachineHealthCheck is defined then none will be created.\n\nIf true: A MachineHealthCheck is guaranteed to be created. Cluster validation will block if `enable` is true and no MachineHealthCheck definition is available.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"checks": {
+						SchemaProps: spec.SchemaProps{
+							Description: "checks are the checks that are used to evaluate if a Machine is healthy.\n\nIf one of checks and remediation fields are set, the system assumes that an healthCheck override is defined, and as a consequence the checks and remediation fields from Cluster will be used instead of the corresponding fields in ClusterClass.\n\nIndependent of this configuration the MachineHealthCheck controller will always flag Machines with `cluster.x-k8s.io/remediate-machine` annotation and Machines with deleted Nodes as unhealthy.\n\nFurthermore, if checks.nodeStartupTimeoutSeconds is not set it is defaulted to 10 minutes and evaluated accordingly.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheckChecks"),
+						},
+					},
+					"remediation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "remediation configures if and how remediations are triggered if a Machine is unhealthy.\n\nIf one of checks and remediation fields are set, the system assumes that an healthCheck override is defined, and as a consequence the checks and remediation fields from cluster will be used instead of the corresponding fields in ClusterClass.\n\nIf an health check override is defined and remediation or remediation.triggerIf is not set, remediation will always be triggered for unhealthy Machines.\n\nIf an health check override is defined and remediation or remediation.templateRef is not set, the OwnerRemediated condition will be set on unhealthy Machines to trigger remediation via the owner of the Machines, for example a MachineSet or a KubeadmControlPlane.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheckRemediation"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheckChecks", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheckRemediation"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyHealthCheckChecks(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentTopologyHealthCheckChecks are the checks that are used to evaluate if a MachineDeployment Machine is healthy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeStartupTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"unhealthyNodeConditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyNodeConditions contains a list of conditions that determine whether a node is considered unhealthy. The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyHealthCheckRemediation(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentTopologyHealthCheckRemediation configures if and how remediations are triggered if a MachineDeployment Machine is unhealthy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"maxInFlight": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxInFlight determines how many in flight remediations should happen at the same time.\n\nRemediation only happens on the MachineSet with the most current revision, while older MachineSets (usually present during rollout operations) aren't allowed to remediate.\n\nNote: In general (independent of remediations), unhealthy machines are always prioritized during scale down operations over healthy ones.\n\nMaxInFlight can be set to a fixed number or a percentage. Example: when this is set to 20%, the MachineSet controller deletes at most 20% of the desired replicas.\n\nIf not set, remediation is limited to all machines (bounded by replicas) under the active MachineSet's management.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+					"triggerIf": {
+						SchemaProps: spec.SchemaProps{
+							Description: "triggerIf configures if remediations are triggered. If this field is not set, remediations are always triggered.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheckRemediationTriggerIf"),
+						},
+					},
+					"templateRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "templateRef is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyHealthCheckRemediationTriggerIf", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyHealthCheckRemediationTriggerIf(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentTopologyHealthCheckRemediationTriggerIf configures if remediations are triggered.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"unhealthyLessThanOrEqualTo": {
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyLessThanOrEqualTo specifies that remediations are only triggered if the number of unhealthy Machines is less than or equal to the configured value. unhealthyInRange takes precedence if set.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+					"unhealthyInRange": {
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyInRange specifies that remediations are only triggered if the number of unhealthy Machines is in the configured range. Takes precedence over unhealthyLessThanOrEqualTo. Eg. \"[3-5]\" - This means that remediation will be allowed only when: (a) there are at least 3 unhealthy Machines (and) (b) there are at most 5 unhealthy Machines",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyMachineDeletionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentTopologyMachineDeletionSpec contains configuration options for Machine deletion.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"order": {
+						SchemaProps: spec.SchemaProps{
+							Description: "order defines the order in which Machines are deleted when downscaling. Defaults to \"Random\".  Valid values are \"Random, \"Newest\", \"Oldest\"",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"nodeDrainTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeVolumeDetachTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeDeletionTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyRolloutSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentTopologyRolloutSpec defines the rollout behavior.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"strategy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "strategy specifies how to roll out control plane Machines.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyRolloutStrategy"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyRolloutStrategy"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyRolloutStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentTopologyRolloutStrategy describes how to replace existing machines with new ones.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "type of rollout. Allowed values are RollingUpdate and OnDelete. Default is RollingUpdate.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"rollingUpdate": {
+						SchemaProps: spec.SchemaProps{
+							Description: "rollingUpdate is the rolling update config params. Present only if type = RollingUpdate.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyRolloutStrategyRollingUpdate"),
+						},
+					},
+				},
+				Required: []string{"type"},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeploymentTopologyRolloutStrategyRollingUpdate"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineDeploymentTopologyRolloutStrategyRollingUpdate(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineDeploymentTopologyRolloutStrategyRollingUpdate is used to control the desired behavior of rolling update.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"maxUnavailable": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxUnavailable is the maximum number of machines that can be unavailable during the update. Value can be an absolute number (ex: 5) or a percentage of desired machines (ex: 10%). Absolute number is calculated from percentage by rounding down. This can not be 0 if MaxSurge is 0. Defaults to 0. Example: when this is set to 30%, the old MachineSet can be scaled down to 70% of desired machines immediately when the rolling update starts. Once new machines are ready, old MachineSet can be scaled down further, followed by scaling up the new MachineSet, ensuring that the total number of machines available at all times during the update is at least 70% of desired machines.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+					"maxSurge": {
+						SchemaProps: spec.SchemaProps{
+							Description: "maxSurge is the maximum number of machines that can be scheduled above the desired number of machines. Value can be an absolute number (ex: 5) or a percentage of desired machines (ex: 10%). This can not be 0 if MaxUnavailable is 0. Absolute number is calculated from percentage by rounding up. Defaults to 1. Example: when this is set to 30%, the new MachineSet can be scaled up immediately when the rolling update starts, such that the total number of old and new machines do not exceed 130% of desired machines. Once old machines have been killed, new MachineSet can be scaled up further, ensuring that total number of machines running at any time during the update is at most 130% of desired machines.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
 	}
 }
 
@@ -3138,7 +4064,6 @@ func schema_cluster_api_api_core_v1beta2_MachineDrainRuleDrainConfig(ref common.
 					"behavior": {
 						SchemaProps: spec.SchemaProps{
 							Description: "behavior defines the drain behavior. Can be either \"Drain\", \"Skip\", or \"WaitCompleted\". \"Drain\" means that the Pods to which this MachineDrainRule applies will be drained. If behavior is set to \"Drain\" the order in which Pods are drained can be configured with the order field. When draining Pods of a Node the Pods will be grouped by order and one group after another will be drained (by increasing order). Cluster API will wait until all Pods of a group are terminated / removed from the Node before starting with the next group. \"Skip\" means that the Pods to which this MachineDrainRule applies will be skipped during drain. \"WaitCompleted\" means that the pods to which this MachineDrainRule applies will never be evicted and we wait for them to be completed, it is enforced that pods marked with this behavior always have Order=0.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -3374,13 +4299,20 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheck(ref common.Reference
 	}
 }
 
-func schema_cluster_api_api_core_v1beta2_MachineHealthCheckClass(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_cluster_api_api_core_v1beta2_MachineHealthCheckChecks(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "MachineHealthCheckClass defines a MachineHealthCheck for a group of Machines.",
+				Description: "MachineHealthCheckChecks are the checks that are used to evaluate if a Machine is healthy.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"nodeStartupTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
 					"unhealthyNodeConditions": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
@@ -3400,37 +4332,11 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheckClass(ref common.Refe
 							},
 						},
 					},
-					"maxUnhealthy": {
-						SchemaProps: spec.SchemaProps{
-							Description: "maxUnhealthy specifies the maximum number of unhealthy machines allowed. Any further remediation is only allowed if at most \"maxUnhealthy\" machines selected by \"selector\" are not healthy.",
-							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
-						},
-					},
-					"unhealthyRange": {
-						SchemaProps: spec.SchemaProps{
-							Description: "unhealthyRange specifies the range of unhealthy machines allowed. Any further remediation is only allowed if the number of machines selected by \"selector\" as not healthy is within the range of \"unhealthyRange\". Takes precedence over maxUnhealthy. Eg. \"[3-5]\" - This means that remediation will be allowed only when: (a) there are at least 3 unhealthy machines (and) (b) there are at most 5 unhealthy machines",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"nodeStartupTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"remediationTemplate": {
-						SchemaProps: spec.SchemaProps{
-							Description: "remediationTemplate is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"),
-						},
-					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/util/intstr.IntOrString", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference", "sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"},
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"},
 	}
 }
 
@@ -3506,6 +4412,35 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheckList(ref common.Refer
 	}
 }
 
+func schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediation(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineHealthCheckRemediation configures if and how remediations are triggered if a Machine is unhealthy.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"triggerIf": {
+						SchemaProps: spec.SchemaProps{
+							Description: "triggerIf configures if remediations are triggered. If this field is not set, remediations are always triggered.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTriggerIf"),
+						},
+					},
+					"templateRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "templateRef is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTriggerIf"},
+	}
+}
+
 func schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediationTemplateReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -3516,7 +4451,6 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediationTemplateRe
 					"kind": {
 						SchemaProps: spec.SchemaProps{
 							Description: "kind of the remediation template. kind must consist of alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -3524,7 +4458,6 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediationTemplateRe
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name of the remediation template. name must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -3532,7 +4465,6 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediationTemplateRe
 					"apiVersion": {
 						SchemaProps: spec.SchemaProps{
 							Description: "apiVersion of the remediation template. apiVersion must be fully qualified domain name followed by / and a version. NOTE: This field must be kept in sync with the APIVersion of the remediation template.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -3541,6 +4473,34 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediationTemplateRe
 				Required: []string{"kind", "name", "apiVersion"},
 			},
 		},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineHealthCheckRemediationTriggerIf(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineHealthCheckRemediationTriggerIf configures if remediations are triggered.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"unhealthyLessThanOrEqualTo": {
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyLessThanOrEqualTo specifies that remediations are only triggered if the number of unhealthy Machines is less than or equal to the configured value. unhealthyInRange takes precedence if set.",
+							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
+						},
+					},
+					"unhealthyInRange": {
+						SchemaProps: spec.SchemaProps{
+							Description: "unhealthyInRange specifies that remediations are only triggered if the number of unhealthy Machines is in the configured range. Takes precedence over unhealthyLessThanOrEqualTo. Eg. \"[3-5]\" - This means that remediation will be allowed only when: (a) there are at least 3 unhealthy Machines (and) (b) there are at most 5 unhealthy Machines",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
 	}
 }
 
@@ -3554,7 +4514,6 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheckSpec(ref common.Refer
 					"clusterName": {
 						SchemaProps: spec.SchemaProps{
 							Description: "clusterName is the name of the Cluster this object belongs to.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -3566,49 +4525,18 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheckSpec(ref common.Refer
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
 						},
 					},
-					"unhealthyNodeConditions": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
+					"checks": {
 						SchemaProps: spec.SchemaProps{
-							Description: "unhealthyNodeConditions contains a list of conditions that determine whether a node is considered unhealthy. The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"),
-									},
-								},
-							},
+							Description: "checks are the checks that are used to evaluate if a Machine is healthy.\n\nIndependent of this configuration the MachineHealthCheck controller will always flag Machines with `cluster.x-k8s.io/remediate-machine` annotation and Machines with deleted Nodes as unhealthy.\n\nFurthermore, if checks.nodeStartupTimeoutSeconds is not set it is defaulted to 10 minutes and evaluated accordingly.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckChecks"),
 						},
 					},
-					"maxUnhealthy": {
+					"remediation": {
 						SchemaProps: spec.SchemaProps{
-							Description: "maxUnhealthy specifies the maximum number of unhealthy machines allowed. Any further remediation is only allowed if at most \"maxUnhealthy\" machines selected by \"selector\" are not healthy.\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/issues/10722 for more details.",
-							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
-						},
-					},
-					"unhealthyRange": {
-						SchemaProps: spec.SchemaProps{
-							Description: "unhealthyRange specifies the range of unhealthy machines allowed. Any further remediation is only allowed if the number of machines selected by \"selector\" as not healthy is within the range of \"unhealthyRange\". Takes precedence over maxUnhealthy. Eg. \"[3-5]\" - This means that remediation will be allowed only when: (a) there are at least 3 unhealthy machines (and) (b) there are at most 5 unhealthy machines\n\nDeprecated: This field is deprecated and is going to be removed in the next apiVersion. Please see https://github.com/kubernetes-sigs/cluster-api/issues/10722 for more details.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"nodeStartupTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"remediationTemplate": {
-						SchemaProps: spec.SchemaProps{
-							Description: "remediationTemplate is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"),
+							Description: "remediation configures if and how remediations are triggered if a Machine is unhealthy.\n\nIf remediation or remediation.triggerIf is not set, remediation will always be triggered for unhealthy Machines.\n\nIf remediation or remediation.templateRef is not set, the OwnerRemediated condition will be set on unhealthy Machines to trigger remediation via the owner of the Machines, for example a MachineSet or a KubeadmControlPlane.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediation"),
 						},
 					},
 				},
@@ -3616,7 +4544,7 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheckSpec(ref common.Refer
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector", "k8s.io/apimachinery/pkg/util/intstr.IntOrString", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference", "sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckChecks", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediation"},
 	}
 }
 
@@ -3708,73 +4636,6 @@ func schema_cluster_api_api_core_v1beta2_MachineHealthCheckStatus(ref common.Ref
 		},
 		Dependencies: []string{
 			"k8s.io/apimachinery/pkg/apis/meta/v1.Condition", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckDeprecatedStatus"},
-	}
-}
-
-func schema_cluster_api_api_core_v1beta2_MachineHealthCheckTopology(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "MachineHealthCheckTopology defines a MachineHealthCheck for a group of machines.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"enable": {
-						SchemaProps: spec.SchemaProps{
-							Description: "enable controls if a MachineHealthCheck should be created for the target machines.\n\nIf false: No MachineHealthCheck will be created.\n\nIf not set(default): A MachineHealthCheck will be created if it is defined here or\n in the associated ClusterClass. If no MachineHealthCheck is defined then none will be created.\n\nIf true: A MachineHealthCheck is guaranteed to be created. Cluster validation will block if `enable` is true and no MachineHealthCheck definition is available.",
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
-					"unhealthyNodeConditions": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Description: "unhealthyNodeConditions contains a list of conditions that determine whether a node is considered unhealthy. The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"),
-									},
-								},
-							},
-						},
-					},
-					"maxUnhealthy": {
-						SchemaProps: spec.SchemaProps{
-							Description: "maxUnhealthy specifies the maximum number of unhealthy machines allowed. Any further remediation is only allowed if at most \"maxUnhealthy\" machines selected by \"selector\" are not healthy.",
-							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
-						},
-					},
-					"unhealthyRange": {
-						SchemaProps: spec.SchemaProps{
-							Description: "unhealthyRange specifies the range of unhealthy machines allowed. Any further remediation is only allowed if the number of machines selected by \"selector\" as not healthy is within the range of \"unhealthyRange\". Takes precedence over maxUnhealthy. Eg. \"[3-5]\" - This means that remediation will be allowed only when: (a) there are at least 3 unhealthy machines (and) (b) there are at most 5 unhealthy machines",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"nodeStartupTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeStartupTimeoutSeconds allows to set the maximum time for MachineHealthCheck to consider a Machine unhealthy if a corresponding Node isn't associated through a `Spec.ProviderID` field.\n\nThe duration set in this field is compared to the greatest of: - Cluster's infrastructure ready condition timestamp (if and when available) - Control Plane's initialized condition timestamp (if and when available) - Machine's infrastructure ready condition timestamp (if and when available) - Machine's metadata creation timestamp\n\nDefaults to 10 minutes. If you wish to disable this feature, set the value explicitly to 0.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"remediationTemplate": {
-						SchemaProps: spec.SchemaProps{
-							Description: "remediationTemplate is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Cluster API.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/util/intstr.IntOrString", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineHealthCheckRemediationTemplateReference", "sigs.k8s.io/cluster-api/api/core/v1beta2.UnhealthyNodeCondition"},
 	}
 }
 
@@ -3885,11 +4746,11 @@ func schema_cluster_api_api_core_v1beta2_MachineList(ref common.ReferenceCallbac
 	}
 }
 
-func schema_cluster_api_api_core_v1beta2_MachineNamingStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_cluster_api_api_core_v1beta2_MachineNamingSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "MachineNamingStrategy allows changing the naming pattern used when creating Machines. Note: InfraMachines & BootstrapConfigs will use the same name as the corresponding Machines.",
+				Description: "MachineNamingSpec allows changing the naming pattern used when creating Machines. Note: InfraMachines & BootstrapConfigs will use the same name as the corresponding Machines.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"template": {
@@ -3915,7 +4776,6 @@ func schema_cluster_api_api_core_v1beta2_MachineNodeReference(ref common.Referen
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name of the node. name must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -3985,19 +4845,32 @@ func schema_cluster_api_api_core_v1beta2_MachinePoolClass(ref common.ReferenceCa
 				Description: "MachinePoolClass serves as a template to define a pool of worker nodes of the cluster provisioned using `ClusterClass`.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Description: "metadata is the metadata applied to the MachinePool. At runtime this metadata is merged with the corresponding metadata from the topology.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"),
+						},
+					},
 					"class": {
 						SchemaProps: spec.SchemaProps{
 							Description: "class denotes a type of machine pool present in the cluster, this name MUST be unique within a ClusterClass and can be referenced in the Cluster to create a managed MachinePool.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"template": {
+					"bootstrap": {
 						SchemaProps: spec.SchemaProps{
-							Description: "template is a local struct containing a collection of templates for creation of MachinePools objects representing a pool of worker nodes.",
+							Description: "bootstrap contains the bootstrap template reference to be used for the creation of the Machines in the MachinePool.",
 							Default:     map[string]interface{}{},
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassTemplate"),
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassBootstrapTemplate"),
+						},
+					},
+					"infrastructure": {
+						SchemaProps: spec.SchemaProps{
+							Description: "infrastructure contains the infrastructure template reference to be used for the creation of the MachinePool.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassInfrastructureTemplate"),
 						},
 					},
 					"failureDomains": {
@@ -4020,31 +4893,18 @@ func schema_cluster_api_api_core_v1beta2_MachinePoolClass(ref common.ReferenceCa
 							},
 						},
 					},
-					"namingStrategy": {
+					"naming": {
 						SchemaProps: spec.SchemaProps{
-							Description: "namingStrategy allows changing the naming pattern used when creating the MachinePool.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassNamingStrategy"),
+							Description: "naming allows changing the naming pattern used when creating the MachinePool.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassNamingSpec"),
 						},
 					},
-					"nodeDrainTimeoutSeconds": {
+					"deletion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeVolumeDetachTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeDeletionTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine Pool is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
-							Type:        []string{"integer"},
-							Format:      "int32",
+							Description: "deletion contains configuration options for Machine deletion.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassMachineDeletionSpec"),
 						},
 					},
 					"minReadySeconds": {
@@ -4055,11 +4915,11 @@ func schema_cluster_api_api_core_v1beta2_MachinePoolClass(ref common.ReferenceCa
 						},
 					},
 				},
-				Required: []string{"class", "template"},
+				Required: []string{"class", "bootstrap", "infrastructure"},
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassNamingStrategy", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassTemplate"},
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassBootstrapTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassInfrastructureTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassMachineDeletionSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassNamingSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
 	}
 }
 
@@ -4109,11 +4969,45 @@ func schema_cluster_api_api_core_v1beta2_MachinePoolClassInfrastructureTemplate(
 	}
 }
 
-func schema_cluster_api_api_core_v1beta2_MachinePoolClassNamingStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_cluster_api_api_core_v1beta2_MachinePoolClassMachineDeletionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "MachinePoolClassNamingStrategy defines the naming strategy for machine pool objects.",
+				Description: "MachinePoolClassMachineDeletionSpec contains configuration options for Machine deletion.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeDrainTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout` NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeVolumeDetachTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations. NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"nodeDeletionTimeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine Pool is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds. NOTE: This value can be overridden while defining a Cluster.Topology using this MachinePoolClass.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachinePoolClassNamingSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachinePoolClassNamingSpec defines the naming strategy for MachinePool objects.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"template": {
@@ -4126,43 +5020,6 @@ func schema_cluster_api_api_core_v1beta2_MachinePoolClassNamingStrategy(ref comm
 				},
 			},
 		},
-	}
-}
-
-func schema_cluster_api_api_core_v1beta2_MachinePoolClassTemplate(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "MachinePoolClassTemplate defines how a MachinePool generated from a MachinePoolClass should look like.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Description: "metadata is the metadata applied to the MachinePool. At runtime this metadata is merged with the corresponding metadata from the topology.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"),
-						},
-					},
-					"bootstrap": {
-						SchemaProps: spec.SchemaProps{
-							Description: "bootstrap contains the bootstrap template reference to be used for the creation of the Machines in the MachinePool.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassBootstrapTemplate"),
-						},
-					},
-					"infrastructure": {
-						SchemaProps: spec.SchemaProps{
-							Description: "infrastructure contains the infrastructure template reference to be used for the creation of the MachinePool.",
-							Default:     map[string]interface{}{},
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassInfrastructureTemplate"),
-						},
-					},
-				},
-				Required: []string{"bootstrap", "infrastructure"},
-			},
-		},
-		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassBootstrapTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolClassInfrastructureTemplate", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
 	}
 }
 
@@ -4275,7 +5132,6 @@ func schema_cluster_api_api_core_v1beta2_MachinePoolSpec(ref common.ReferenceCal
 					"clusterName": {
 						SchemaProps: spec.SchemaProps{
 							Description: "clusterName is the name of the Cluster this object belongs to.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -4471,7 +5327,6 @@ func schema_cluster_api_api_core_v1beta2_MachinePoolTopology(ref common.Referenc
 					"class": {
 						SchemaProps: spec.SchemaProps{
 							Description: "class is the name of the MachinePoolClass used to create the pool of worker nodes. This should match one of the deployment classes defined in the ClusterClass object mentioned in the `Cluster.Spec.Class` field.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -4479,7 +5334,6 @@ func schema_cluster_api_api_core_v1beta2_MachinePoolTopology(ref common.Referenc
 					"name": {
 						SchemaProps: spec.SchemaProps{
 							Description: "name is the unique identifier for this MachinePoolTopology. The value is used with other unique identifiers to create a MachinePool's Name (e.g. cluster's name, etc). In case the name is greater than the allowed maximum length, the values are hashed together.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -4504,6 +5358,50 @@ func schema_cluster_api_api_core_v1beta2_MachinePoolTopology(ref common.Referenc
 							},
 						},
 					},
+					"deletion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "deletion contains configuration options for Machine deletion.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolTopologyMachineDeletionSpec"),
+						},
+					},
+					"minReadySeconds": {
+						SchemaProps: spec.SchemaProps{
+							Description: "minReadySeconds is the minimum number of seconds for which a newly created machine pool should be ready. Defaults to 0 (machine will be considered available as soon as it is ready)",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"replicas": {
+						SchemaProps: spec.SchemaProps{
+							Description: "replicas is the number of nodes belonging to this pool. If the value is nil, the MachinePool is created without the number of Replicas (defaulting to 1) and it's assumed that an external entity (like cluster autoscaler) is responsible for the management of this value.",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"variables": {
+						SchemaProps: spec.SchemaProps{
+							Description: "variables can be used to customize the MachinePool through patches.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolVariables"),
+						},
+					},
+				},
+				Required: []string{"class", "name"},
+			},
+		},
+		Dependencies: []string{
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolTopologyMachineDeletionSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolVariables", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachinePoolTopologyMachineDeletionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachinePoolTopologyMachineDeletionSpec contains configuration options for Machine deletion.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
 					"nodeDrainTimeoutSeconds": {
 						SchemaProps: spec.SchemaProps{
 							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`",
@@ -4525,32 +5423,9 @@ func schema_cluster_api_api_core_v1beta2_MachinePoolTopology(ref common.Referenc
 							Format:      "int32",
 						},
 					},
-					"minReadySeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "minReadySeconds is the minimum number of seconds for which a newly created machine pool should be ready. Defaults to 0 (machine will be considered available as soon as it is ready)",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"replicas": {
-						SchemaProps: spec.SchemaProps{
-							Description: "replicas is the number of nodes belonging to this pool. If the value is nil, the MachinePool is created without the number of Replicas (defaulting to 1) and it's assumed that an external entity (like cluster autoscaler) is responsible for the management of this value.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"variables": {
-						SchemaProps: spec.SchemaProps{
-							Description: "variables can be used to customize the MachinePool through patches.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolVariables"),
-						},
-					},
 				},
-				Required: []string{"class", "name"},
 			},
 		},
-		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.MachinePoolVariables", "sigs.k8s.io/cluster-api/api/core/v1beta2.ObjectMeta"},
 	}
 }
 
@@ -4665,7 +5540,6 @@ func schema_cluster_api_api_core_v1beta2_MachineReadinessGate(ref common.Referen
 					"conditionType": {
 						SchemaProps: spec.SchemaProps{
 							Description: "conditionType refers to a condition with matching type in the Machine's condition list. If the conditions doesn't exist, it will be treated as unknown. Note: Both Cluster API conditions or conditions added by 3rd party controllers can be used as readiness gates.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -4681,40 +5555,6 @@ func schema_cluster_api_api_core_v1beta2_MachineReadinessGate(ref common.Referen
 				Required: []string{"conditionType"},
 			},
 		},
-	}
-}
-
-func schema_cluster_api_api_core_v1beta2_MachineRollingUpdateDeployment(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "MachineRollingUpdateDeployment is used to control the desired behavior of rolling update.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"maxUnavailable": {
-						SchemaProps: spec.SchemaProps{
-							Description: "maxUnavailable is the maximum number of machines that can be unavailable during the update. Value can be an absolute number (ex: 5) or a percentage of desired machines (ex: 10%). Absolute number is calculated from percentage by rounding down. This can not be 0 if MaxSurge is 0. Defaults to 0. Example: when this is set to 30%, the old MachineSet can be scaled down to 70% of desired machines immediately when the rolling update starts. Once new machines are ready, old MachineSet can be scaled down further, followed by scaling up the new MachineSet, ensuring that the total number of machines available at all times during the update is at least 70% of desired machines.",
-							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
-						},
-					},
-					"maxSurge": {
-						SchemaProps: spec.SchemaProps{
-							Description: "maxSurge is the maximum number of machines that can be scheduled above the desired number of machines. Value can be an absolute number (ex: 5) or a percentage of desired machines (ex: 10%). This can not be 0 if MaxUnavailable is 0. Absolute number is calculated from percentage by rounding up. Defaults to 1. Example: when this is set to 30%, the new MachineSet can be scaled up immediately when the rolling update starts, such that the total number of old and new machines do not exceed 130% of desired machines. Once old machines have been killed, new MachineSet can be scaled up further, ensuring that total number of machines running at any time during the update is at most 130% of desired machines.",
-							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
-						},
-					},
-					"deletePolicy": {
-						SchemaProps: spec.SchemaProps{
-							Description: "deletePolicy defines the policy used by the MachineDeployment to identify nodes to delete when downscaling. Valid values are \"Random, \"Newest\", \"Oldest\" When no value is supplied, the default DeletePolicy of MachineSet is used",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
 	}
 }
 
@@ -4766,6 +5606,26 @@ func schema_cluster_api_api_core_v1beta2_MachineSet(ref common.ReferenceCallback
 		},
 		Dependencies: []string{
 			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetStatus"},
+	}
+}
+
+func schema_cluster_api_api_core_v1beta2_MachineSetDeletionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MachineSetDeletionSpec contains configuration options for MachineSet deletion.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"order": {
+						SchemaProps: spec.SchemaProps{
+							Description: "order defines the order in which Machines are deleted when downscaling. Defaults to \"Random\".  Valid values are \"Random, \"Newest\", \"Oldest\"",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -4851,7 +5711,6 @@ func schema_cluster_api_api_core_v1beta2_MachineSetSpec(ref common.ReferenceCall
 					"clusterName": {
 						SchemaProps: spec.SchemaProps{
 							Description: "clusterName is the name of the Cluster this object belongs to.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -4861,13 +5720,6 @@ func schema_cluster_api_api_core_v1beta2_MachineSetSpec(ref common.ReferenceCall
 							Description: "replicas is the number of desired replicas. This is a pointer to distinguish between explicit zero and unspecified.\n\nDefaults to: * if the Kubernetes autoscaler min size and max size annotations are set:\n  - if it's a new MachineSet, use min size\n  - if the replicas field of the old MachineSet is < min size, use min size\n  - if the replicas field of the old MachineSet is > max size, use max size\n  - if the replicas field of the old MachineSet is in the (min size, max size) range, keep the value from the oldMS\n* otherwise use 1 Note: Defaulting will be run whenever the replicas field is not set: * A new MachineSet is created with replicas not set. * On an existing MachineSet the replicas field was first set and is now unset. Those cases are especially relevant for the following Kubernetes autoscaler use cases: * A new MachineSet is created and replicas should be managed by the autoscaler * An existing MachineSet which initially wasn't controlled by the autoscaler\n  should be later controlled by the autoscaler",
 							Type:        []string{"integer"},
 							Format:      "int32",
-						},
-					},
-					"deletePolicy": {
-						SchemaProps: spec.SchemaProps{
-							Description: "deletePolicy defines the policy used to identify nodes to delete when downscaling. Defaults to \"Random\".  Valid values are \"Random, \"Newest\", \"Oldest\"",
-							Type:        []string{"string"},
-							Format:      "",
 						},
 					},
 					"selector": {
@@ -4884,10 +5736,18 @@ func schema_cluster_api_api_core_v1beta2_MachineSetSpec(ref common.ReferenceCall
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineTemplateSpec"),
 						},
 					},
-					"machineNamingStrategy": {
+					"machineNaming": {
 						SchemaProps: spec.SchemaProps{
-							Description: "machineNamingStrategy allows changing the naming pattern used when creating Machines. Note: InfraMachines & BootstrapConfigs will use the same name as the corresponding Machines.",
-							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNamingStrategy"),
+							Description: "machineNaming allows changing the naming pattern used when creating Machines. Note: InfraMachines & BootstrapConfigs will use the same name as the corresponding Machines.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNamingSpec"),
+						},
+					},
+					"deletion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "deletion contains configuration options for MachineSet deletion.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetDeletionSpec"),
 						},
 					},
 				},
@@ -4895,7 +5755,7 @@ func schema_cluster_api_api_core_v1beta2_MachineSetSpec(ref common.ReferenceCall
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNamingStrategy", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineTemplateSpec"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNamingSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineSetDeletionSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineTemplateSpec"},
 	}
 }
 
@@ -5061,7 +5921,6 @@ func schema_cluster_api_api_core_v1beta2_MachineSpec(ref common.ReferenceCallbac
 					"clusterName": {
 						SchemaProps: spec.SchemaProps{
 							Description: "clusterName is the name of the Cluster this object belongs to.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -5130,25 +5989,11 @@ func schema_cluster_api_api_core_v1beta2_MachineSpec(ref common.ReferenceCallbac
 							},
 						},
 					},
-					"nodeDrainTimeoutSeconds": {
+					"deletion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node. The default value is 0, meaning that the node can be drained without any time limitations. NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeVolumeDetachTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeVolumeDetachTimeoutSeconds is the total amount of time that the controller will spend on waiting for all volumes to be detached. The default value is 0, meaning that the volumes can be detached without any time limitations.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-					"nodeDeletionTimeoutSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "nodeDeletionTimeoutSeconds defines how long the controller will attempt to delete the Node that the Machine hosts after the Machine is marked for deletion. A duration of 0 will retry deletion indefinitely. Defaults to 10 seconds.",
-							Type:        []string{"integer"},
-							Format:      "int32",
+							Description: "deletion contains configuration options for Machine deletion.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeletionSpec"),
 						},
 					},
 				},
@@ -5156,7 +6001,7 @@ func schema_cluster_api_api_core_v1beta2_MachineSpec(ref common.ReferenceCallbac
 			},
 		},
 		Dependencies: []string{
-			"sigs.k8s.io/cluster-api/api/core/v1beta2.Bootstrap", "sigs.k8s.io/cluster-api/api/core/v1beta2.ContractVersionedObjectReference", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate"},
+			"sigs.k8s.io/cluster-api/api/core/v1beta2.Bootstrap", "sigs.k8s.io/cluster-api/api/core/v1beta2.ContractVersionedObjectReference", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineDeletionSpec", "sigs.k8s.io/cluster-api/api/core/v1beta2.MachineReadinessGate"},
 	}
 }
 
@@ -5199,6 +6044,7 @@ func schema_cluster_api_api_core_v1beta2_MachineStatus(ref common.ReferenceCallb
 					"nodeRef": {
 						SchemaProps: spec.SchemaProps{
 							Description: "nodeRef will point to the corresponding Node if it exists.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.MachineNodeReference"),
 						},
 					},
@@ -5472,7 +6318,6 @@ func schema_cluster_api_api_core_v1beta2_PatchSelector(ref common.ReferenceCallb
 					"apiVersion": {
 						SchemaProps: spec.SchemaProps{
 							Description: "apiVersion filters templates by apiVersion. apiVersion must be fully qualified domain name followed by / and a version.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -5480,7 +6325,6 @@ func schema_cluster_api_api_core_v1beta2_PatchSelector(ref common.ReferenceCallb
 					"kind": {
 						SchemaProps: spec.SchemaProps{
 							Description: "kind filters templates by kind. kind must consist of alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -5608,27 +6452,6 @@ func schema_cluster_api_api_core_v1beta2_PatchSelectorMatchMachinePoolClass(ref 
 	}
 }
 
-func schema_cluster_api_api_core_v1beta2_RemediationStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RemediationStrategy allows to define how the MachineSet can control scaling operations.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"maxInFlight": {
-						SchemaProps: spec.SchemaProps{
-							Description: "maxInFlight determines how many in flight remediations should happen at the same time.\n\nRemediation only happens on the MachineSet with the most current revision, while older MachineSets (usually present during rollout operations) aren't allowed to remediate.\n\nNote: In general (independent of remediations), unhealthy machines are always prioritized during scale down operations over healthy ones.\n\nMaxInFlight can be set to a fixed number or a percentage. Example: when this is set to 20%, the MachineSet controller deletes at most 20% of the desired replicas.\n\nIf not set, remediation is limited to all machines (bounded by replicas) under the active MachineSet's management.",
-							Ref:         ref("k8s.io/apimachinery/pkg/util/intstr.IntOrString"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/util/intstr.IntOrString"},
-	}
-}
-
 func schema_cluster_api_api_core_v1beta2_Topology(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -5646,7 +6469,6 @@ func schema_cluster_api_api_core_v1beta2_Topology(ref common.ReferenceCallback) 
 					"version": {
 						SchemaProps: spec.SchemaProps{
 							Description: "version is the Kubernetes version of the cluster.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -5661,6 +6483,7 @@ func schema_cluster_api_api_core_v1beta2_Topology(ref common.ReferenceCallback) 
 					"workers": {
 						SchemaProps: spec.SchemaProps{
 							Description: "workers encapsulates the different constructs that form the worker nodes for the cluster.",
+							Default:     map[string]interface{}{},
 							Ref:         ref("sigs.k8s.io/cluster-api/api/core/v1beta2.WorkersTopology"),
 						},
 					},
@@ -5705,7 +6528,6 @@ func schema_cluster_api_api_core_v1beta2_UnhealthyNodeCondition(ref common.Refer
 					"type": {
 						SchemaProps: spec.SchemaProps{
 							Description: "type of Node condition",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -5713,7 +6535,6 @@ func schema_cluster_api_api_core_v1beta2_UnhealthyNodeCondition(ref common.Refer
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Description: "status of the condition, one of True, False, Unknown.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -5721,7 +6542,6 @@ func schema_cluster_api_api_core_v1beta2_UnhealthyNodeCondition(ref common.Refer
 					"timeoutSeconds": {
 						SchemaProps: spec.SchemaProps{
 							Description: "timeoutSeconds is the duration that a node must be in a given status for, after which the node is considered unhealthy. For example, with a value of \"1h\", the node must match the status for at least 1 hour before being considered unhealthy.",
-							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
@@ -5743,7 +6563,6 @@ func schema_cluster_api_api_core_v1beta2_ValidationRule(ref common.ReferenceCall
 					"rule": {
 						SchemaProps: spec.SchemaProps{
 							Description: "rule represents the expression which will be evaluated by CEL. ref: https://github.com/google/cel-spec The Rule is scoped to the location of the x-kubernetes-validations extension in the schema. The `self` variable in the CEL expression is bound to the scoped value. If the Rule is scoped to an object with properties, the accessible properties of the object are field selectable via `self.field` and field presence can be checked via `has(self.field)`. If the Rule is scoped to an object with additionalProperties (i.e. a map) the value of the map are accessible via `self[mapKey]`, map containment can be checked via `mapKey in self` and all entries of the map are accessible via CEL macros and functions such as `self.all(...)`. If the Rule is scoped to an array, the elements of the array are accessible via `self[i]` and also by macros and functions. If the Rule is scoped to a scalar, `self` is bound to the scalar value. Examples: - Rule scoped to a map of objects: {\"rule\": \"self.components['Widget'].priority < 10\"} - Rule scoped to a list of integers: {\"rule\": \"self.values.all(value, value >= 0 && value < 100)\"} - Rule scoped to a string value: {\"rule\": \"self.startsWith('kube')\"}\n\nUnknown data preserved in custom resources via x-kubernetes-preserve-unknown-fields is not accessible in CEL expressions. This includes: - Unknown field values that are preserved by object schemas with x-kubernetes-preserve-unknown-fields. - Object properties where the property schema is of an \"unknown type\". An \"unknown type\" is recursively defined as:\n  - A schema with no type and x-kubernetes-preserve-unknown-fields set to true\n  - An array where the items schema is of an \"unknown type\"\n  - An object where the additionalProperties schema is of an \"unknown type\"\n\nOnly property names of the form `[a-zA-Z_.-/][a-zA-Z0-9_.-/]*` are accessible. Accessible property names are escaped according to the following rules when accessed in the expression: - '__' escapes to '__underscores__' - '.' escapes to '__dot__' - '-' escapes to '__dash__' - '/' escapes to '__slash__' - Property names that exactly match a CEL RESERVED keyword escape to '__{keyword}__'. The keywords are:\n\t  \"true\", \"false\", \"null\", \"in\", \"as\", \"break\", \"const\", \"continue\", \"else\", \"for\", \"function\", \"if\",\n\t  \"import\", \"let\", \"loop\", \"package\", \"namespace\", \"return\".\nExamples:\n  - Rule accessing a property named \"namespace\": {\"rule\": \"self.__namespace__ > 0\"}\n  - Rule accessing a property named \"x-prop\": {\"rule\": \"self.x__dash__prop > 0\"}\n  - Rule accessing a property named \"redact__d\": {\"rule\": \"self.redact__underscores__d > 0\"}\n\nIf `rule` makes use of the `oldSelf` variable it is implicitly a `transition rule`.\n\nBy default, the `oldSelf` variable is the same type as `self`.\n\nTransition rules by default are applied only on UPDATE requests and are skipped if an old value could not be found.",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},

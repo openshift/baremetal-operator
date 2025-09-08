@@ -17,18 +17,18 @@ limitations under the License.
 package v1beta2
 
 import (
+	"reflect"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 )
 
-// ANCHOR: ExtensionConfigSpec
-
 // ExtensionConfigSpec defines the desired state of ExtensionConfig.
 type ExtensionConfigSpec struct {
 	// clientConfig defines how to communicate with the Extension server.
 	// +required
-	ClientConfig ClientConfig `json:"clientConfig"`
+	ClientConfig ClientConfig `json:"clientConfig,omitempty,omitzero"`
 
 	// namespaceSelector decides whether to call the hook for an object based
 	// on whether the namespace for that object matches the selector.
@@ -74,7 +74,7 @@ type ClientConfig struct {
 	// If the Extension server is running within a cluster, then you should use `service`.
 	//
 	// +optional
-	Service *ServiceReference `json:"service,omitempty"`
+	Service ServiceReference `json:"service,omitempty,omitzero"`
 
 	// caBundle is a PEM encoded CA bundle which will be used to validate the Extension server's server certificate.
 	// +optional
@@ -89,13 +89,13 @@ type ServiceReference struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
-	Namespace string `json:"namespace"`
+	Namespace string `json:"namespace,omitempty"`
 
 	// name is the name of the service.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// path is an optional URL path and if present may be any string permissible in
 	// a URL. If a path is set it will be used as prefix to the hook-specific path.
@@ -111,9 +111,10 @@ type ServiceReference struct {
 	Port *int32 `json:"port,omitempty"`
 }
 
-// ANCHOR_END: ExtensionConfigSpec
-
-// ANCHOR: ExtensionConfigStatus
+// IsDefined returns true if the ServiceReference is set.
+func (r *ServiceReference) IsDefined() bool {
+	return !reflect.DeepEqual(r, &ServiceReference{})
+}
 
 // ExtensionConfigStatus defines the observed state of ExtensionConfig.
 // +kubebuilder:validation:MinProperties=1
@@ -165,11 +166,11 @@ type ExtensionHandler struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=512
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// requestHook defines the versioned runtime hook which this ExtensionHandler serves.
 	// +required
-	RequestHook GroupVersionHook `json:"requestHook"`
+	RequestHook GroupVersionHook `json:"requestHook,omitempty,omitzero"`
 
 	// timeoutSeconds defines the timeout duration for client calls to the ExtensionHandler.
 	// Defaults to 10 if not set.
@@ -189,13 +190,13 @@ type GroupVersionHook struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=512
-	APIVersion string `json:"apiVersion"`
+	APIVersion string `json:"apiVersion,omitempty"`
 
 	// hook is the name of the hook.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Hook string `json:"hook"`
+	Hook string `json:"hook,omitempty"`
 }
 
 // FailurePolicy specifies how unrecognized errors when calling the ExtensionHandler are handled.
@@ -214,12 +215,12 @@ const (
 	FailurePolicyFail FailurePolicy = "Fail"
 )
 
-// ANCHOR_END: ExtensionConfigStatus
-
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=extensionconfigs,shortName=ext,scope=Cluster,categories=cluster-api
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="Paused",type="string",JSONPath=`.status.conditions[?(@.type=="Paused")].status`,description="Reconciliation paused",priority=10
+// +kubebuilder:printcolumn:name="Discovered",type="string",JSONPath=`.status.conditions[?(@.type=="Discovered")].status`,description="ExtensionConfig discovered"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of ExtensionConfig"
 
 // ExtensionConfig is the Schema for the ExtensionConfig API.

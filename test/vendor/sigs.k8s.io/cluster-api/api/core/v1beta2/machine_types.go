@@ -375,15 +375,13 @@ const (
 	MachineDeletingDeletionCompletedReason = DeletionCompletedReason
 )
 
-// ANCHOR: MachineSpec
-
 // MachineSpec defines the desired state of Machine.
 type MachineSpec struct {
 	// clusterName is the name of the Cluster this object belongs to.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
-	ClusterName string `json:"clusterName"`
+	ClusterName string `json:"clusterName,omitempty"`
 
 	// bootstrap is a reference to a local struct which encapsulates
 	// fields to configure the Machine’s bootstrapping mechanism.
@@ -393,7 +391,7 @@ type MachineSpec struct {
 	// infrastructureRef is a required reference to a custom resource
 	// offered by an infrastructure provider.
 	// +required
-	InfrastructureRef ContractVersionedObjectReference `json:"infrastructureRef"`
+	InfrastructureRef ContractVersionedObjectReference `json:"infrastructureRef,omitempty,omitzero"`
 
 	// version defines the desired Kubernetes version.
 	// This field is meant to be optionally used by bootstrap providers.
@@ -446,9 +444,18 @@ type MachineSpec struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=conditionType
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=32
 	ReadinessGates []MachineReadinessGate `json:"readinessGates,omitempty"`
 
+	// deletion contains configuration options for Machine deletion.
+	// +optional
+	Deletion MachineDeletionSpec `json:"deletion,omitempty,omitzero"`
+}
+
+// MachineDeletionSpec contains configuration options for Machine deletion.
+// +kubebuilder:validation:MinProperties=1
+type MachineDeletionSpec struct {
 	// nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a node.
 	// The default value is 0, meaning that the node can be drained without any time limitations.
 	// NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`
@@ -479,21 +486,16 @@ type MachineReadinessGate struct {
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=316
-	ConditionType string `json:"conditionType"`
+	ConditionType string `json:"conditionType,omitempty"`
 
 	// polarity of the conditionType specified in this readinessGate.
 	// Valid values are Positive, Negative and omitted.
 	// When omitted, the default behaviour will be Positive.
 	// A positive polarity means that the condition should report a true status under normal conditions.
 	// A negative polarity means that the condition should report a false status under normal conditions.
-	// +kubebuilder:validation:Enum=Positive;Negative
 	// +optional
 	Polarity ConditionPolarity `json:"polarity,omitempty"`
 }
-
-// ANCHOR_END: MachineSpec
-
-// ANCHOR: MachineStatus
 
 // MachineStatus defines the observed state of Machine.
 // +kubebuilder:validation:MinProperties=1
@@ -517,7 +519,7 @@ type MachineStatus struct {
 
 	// nodeRef will point to the corresponding Node if it exists.
 	// +optional
-	NodeRef *MachineNodeReference `json:"nodeRef,omitempty"`
+	NodeRef MachineNodeReference `json:"nodeRef,omitempty,omitzero"`
 
 	// nodeInfo is a set of ids/uuids to uniquely identify the node.
 	// More info: https://kubernetes.io/docs/concepts/nodes/node/#info
@@ -526,7 +528,7 @@ type MachineStatus struct {
 
 	// lastUpdated identifies when the phase of the Machine last transitioned.
 	// +optional
-	LastUpdated *metav1.Time `json:"lastUpdated,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty,omitzero"`
 
 	// addresses is a list of addresses assigned to the machine.
 	// This field is copied from the infrastructure provider reference.
@@ -541,7 +543,7 @@ type MachineStatus struct {
 	// certificatesExpiryDate is the expiry date of the machine certificates.
 	// This value is only set for control plane machines.
 	// +optional
-	CertificatesExpiryDate *metav1.Time `json:"certificatesExpiryDate,omitempty"`
+	CertificatesExpiryDate metav1.Time `json:"certificatesExpiryDate,omitempty,omitzero"`
 
 	// observedGeneration is the latest generation observed by the controller.
 	// +optional
@@ -566,7 +568,15 @@ type MachineNodeReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
+}
+
+// IsDefined returns true if the MachineNodeReference is set.
+func (r *MachineNodeReference) IsDefined() bool {
+	if r == nil {
+		return false
+	}
+	return r.Name != ""
 }
 
 // MachineInitializationStatus provides observations of the Machine initialization process.
@@ -654,15 +664,13 @@ type MachineV1Beta1DeprecatedStatus struct {
 	FailureMessage *string `json:"failureMessage,omitempty"` //nolint:kubeapilinter // field will be removed when v1beta1 is removed
 }
 
-// ANCHOR_END: MachineStatus
-
 // MachineDeletionStatus is the deletion state of the Machine.
 type MachineDeletionStatus struct {
 	// nodeDrainStartTime is the time when the drain of the node started and is used to determine
 	// if the nodeDrainTimeoutSeconds is exceeded.
 	// Only present when the Machine has a deletionTimestamp and draining the node had been started.
 	// +optional
-	NodeDrainStartTime *metav1.Time `json:"nodeDrainStartTime,omitempty"`
+	NodeDrainStartTime metav1.Time `json:"nodeDrainStartTime,omitempty,omitzero"`
 
 	// waitForNodeVolumeDetachStartTime is the time when waiting for volume detachment started
 	// and is used to determine if the nodeVolumeDetachTimeoutSeconds is exceeded.
@@ -670,7 +678,7 @@ type MachineDeletionStatus struct {
 	// is observed from the node's `.Status.VolumesAttached` field.
 	// Only present when the Machine has a deletionTimestamp and waiting for volume detachments had been started.
 	// +optional
-	WaitForNodeVolumeDetachStartTime *metav1.Time `json:"waitForNodeVolumeDetachStartTime,omitempty"`
+	WaitForNodeVolumeDetachStartTime metav1.Time `json:"waitForNodeVolumeDetachStartTime,omitempty,omitzero"`
 }
 
 // SetTypedPhase sets the Phase field to the string representation of MachinePhase.
@@ -696,8 +704,6 @@ func (m *MachineStatus) GetTypedPhase() MachinePhase {
 	}
 }
 
-// ANCHOR: Bootstrap
-
 // Bootstrap encapsulates fields to configure the Machine’s bootstrapping mechanism.
 type Bootstrap struct {
 	// configRef is a reference to a bootstrap provider-specific resource
@@ -705,7 +711,7 @@ type Bootstrap struct {
 	// allow users/operators to specify Bootstrap.DataSecretName without
 	// the need of a controller.
 	// +optional
-	ConfigRef *ContractVersionedObjectReference `json:"configRef,omitempty"`
+	ConfigRef ContractVersionedObjectReference `json:"configRef,omitempty,omitzero"`
 
 	// dataSecretName is the name of the secret that stores the bootstrap data script.
 	// If nil, the Machine should remain in the Pending state.
@@ -715,15 +721,20 @@ type Bootstrap struct {
 	DataSecretName *string `json:"dataSecretName,omitempty"`
 }
 
-// ANCHOR_END: Bootstrap
-
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=machines,shortName=ma,scope=Namespaced,categories=cluster-api
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".spec.clusterName",description="Cluster"
-// +kubebuilder:printcolumn:name="NodeName",type="string",JSONPath=".status.nodeRef.name",description="Node name associated with this machine"
-// +kubebuilder:printcolumn:name="ProviderID",type="string",JSONPath=".spec.providerID",description="Provider ID"
+// +kubebuilder:printcolumn:name="Node Name",type="string",JSONPath=".status.nodeRef.name",description="Node name associated with this machine"
+// +kubebuilder:printcolumn:name="Provider ID",type="string",JSONPath=".spec.providerID",description="Provider ID",priority=10
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Machine pass all readiness checks"
+// +kubebuilder:printcolumn:name="Available",type="string",JSONPath=`.status.conditions[?(@.type=="Available")].status`,description="Machine is Ready for at least MinReadySeconds"
+// +kubebuilder:printcolumn:name="Up-to-date",type="string",JSONPath=`.status.conditions[?(@.type=="UpToDate")].status`,description=" Machine spec matches the spec of the Machine's owner resource, e.g. MachineDeployment"
+// +kubebuilder:printcolumn:name="Internal-IP",type="string",JSONPath=`.status.addresses[?(@.type=="InternalIP")].address`,description="Internal IP of the machine",priority=10
+// +kubebuilder:printcolumn:name="External-IP",type="string",JSONPath=`.status.addresses[?(@.type=="ExternalIP")].address`,description="External IP of the machine",priority=10
+// +kubebuilder:printcolumn:name="OS-Image",type="string",JSONPath=`.status.nodeInfo.osImage`,description="OS Image reported by the node",priority=10
+// +kubebuilder:printcolumn:name="Paused",type="string",JSONPath=`.status.conditions[?(@.type=="Paused")].status`,description="Reconciliation paused",priority=10
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="Machine status such as Terminating/Pending/Running/Failed etc"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of Machine"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version",description="Kubernetes version associated with this Machine"

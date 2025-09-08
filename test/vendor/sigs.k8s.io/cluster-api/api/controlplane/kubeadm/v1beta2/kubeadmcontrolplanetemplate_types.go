@@ -27,12 +27,13 @@ import (
 type KubeadmControlPlaneTemplateSpec struct {
 	// template defines the desired state of KubeadmControlPlaneTemplate.
 	// +required
-	Template KubeadmControlPlaneTemplateResource `json:"template"`
+	Template KubeadmControlPlaneTemplateResource `json:"template,omitempty,omitzero"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=kubeadmcontrolplanetemplates,scope=Namespaced,categories=cluster-api
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="ClusterClass",type="string",JSONPath=`.metadata.ownerReferences[?(@.kind=="ClusterClass")].name`,description="Name of the ClusterClass owning this template"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of KubeadmControlPlaneTemplate"
 
 // KubeadmControlPlaneTemplate is the Schema for the kubeadmcontrolplanetemplates API.
@@ -84,44 +85,32 @@ type KubeadmControlPlaneTemplateResource struct {
 // omits Replicas and Version fields. These fields do not make sense on the KubeadmControlPlaneTemplate,
 // because they are calculated by the Cluster topology reconciler during reconciliation and thus cannot
 // be configured on the KubeadmControlPlaneTemplate.
+// +kubebuilder:validation:MinProperties=1
 type KubeadmControlPlaneTemplateResourceSpec struct {
 	// machineTemplate contains information about how machines
 	// should be shaped when creating or updating a control plane.
 	// +optional
-	MachineTemplate *KubeadmControlPlaneTemplateMachineTemplate `json:"machineTemplate,omitempty"`
+	MachineTemplate KubeadmControlPlaneTemplateMachineTemplate `json:"machineTemplate,omitempty,omitzero"`
 
 	// kubeadmConfigSpec is a KubeadmConfigSpec
 	// to use for initializing and joining machines to the control plane.
 	// +optional
 	KubeadmConfigSpec bootstrapv1.KubeadmConfigSpec `json:"kubeadmConfigSpec,omitempty,omitzero"`
 
-	// rolloutBefore is a field to indicate a rollout should be performed
-	// if the specified criteria is met.
-	//
+	// rollout allows you to configure the behaviour of rolling updates to the control plane Machines.
+	// It allows you to require that all Machines are replaced before or after a certain time,
+	// and allows you to define the strategy used during rolling replacements.
 	// +optional
-	RolloutBefore *RolloutBefore `json:"rolloutBefore,omitempty"`
+	Rollout KubeadmControlPlaneRolloutSpec `json:"rollout,omitempty,omitzero"`
 
-	// rolloutAfter is a field to indicate a rollout should be performed
-	// after the specified time even if no changes have been made to the
-	// KubeadmControlPlane.
-	//
+	// remediation controls how unhealthy Machines are remediated.
 	// +optional
-	RolloutAfter *metav1.Time `json:"rolloutAfter,omitempty"`
+	Remediation KubeadmControlPlaneRemediationSpec `json:"remediation,omitempty,omitzero"`
 
-	// rolloutStrategy is the RolloutStrategy to use to replace control plane machines with
-	// new ones.
-	// +optional
-	// +kubebuilder:default={type: "RollingUpdate", rollingUpdate: {maxSurge: 1}}
-	RolloutStrategy *RolloutStrategy `json:"rolloutStrategy,omitempty"`
-
-	// remediationStrategy is the RemediationStrategy that controls how control plane machine remediation happens.
-	// +optional
-	RemediationStrategy *RemediationStrategy `json:"remediationStrategy,omitempty"`
-
-	// machineNamingStrategy allows changing the naming pattern used when creating Machines.
+	// machineNaming allows changing the naming pattern used when creating Machines.
 	// InfraMachines & KubeadmConfigs will use the same name as the corresponding Machines.
 	// +optional
-	MachineNamingStrategy *MachineNamingStrategy `json:"machineNamingStrategy,omitempty"`
+	MachineNaming MachineNamingSpec `json:"machineNaming,omitempty,omitzero"`
 }
 
 // KubeadmControlPlaneTemplateMachineTemplate defines the template for Machines
@@ -130,12 +119,31 @@ type KubeadmControlPlaneTemplateResourceSpec struct {
 // omits ObjectMeta and InfrastructureRef fields. These fields do not make sense on the KubeadmControlPlaneTemplate,
 // because they are calculated by the Cluster topology reconciler during reconciliation and thus cannot
 // be configured on the KubeadmControlPlaneTemplate.
+// +kubebuilder:validation:MinProperties=1
 type KubeadmControlPlaneTemplateMachineTemplate struct {
 	// metadata is the standard object's metadata.
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	// +optional
 	ObjectMeta clusterv1.ObjectMeta `json:"metadata,omitempty,omitzero"`
 
+	// spec defines the spec for Machines
+	// in a KubeadmControlPlane object.
+	// +optional
+	Spec KubeadmControlPlaneTemplateMachineTemplateSpec `json:"spec,omitempty,omitzero"`
+}
+
+// KubeadmControlPlaneTemplateMachineTemplateSpec defines the spec for Machines
+// in a KubeadmControlPlane object.
+// +kubebuilder:validation:MinProperties=1
+type KubeadmControlPlaneTemplateMachineTemplateSpec struct {
+	// deletion contains configuration options for Machine deletion.
+	// +optional
+	Deletion KubeadmControlPlaneTemplateMachineTemplateDeletionSpec `json:"deletion,omitempty,omitzero"`
+}
+
+// KubeadmControlPlaneTemplateMachineTemplateDeletionSpec contains configuration options for Machine deletion.
+// +kubebuilder:validation:MinProperties=1
+type KubeadmControlPlaneTemplateMachineTemplateDeletionSpec struct {
 	// nodeDrainTimeoutSeconds is the total amount of time that the controller will spend on draining a controlplane node
 	// The default value is 0, meaning that the node can be drained without any time limitations.
 	// NOTE: nodeDrainTimeoutSeconds is different from `kubectl drain --timeout`

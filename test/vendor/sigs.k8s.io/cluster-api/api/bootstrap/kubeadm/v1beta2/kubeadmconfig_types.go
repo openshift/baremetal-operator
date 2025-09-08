@@ -18,6 +18,7 @@ package v1beta2
 
 import (
 	"fmt"
+	"reflect"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -54,29 +55,31 @@ var (
 type KubeadmConfigSpec struct {
 	// clusterConfiguration along with InitConfiguration are the configurations necessary for the init command
 	// +optional
-	ClusterConfiguration *ClusterConfiguration `json:"clusterConfiguration,omitempty"`
+	ClusterConfiguration ClusterConfiguration `json:"clusterConfiguration,omitempty,omitzero"`
 
 	// initConfiguration along with ClusterConfiguration are the configurations necessary for the init command
 	// +optional
-	InitConfiguration *InitConfiguration `json:"initConfiguration,omitempty"`
+	InitConfiguration InitConfiguration `json:"initConfiguration,omitempty,omitzero"`
 
 	// joinConfiguration is the kubeadm configuration for the join command
 	// +optional
-	JoinConfiguration *JoinConfiguration `json:"joinConfiguration,omitempty"`
+	JoinConfiguration JoinConfiguration `json:"joinConfiguration,omitempty,omitzero"`
 
 	// files specifies extra files to be passed to user_data upon creation.
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=200
 	Files []File `json:"files,omitempty"`
 
 	// diskSetup specifies options for the creation of partition tables and file systems on devices.
 	// +optional
-	DiskSetup *DiskSetup `json:"diskSetup,omitempty"`
+	DiskSetup DiskSetup `json:"diskSetup,omitempty,omitzero"`
 
 	// mounts specifies a list of mount points to be setup.
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=100
 	Mounts []MountPoints `json:"mounts,omitempty"`
 
@@ -85,6 +88,7 @@ type KubeadmConfigSpec struct {
 	// once. This is typically run in the cloud-init.service systemd unit. This has no effect in Ignition.
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=1000
 	// +kubebuilder:validation:items:MinLength=1
 	// +kubebuilder:validation:items:MaxLength=10240
@@ -95,6 +99,7 @@ type KubeadmConfigSpec struct {
 	// the cloud-final.service systemd unit. In Ignition, this is prepended to /etc/kubeadm.sh.
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=1000
 	// +kubebuilder:validation:items:MinLength=1
 	// +kubebuilder:validation:items:MaxLength=10240
@@ -105,6 +110,7 @@ type KubeadmConfigSpec struct {
 	// the cloud-final.service systemd unit. In Ignition, this is appended to /etc/kubeadm.sh.
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=1000
 	// +kubebuilder:validation:items:MinLength=1
 	// +kubebuilder:validation:items:MaxLength=10240
@@ -113,14 +119,16 @@ type KubeadmConfigSpec struct {
 	// users specifies extra users to add
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=100
 	Users []User `json:"users,omitempty"`
 
 	// ntp specifies NTP configuration
 	// +optional
-	NTP *NTP `json:"ntp,omitempty"`
+	NTP NTP `json:"ntp,omitempty,omitzero"`
 
-	// format specifies the output format of the bootstrap data
+	// format specifies the output format of the bootstrap data.
+	// Defaults to cloud-config if not set.
 	// +optional
 	Format Format `json:"format,omitempty"`
 
@@ -131,29 +139,7 @@ type KubeadmConfigSpec struct {
 
 	// ignition contains Ignition specific configuration.
 	// +optional
-	Ignition *IgnitionSpec `json:"ignition,omitempty"`
-}
-
-// Default defaults a KubeadmConfigSpec.
-func (c *KubeadmConfigSpec) Default() {
-	if c.Format == "" {
-		c.Format = CloudConfig
-	}
-	if c.InitConfiguration != nil && c.InitConfiguration.NodeRegistration.ImagePullPolicy == "" {
-		c.InitConfiguration.NodeRegistration.ImagePullPolicy = "IfNotPresent"
-	}
-	if c.JoinConfiguration != nil && c.JoinConfiguration.NodeRegistration.ImagePullPolicy == "" {
-		c.JoinConfiguration.NodeRegistration.ImagePullPolicy = "IfNotPresent"
-	}
-	if c.JoinConfiguration != nil && c.JoinConfiguration.Discovery.File != nil {
-		if kfg := c.JoinConfiguration.Discovery.File.KubeConfig; kfg != nil {
-			if kfg.User.Exec != nil {
-				if kfg.User.Exec.APIVersion == "" {
-					kfg.User.Exec.APIVersion = "client.authentication.k8s.io/v1"
-				}
-			}
-		}
-	}
+	Ignition IgnitionSpec `json:"ignition,omitempty,omitzero"`
 }
 
 // Validate ensures the KubeadmConfigSpec is valid.
@@ -165,40 +151,29 @@ func (c *KubeadmConfigSpec) Validate(pathPrefix *field.Path) field.ErrorList {
 	allErrs = append(allErrs, c.validateIgnition(pathPrefix)...)
 
 	// Validate JoinConfiguration.
-	if c.JoinConfiguration != nil {
-		if c.JoinConfiguration.Discovery.File != nil {
-			if kfg := c.JoinConfiguration.Discovery.File.KubeConfig; kfg != nil {
-				userPath := pathPrefix.Child("joinConfiguration", "discovery", "file", "kubeconfig", "user")
-				if kfg.User.AuthProvider == nil && kfg.User.Exec == nil {
-					allErrs = append(allErrs,
-						field.Invalid(
-							userPath,
-							kfg.User,
-							"at least one of authProvider or exec must be defined",
-						),
-					)
-				}
-				if kfg.User.AuthProvider != nil && kfg.User.Exec != nil {
-					allErrs = append(allErrs,
-						field.Invalid(
-							userPath,
-							kfg.User,
-							"either authProvider or exec must be defined",
-						),
-					)
-				}
-			}
+	if c.JoinConfiguration.IsDefined() {
+		kfg := c.JoinConfiguration.Discovery.File.KubeConfig
+		userPath := pathPrefix.Child("joinConfiguration", "discovery", "file", "kubeconfig", "user")
+		// Note: MinProperties=1 on User ensures that at least one of AuthProvider or Exec is set
+		if kfg.User.AuthProvider.IsDefined() && kfg.User.Exec.IsDefined() {
+			allErrs = append(allErrs,
+				field.Invalid(
+					userPath,
+					kfg.User,
+					"only one of authProvider or exec must be defined",
+				),
+			)
 		}
 	}
 
 	// Validate timeouts
 	// Note: When v1beta1 will be removed, we can drop this limitation.
 	tInit := "unset"
-	if c.InitConfiguration != nil && c.InitConfiguration.Timeouts != nil && c.InitConfiguration.Timeouts.ControlPlaneComponentHealthCheckSeconds != nil {
+	if c.InitConfiguration.Timeouts.ControlPlaneComponentHealthCheckSeconds != nil {
 		tInit = fmt.Sprintf("%d", *c.InitConfiguration.Timeouts.ControlPlaneComponentHealthCheckSeconds)
 	}
 	tJoin := "unset"
-	if c.JoinConfiguration != nil && c.JoinConfiguration.Timeouts != nil && c.JoinConfiguration.Timeouts.ControlPlaneComponentHealthCheckSeconds != nil {
+	if c.JoinConfiguration.Timeouts.ControlPlaneComponentHealthCheckSeconds != nil {
 		tJoin = fmt.Sprintf("%d", *c.JoinConfiguration.Timeouts.ControlPlaneComponentHealthCheckSeconds)
 	}
 	if tInit != tJoin {
@@ -226,7 +201,7 @@ func (c *KubeadmConfigSpec) validateFiles(pathPrefix *field.Path) field.ErrorLis
 
 	for i := range c.Files {
 		file := c.Files[i]
-		if file.Content != "" && file.ContentFrom != nil {
+		if file.Content != "" && file.ContentFrom.IsDefined() {
 			allErrs = append(
 				allErrs,
 				field.Invalid(
@@ -239,7 +214,7 @@ func (c *KubeadmConfigSpec) validateFiles(pathPrefix *field.Path) field.ErrorLis
 		// n.b.: if we ever add types besides Secret as a ContentFrom
 		// Source, we must add webhook validation here for one of the
 		// sources being non-nil.
-		if file.ContentFrom != nil {
+		if file.ContentFrom.IsDefined() {
 			if file.ContentFrom.Secret.Name == "" {
 				allErrs = append(
 					allErrs,
@@ -281,7 +256,7 @@ func (c *KubeadmConfigSpec) validateUsers(pathPrefix *field.Path) field.ErrorLis
 
 	for i := range c.Users {
 		user := c.Users[i]
-		if user.Passwd != "" && user.PasswdFrom != nil {
+		if user.Passwd != "" && user.PasswdFrom.IsDefined() {
 			allErrs = append(
 				allErrs,
 				field.Invalid(
@@ -294,7 +269,7 @@ func (c *KubeadmConfigSpec) validateUsers(pathPrefix *field.Path) field.ErrorLis
 		// n.b.: if we ever add types besides Secret as a PasswdFrom
 		// Source, we must add webhook validation here for one of the
 		// sources being non-nil.
-		if user.PasswdFrom != nil {
+		if user.PasswdFrom.IsDefined() {
 			if user.PasswdFrom.Secret.Name == "" {
 				allErrs = append(
 					allErrs,
@@ -328,7 +303,7 @@ func (c *KubeadmConfigSpec) validateIgnition(pathPrefix *field.Path) field.Error
 				pathPrefix.Child("format"), kubeadmBootstrapFormatIgnitionFeatureDisabledMsg))
 		}
 
-		if c.Ignition != nil {
+		if c.Ignition.IsDefined() {
 			allErrs = append(allErrs, field.Forbidden(
 				pathPrefix.Child("ignition"), kubeadmBootstrapFormatIgnitionFeatureDisabledMsg))
 		}
@@ -337,7 +312,7 @@ func (c *KubeadmConfigSpec) validateIgnition(pathPrefix *field.Path) field.Error
 	}
 
 	if c.Format != Ignition {
-		if c.Ignition != nil {
+		if c.Ignition.IsDefined() {
 			allErrs = append(
 				allErrs,
 				field.Invalid(
@@ -385,10 +360,6 @@ func (c *KubeadmConfigSpec) validateIgnition(pathPrefix *field.Path) field.Error
 		)
 	}
 
-	if c.DiskSetup == nil {
-		return allErrs
-	}
-
 	for i, partition := range c.DiskSetup.Partitions {
 		if partition.TableType != "" && partition.TableType != "gpt" {
 			allErrs = append(
@@ -432,15 +403,22 @@ func (c *KubeadmConfigSpec) validateIgnition(pathPrefix *field.Path) field.Error
 }
 
 // IgnitionSpec contains Ignition specific configuration.
+// +kubebuilder:validation:MinProperties=1
 type IgnitionSpec struct {
 	// containerLinuxConfig contains CLC specific configuration.
 	// +optional
-	ContainerLinuxConfig *ContainerLinuxConfig `json:"containerLinuxConfig,omitempty"`
+	ContainerLinuxConfig ContainerLinuxConfig `json:"containerLinuxConfig,omitempty,omitzero"`
+}
+
+// IsDefined returns true if the IgnitionSpec is defined.
+func (r *IgnitionSpec) IsDefined() bool {
+	return !reflect.DeepEqual(r, &IgnitionSpec{})
 }
 
 // ContainerLinuxConfig contains CLC-specific configuration.
 //
 // We use a structured type here to allow adding additional fields, for example 'version'.
+// +kubebuilder:validation:MinProperties=1
 type ContainerLinuxConfig struct {
 	// additionalConfig contains additional configuration to be merged with the Ignition
 	// configuration generated by the bootstrapper controller. More info: https://coreos.github.io/ignition/operator-notes/#config-merging
@@ -454,6 +432,11 @@ type ContainerLinuxConfig struct {
 	// strict controls if AdditionalConfig should be strictly parsed. If so, warnings are treated as errors.
 	// +optional
 	Strict *bool `json:"strict,omitempty"`
+}
+
+// IsDefined returns true if the ContainerLinuxConfig is defined.
+func (r *ContainerLinuxConfig) IsDefined() bool {
+	return !reflect.DeepEqual(r, &ContainerLinuxConfig{})
 }
 
 // KubeadmConfigStatus defines the observed state of KubeadmConfig.
@@ -539,6 +522,8 @@ type KubeadmConfigV1Beta1DeprecatedStatus struct {
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".metadata.labels['cluster\\.x-k8s\\.io/cluster-name']",description="Cluster"
+// +kubebuilder:printcolumn:name="Paused",type="string",JSONPath=`.status.conditions[?(@.type=="Paused")].status`,description="Reconciliation paused",priority=10
+// +kubebuilder:printcolumn:name="Data secret created",type="string",JSONPath=`.status.initialization.dataSecretCreated`,description="Boostrap secret is created"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of KubeadmConfig"
 
 // KubeadmConfig is the Schema for the kubeadmconfigs API.
@@ -622,7 +607,7 @@ type File struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=512
-	Path string `json:"path"`
+	Path string `json:"path,omitempty"`
 
 	// owner specifies the ownership of the file, e.g. "root:root".
 	// +optional
@@ -652,7 +637,7 @@ type File struct {
 
 	// contentFrom is a referenced source of content to populate the file.
 	// +optional
-	ContentFrom *FileSource `json:"contentFrom,omitempty"`
+	ContentFrom FileSource `json:"contentFrom,omitempty,omitzero"`
 }
 
 // FileSource is a union of all possible external source types for file data.
@@ -661,7 +646,12 @@ type File struct {
 type FileSource struct {
 	// secret represents a secret that should populate this file.
 	// +required
-	Secret SecretFileSource `json:"secret"`
+	Secret SecretFileSource `json:"secret,omitempty,omitzero"`
+}
+
+// IsDefined returns true if the FileSource is defined.
+func (r *FileSource) IsDefined() bool {
+	return !reflect.DeepEqual(r, &FileSource{})
 }
 
 // SecretFileSource adapts a Secret into a FileSource.
@@ -673,13 +663,13 @@ type SecretFileSource struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// key is the key in the secret's data map for this value.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Key string `json:"key"`
+	Key string `json:"key,omitempty"`
 }
 
 // PasswdSource is a union of all possible external source types for passwd data.
@@ -688,7 +678,12 @@ type SecretFileSource struct {
 type PasswdSource struct {
 	// secret represents a secret that should populate this password.
 	// +required
-	Secret SecretPasswdSource `json:"secret"`
+	Secret SecretPasswdSource `json:"secret,omitempty,omitzero"`
+}
+
+// IsDefined returns true if the PasswdSource is defined.
+func (r *PasswdSource) IsDefined() bool {
+	return !reflect.DeepEqual(r, &PasswdSource{})
 }
 
 // SecretPasswdSource adapts a Secret into a PasswdSource.
@@ -700,13 +695,13 @@ type SecretPasswdSource struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// key is the key in the secret's data map for this value.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Key string `json:"key"`
+	Key string `json:"key,omitempty"`
 }
 
 // User defines the input for a generated user in cloud-init.
@@ -715,7 +710,7 @@ type User struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// gecos specifies the gecos to use for the user
 	// +optional
@@ -753,7 +748,7 @@ type User struct {
 
 	// passwdFrom is a referenced source of passwd to populate the passwd.
 	// +optional
-	PasswdFrom *PasswdSource `json:"passwdFrom,omitempty"`
+	PasswdFrom PasswdSource `json:"passwdFrom,omitempty,omitzero"`
 
 	// primaryGroup specifies the primary group for the user
 	// +optional
@@ -781,6 +776,7 @@ type User struct {
 }
 
 // NTP defines input for generated ntp in cloud-init.
+// +kubebuilder:validation:MinProperties=1
 type NTP struct {
 	// servers specifies which NTP servers to use
 	// +optional
@@ -795,7 +791,13 @@ type NTP struct {
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
+// IsDefined returns true if the NTP is defined.
+func (r *NTP) IsDefined() bool {
+	return !reflect.DeepEqual(r, &NTP{})
+}
+
 // DiskSetup defines input for generated disk_setup and fs_setup in cloud-init.
+// +kubebuilder:validation:MinProperties=1
 type DiskSetup struct {
 	// partitions specifies the list of the partitions to setup.
 	// +optional
@@ -810,22 +812,30 @@ type DiskSetup struct {
 	Filesystems []Filesystem `json:"filesystems,omitempty"`
 }
 
+// IsDefined returns true if the DiskSetup is defined.
+func (r *DiskSetup) IsDefined() bool {
+	return !reflect.DeepEqual(r, &DiskSetup{})
+}
+
 // Partition defines how to create and layout a partition.
 type Partition struct {
 	// device is the name of the device.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Device string `json:"device"`
+	Device string `json:"device,omitempty"`
+
 	// layout specifies the device layout.
 	// If it is true, a single partition will be created for the entire device.
 	// When layout is false, it means don't partition or ignore existing partitioning.
 	// +required
-	Layout bool `json:"layout"`
+	Layout *bool `json:"layout,omitempty"`
+
 	// overwrite describes whether to skip checks and create the partition if a partition or filesystem is found on the device.
 	// Use with caution. Default is 'false'.
 	// +optional
 	Overwrite *bool `json:"overwrite,omitempty"`
+
 	// tableType specifies the tupe of partition table. The following are supported:
 	// 'mbr': default and setups a MS-DOS partition table
 	// 'gpt': setups a GPT partition table
@@ -840,13 +850,13 @@ type Filesystem struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
-	Device string `json:"device"`
+	Device string `json:"device,omitempty"`
 
 	// filesystem specifies the file system type.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=128
-	Filesystem string `json:"filesystem"`
+	Filesystem string `json:"filesystem,omitempty"`
 
 	// label specifies the file system label to be used. If set to None, no label is used.
 	// +optional
@@ -882,6 +892,8 @@ type Filesystem struct {
 }
 
 // MountPoints defines input for generated mounts in cloud-init.
+// +kubebuilder:validation:MinItems=1
+// +kubebuilder:validation:MaxItems=100
 // +kubebuilder:validation:items:MinLength=1
 // +kubebuilder:validation:items:MaxLength=512
 type MountPoints []string

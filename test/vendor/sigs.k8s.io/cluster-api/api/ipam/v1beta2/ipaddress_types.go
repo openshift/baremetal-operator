@@ -24,21 +24,23 @@ import (
 type IPAddressSpec struct {
 	// claimRef is a reference to the claim this IPAddress was created for.
 	// +required
-	ClaimRef IPAddressClaimReference `json:"claimRef"`
+	ClaimRef IPAddressClaimReference `json:"claimRef,omitempty,omitzero"`
 
 	// poolRef is a reference to the pool that this IPAddress was created from.
 	// +required
-	PoolRef IPPoolReference `json:"poolRef"`
+	PoolRef IPPoolReference `json:"poolRef,omitempty,omitzero"`
 
 	// address is the IP address.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=39
-	Address string `json:"address"`
+	Address string `json:"address,omitempty"`
 
 	// prefix is the prefix of the address.
 	// +required
-	Prefix int32 `json:"prefix"`
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=128
+	Prefix *int32 `json:"prefix,omitempty"`
 
 	// gateway is the network gateway of the network the address is from.
 	// +optional
@@ -55,7 +57,7 @@ type IPAddressClaimReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 }
 
 // IPPoolReference is a reference to an IPPool.
@@ -66,7 +68,7 @@ type IPPoolReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// kind of the IPPool.
 	// kind must consist of alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character.
@@ -74,7 +76,7 @@ type IPPoolReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
-	Kind string `json:"kind"`
+	Kind string `json:"kind,omitempty"`
 
 	// apiGroup of the IPPool.
 	// apiGroup must be fully qualified domain name.
@@ -82,7 +84,7 @@ type IPPoolReference struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-	APIGroup string `json:"apiGroup"`
+	APIGroup string `json:"apiGroup,omitempty"`
 }
 
 // +kubebuilder:object:root=true

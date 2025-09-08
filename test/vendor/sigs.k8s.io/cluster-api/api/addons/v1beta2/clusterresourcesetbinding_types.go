@@ -20,9 +20,8 @@ import (
 	"reflect"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
-
-// ANCHOR: ResourceBinding
 
 // ResourceBinding shows the status of a resource that belongs to a ClusterResourceSet matched by the owner cluster of the ClusterResourceSetBinding object.
 type ResourceBinding struct {
@@ -38,14 +37,12 @@ type ResourceBinding struct {
 
 	// lastAppliedTime identifies when this resource was last applied to the cluster.
 	// +optional
-	LastAppliedTime *metav1.Time `json:"lastAppliedTime,omitempty"`
+	LastAppliedTime metav1.Time `json:"lastAppliedTime,omitempty,omitzero"`
 
 	// applied is to track if a resource is applied to the cluster or not.
 	// +required
-	Applied bool `json:"applied"`
+	Applied *bool `json:"applied,omitempty"`
 }
-
-// ANCHOR_END: ResourceBinding
 
 // ResourceSetBinding keeps info on all of the resources in a ClusterResourceSet.
 type ResourceSetBinding struct {
@@ -53,7 +50,7 @@ type ResourceSetBinding struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	ClusterResourceSetName string `json:"clusterResourceSetName"`
+	ClusterResourceSetName string `json:"clusterResourceSetName,omitempty"`
 
 	// resources is a list of resources that the ClusterResourceSet has.
 	// +optional
@@ -65,7 +62,7 @@ type ResourceSetBinding struct {
 // IsApplied returns true if the resource is applied to the cluster by checking the cluster's binding.
 func (r *ResourceSetBinding) IsApplied(resourceRef ResourceRef) bool {
 	resourceBinding := r.GetResource(resourceRef)
-	return resourceBinding != nil && resourceBinding.Applied
+	return resourceBinding != nil && ptr.Deref(resourceBinding.Applied, false)
 }
 
 // GetResource returns a ResourceBinding for a resource ref if present.
@@ -116,8 +113,8 @@ func (c *ClusterResourceSetBinding) RemoveBinding(clusterResourceSet *ClusterRes
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=clusterresourcesetbindings,scope=Namespaced,categories=cluster-api
-// +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".spec.clusterName",description="Cluster"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of ClusterResourceSetBinding"
 
 // ClusterResourceSetBinding lists all matching ClusterResourceSets with the cluster it belongs to.
@@ -132,8 +129,6 @@ type ClusterResourceSetBinding struct {
 	Spec ClusterResourceSetBindingSpec `json:"spec,omitempty,omitzero"`
 }
 
-// ANCHOR: ClusterResourceSetBindingSpec
-
 // ClusterResourceSetBindingSpec defines the desired state of ClusterResourceSetBinding.
 type ClusterResourceSetBindingSpec struct {
 	// bindings is a list of ClusterResourceSets and their resources.
@@ -146,10 +141,8 @@ type ClusterResourceSetBindingSpec struct {
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
-	ClusterName string `json:"clusterName"`
+	ClusterName string `json:"clusterName,omitempty"`
 }
-
-// ANCHOR_END: ClusterResourceSetBindingSpec
 
 // +kubebuilder:object:root=true
 
