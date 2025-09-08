@@ -1444,6 +1444,11 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 		hfsExists := &metal3api.HostFirmwareSettings{}
 		hfsExistsErr := r.Get(info.ctx, info.request.NamespacedName, hfsExists)
 		servicingData.HasFirmwareSettingsSpec = (hfsExistsErr == nil && len(hfsExists.Spec.Settings) > 0)
+		info.log.Info("janders_debug: HFS spec check",
+			"hfsExistsErr", hfsExistsErr,
+			"settingsIsNil", hfsExists.Spec.Settings == nil,
+			"settingsLen", len(hfsExists.Spec.Settings),
+			"hasSettingsSpec", servicingData.HasFirmwareSettingsSpec)
 
 		// Set trigger state in host status when servicing starts, or read existing state
 		if hfsDirty && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing {
@@ -1474,6 +1479,11 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 		hfcExists := &metal3api.HostFirmwareComponents{}
 		hfcExistsErr := r.Get(info.ctx, info.request.NamespacedName, hfcExists)
 		servicingData.HasFirmwareComponentsSpec = (hfcExistsErr == nil && len(hfcExists.Spec.Updates) > 0)
+		info.log.Info("janders_debug: HFC spec check",
+			"hfcExistsErr", hfcExistsErr,
+			"updatesIsNil", hfcExists.Spec.Updates == nil,
+			"updatesLen", len(hfcExists.Spec.Updates),
+			"hasComponentsSpec", servicingData.HasFirmwareComponentsSpec)
 
 		// Set trigger state in host status when servicing starts, or read existing state
 		if hfcDirty && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing {
