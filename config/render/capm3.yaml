@@ -1229,6 +1229,14 @@ spec:
                 - ID
                 - state
                 type: object
+              servicingTriggeredByComponents:
+                description: ServicingTriggeredByComponents indicates if the current
+                  servicing operation was triggered by firmware component changes
+                type: boolean
+              servicingTriggeredBySettings:
+                description: ServicingTriggeredBySettings indicates if the current
+                  servicing operation was triggered by firmware settings changes
+                type: boolean
               triedCredentials:
                 description: The last credentials we sent to the provisioning backend.
                 properties:
