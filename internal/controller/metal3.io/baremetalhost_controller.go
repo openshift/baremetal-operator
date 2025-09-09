@@ -1510,31 +1510,51 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 		return nil
 	}
 
-	// If we're in a servicing error state and updates were removed from spec,
-	// let the provisioner handle the transition back to active
-	if info.host.Status.ErrorType == metal3api.ServicingError && !hasChanges {
-		info.log.Info("updates removed from spec while in servicing error state, attempting recovery")
-		provResult, _, err := prov.Service(servicingData, false, false)
+	// If we're in a servicing error state, use direct API reads to make abort decision
+	if info.host.Status.ErrorType == metal3api.ServicingError {
+		// For abort operations, use direct API reads to bypass potential cache staleness
+		hasSettingsSpecDirect, hasComponentsSpecDirect, err := r.getSpecStatusDirect(info)
 		if err != nil {
-			return actionError{fmt.Errorf("failed to recover from servicing error: %w", err)}
+			info.log.Error(err, "failed to get direct spec status for abort decision")
+			return actionError{fmt.Errorf("failed to get direct spec status for abort decision: %w", err)}
 		}
-		if provResult.ErrorMessage != "" {
-			info.log.Info("failed to recover from servicing error", "error", provResult.ErrorMessage)
-			return actionError{fmt.Errorf("failed to recover from servicing error: %s", provResult.ErrorMessage)}
+
+		// Check if we should abort based on direct reads and trigger logic
+		shouldAbort := r.shouldAbortBasedOnTriggers(servicingData, hasSettingsSpecDirect, hasComponentsSpecDirect)
+
+		info.log.Info("janders_debug: abort decision with direct reads",
+			"cachedHasSettingsSpec", servicingData.HasFirmwareSettingsSpec,
+			"cachedHasComponentsSpec", servicingData.HasFirmwareComponentsSpec,
+			"directHasSettingsSpec", hasSettingsSpecDirect,
+			"directHasComponentsSpec", hasComponentsSpecDirect,
+			"cachedHasChanges", hasChanges,
+			"shouldAbort", shouldAbort)
+
+		// If direct reads indicate we should abort
+		if shouldAbort {
+			info.log.Info("updates removed from spec while in servicing error state, attempting recovery")
+			provResult, _, err := prov.Service(servicingData, false, false)
+			if err != nil {
+				return actionError{fmt.Errorf("failed to recover from servicing error: %w", err)}
+			}
+			if provResult.ErrorMessage != "" {
+				info.log.Info("failed to recover from servicing error", "error", provResult.ErrorMessage)
+				return actionError{fmt.Errorf("failed to recover from servicing error: %s", provResult.ErrorMessage)}
+			}
+			if provResult.Dirty {
+				info.log.Info("abort operation in progress, checking back later")
+				return actionContinue{provResult.RequeueAfter}
+			}
+			// If abort completed and no error, we've successfully recovered
+			info.log.Info("successfully recovered from servicing error")
+			info.host.Status.ErrorType = ""
+			info.host.Status.ErrorMessage = ""
+			info.host.Status.OperationalStatus = metal3api.OperationalStatusOK
+			// Clear servicing trigger flags now that servicing abort is complete
+			info.host.Status.ServicingTriggeredBySettings = false
+			info.host.Status.ServicingTriggeredByComponents = false
+			return actionComplete{}
 		}
-		if provResult.Dirty {
-			info.log.Info("abort operation in progress, checking back later")
-			return actionContinue{provResult.RequeueAfter}
-		}
-		// If abort completed and no error, we've successfully recovered
-		info.log.Info("successfully recovered from servicing error")
-		info.host.Status.ErrorType = ""
-		info.host.Status.ErrorMessage = ""
-		info.host.Status.OperationalStatus = metal3api.OperationalStatusOK
-		// Clear servicing trigger flags now that servicing abort is complete
-		info.host.Status.ServicingTriggeredBySettings = false
-		info.host.Status.ServicingTriggeredByComponents = false
-		return actionComplete{}
 	}
 
 	// FIXME(janders/dtantsur): this implementation may lead to a scenario where if we never actually
@@ -2375,6 +2395,59 @@ func (r *BareMetalHostReconciler) updateEventHandler(e event.UpdateEvent) bool {
 	}
 
 	return true
+}
+
+// getSpecStatusDirect performs direct API reads (bypassing cache) to get the current
+// spec status for HFS and HFC objects. This is used for abort decisions to avoid
+// stale cache issues.
+func (r *BareMetalHostReconciler) getSpecStatusDirect(info *reconcileInfo) (bool, bool, error) {
+	// Use a direct client that bypasses cache for critical abort decisions
+	directClient := r.Client
+
+	// Check HFS spec directly
+	hfsExists := &metal3api.HostFirmwareSettings{}
+	hfsExistsErr := directClient.Get(info.ctx, info.request.NamespacedName, hfsExists)
+	hasSettingsSpec := (hfsExistsErr == nil && len(hfsExists.Spec.Settings) > 0)
+
+	info.log.Info("janders_debug: direct HFS read",
+		"hfsExistsErr", hfsExistsErr,
+		"settingsIsNil", hfsExists.Spec.Settings == nil,
+		"settingsLen", len(hfsExists.Spec.Settings),
+		"hasSettingsSpec", hasSettingsSpec)
+
+	// Check HFC spec directly
+	hfcExists := &metal3api.HostFirmwareComponents{}
+	hfcExistsErr := directClient.Get(info.ctx, info.request.NamespacedName, hfcExists)
+	hasComponentsSpec := (hfcExistsErr == nil && len(hfcExists.Spec.Updates) > 0)
+
+	info.log.Info("janders_debug: direct HFC read",
+		"hfcExistsErr", hfcExistsErr,
+		"updatesIsNil", hfcExists.Spec.Updates == nil,
+		"updatesLen", len(hfcExists.Spec.Updates),
+		"hasComponentsSpec", hasComponentsSpec)
+
+	return hasSettingsSpec, hasComponentsSpec, nil
+}
+
+// shouldAbortBasedOnTriggers determines if servicing should be aborted based on
+// which components originally triggered servicing and which specs are currently present.
+func (r *BareMetalHostReconciler) shouldAbortBasedOnTriggers(servicingData provisioner.ServicingData, hasSettingsSpec, hasComponentsSpec bool) bool {
+	// This implements the same logic as the provisioner's shouldAbortServicing but uses
+	// direct API reads instead of potentially stale cached data
+
+	if servicingData.ServicingTriggeredBySettings && servicingData.ServicingTriggeredByComponents {
+		// Both triggered - must clear both to abort
+		return !hasSettingsSpec && !hasComponentsSpec
+	} else if servicingData.ServicingTriggeredBySettings {
+		// Only settings triggered - must clear settings to abort
+		return !hasSettingsSpec
+	} else if servicingData.ServicingTriggeredByComponents {
+		// Only components triggered - must clear components to abort
+		return !hasComponentsSpec
+	}
+
+	// Neither triggered (shouldn't happen during servicing) - don't abort
+	return false
 }
 
 // SetupWithManager registers the reconciler to be run by the manager.
