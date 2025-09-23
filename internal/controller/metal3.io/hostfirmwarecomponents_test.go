@@ -72,6 +72,21 @@ func getCurrentComponents(updatedComponents string) []metal3api.FirmwareComponen
 				LastVersionFlashed: "1.1.10",
 			},
 		}
+	case "none":
+		// For testing spec removed scenario - components remain as they were
+		components = []metal3api.FirmwareComponentStatus{
+			{
+				Component:          "bmc",
+				InitialVersion:     "1.0.0",
+				CurrentVersion:     "1.1.0",
+				LastVersionFlashed: "1.1.0",
+			},
+			{
+				Component:      "bios",
+				InitialVersion: "1.0.1",
+				CurrentVersion: "1.0.1",
+			},
+		}
 	default:
 		components = []metal3api.FirmwareComponentStatus{
 			{
@@ -284,6 +299,73 @@ func TestStoreHostFirmwareComponents(t *testing.T) {
 					Conditions: []metav1.Condition{
 						{Type: "ChangeDetected", Status: "True", Reason: "OK"},
 						{Type: "Valid", Status: "True", Reason: "OK"},
+					},
+				},
+			},
+		},
+		{
+			Scenario:          "spec removed after previous updates",
+			UpdatedComponents: "none",
+			CurrentHFCResource: &metal3api.HostFirmwareComponents{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "HostFirmwareComponents",
+					APIVersion: "metal3.io/v1alpha1"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "hostName",
+					Namespace:       "hostNamespace",
+					ResourceVersion: "1"},
+				Spec: metal3api.HostFirmwareComponentsSpec{
+					Updates: []metal3api.FirmwareUpdate{}, // Empty spec (user removed updates)
+				},
+				Status: metal3api.HostFirmwareComponentsStatus{
+					Updates: []metal3api.FirmwareUpdate{ // Status still has previous updates
+						{
+							Component: "bmc",
+							URL:       "https://myurl/oldbmcfirmware",
+						},
+					},
+					Components: []metal3api.FirmwareComponentStatus{
+						{
+							Component:          "bmc",
+							InitialVersion:     "1.0.0",
+							CurrentVersion:     "1.1.0",
+							LastVersionFlashed: "1.1.0",
+						},
+						{
+							Component:      "bios",
+							InitialVersion: "1.0.1",
+							CurrentVersion: "1.0.1",
+						},
+					},
+				},
+			},
+			ExpectedComponents: &metal3api.HostFirmwareComponents{
+				Spec: metal3api.HostFirmwareComponentsSpec{
+					Updates: []metal3api.FirmwareUpdate{}, // Empty spec remains empty
+				},
+				Status: metal3api.HostFirmwareComponentsStatus{
+					Updates: []metal3api.FirmwareUpdate{ // Status keeps existing updates
+						{
+							Component: "bmc",
+							URL:       "https://myurl/oldbmcfirmware",
+						},
+					},
+					Components: []metal3api.FirmwareComponentStatus{
+						{
+							Component:          "bmc",
+							InitialVersion:     "1.0.0",
+							CurrentVersion:     "1.1.0",
+							LastVersionFlashed: "1.1.0",
+						},
+						{
+							Component:      "bios",
+							InitialVersion: "1.0.1",
+							CurrentVersion: "1.0.1",
+						},
+					},
+					Conditions: []metav1.Condition{
+						{Type: "Valid", Status: "True", Reason: "OK"},
+						{Type: "ChangeDetected", Status: "False", Reason: "OK"}, // Should be False since no spec
 					},
 				},
 			},
