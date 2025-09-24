@@ -165,26 +165,26 @@ func TestService(t *testing.T) {
 			expectedDirty:        true, // Abort returns Dirty: true
 		},
 		{
-			name: "servicing_abort_no_changes_detected",
+			name: "servicing_continue_on_completion",
 			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
 				ProvisionState: string(nodes.Servicing),
 				UUID:           nodeUUID,
 			}),
-			skipConfig:           true, // No firmware specs = ChangeDetected false for both
-			expectedStarted:      true, // Abort triggers state change
-			expectedRequestAfter: 10,   // Abort returns RequeueAfter: 10s
-			expectedDirty:        true, // Abort returns Dirty: true
+			skipConfig:           true,  // No firmware specs = ChangeDetected false for both
+			expectedStarted:      false, // No abort - continues servicing
+			expectedRequestAfter: 10,    // Continues with normal requeue delay
+			expectedDirty:        true,  // Operation continues
 		},
 		{
-			name: "serviceWait_abort_no_changes_detected",
+			name: "serviceWait_continue_on_completion",
 			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
 				ProvisionState: string(nodes.ServiceWait),
 				UUID:           nodeUUID,
 			}),
-			skipConfig:           true, // No firmware specs = ChangeDetected false for both
-			expectedStarted:      true, // Abort triggers state change
-			expectedRequestAfter: 10,   // Abort returns RequeueAfter: 10s
-			expectedDirty:        true, // Abort returns Dirty: true
+			skipConfig:           true,  // No firmware specs = ChangeDetected false for both
+			expectedStarted:      false, // No abort - continues servicing
+			expectedRequestAfter: 10,    // Continues with normal requeue delay
+			expectedDirty:        true,  // Operation continues
 		},
 		// Service abort tests - No firmware changes detected (both HFS and HFC ChangeDetected=false)
 		{
@@ -199,26 +199,26 @@ func TestService(t *testing.T) {
 			expectedDirty:        true, // Abort returns Dirty: true
 		},
 		{
-			name: "servicing_abort_no_changes_spec_matches_status",
+			name: "servicing_continue_when_spec_matches_status",
 			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
 				ProvisionState: string(nodes.Servicing),
 				UUID:           nodeUUID,
 			}),
-			matchingSpecStatus:   true, // ChangeDetected=false for both HFS and HFC
-			expectedStarted:      true, // Abort triggers state change
-			expectedRequestAfter: 10,   // Abort returns RequeueAfter: 10s
-			expectedDirty:        true, // Abort returns Dirty: true
+			matchingSpecStatus:   true,  // ChangeDetected=false for both HFS and HFC
+			expectedStarted:      false, // No abort - continues servicing
+			expectedRequestAfter: 10,    // Continues with normal requeue delay
+			expectedDirty:        true,  // Operation continues
 		},
 		{
-			name: "serviceWait_abort_no_changes_spec_matches_status",
+			name: "serviceWait_continue_when_spec_matches_status",
 			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
 				ProvisionState: string(nodes.ServiceWait),
 				UUID:           nodeUUID,
 			}),
-			matchingSpecStatus:   true, // ChangeDetected=false for both HFS and HFC
-			expectedStarted:      true, // Abort triggers state change
-			expectedRequestAfter: 10,   // Abort returns RequeueAfter: 10s
-			expectedDirty:        true, // Abort returns Dirty: true
+			matchingSpecStatus:   true,  // ChangeDetected=false for both HFS and HFC
+			expectedStarted:      false, // No abort - continues servicing
+			expectedRequestAfter: 10,    // Continues with normal requeue delay
+			expectedDirty:        true,  // Operation continues
 		},
 		// Mixed scenarios - when only one spec matches status (should NOT abort)
 		{

@@ -155,10 +155,8 @@ func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, 
 		p.log.Info("servicing finished on the host")
 		result, err = operationComplete()
 	case nodes.Servicing, nodes.ServiceWait:
-		// Check for abort conditions
-		if p.shouldAbortServicing(data) {
-			return p.abortServicing(ironicNode)
-		}
+		// NOTE/FIXME(janders/Claude) No abort check during active servicing - let operation complete naturally
+		// The race condition where ChangeDetected=false during completion is avoided
 
 		p.log.Info("waiting for host to become active",
 			"state", ironicNode.ProvisionState,
@@ -174,6 +172,8 @@ func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, 
 // shouldAbortServicing determines if servicing should be aborted based on ChangeDetected condition.
 // Abort condition: No changes detected for both HFS and HFC (ChangeDetected=false for both)
 // This covers both spec deletion (no spec = no changes) and accept current state (spec matches status)
+// NOTE/FIXME(janders): This is only called from ServiceFail state - Servicing/ServiceWait do not abort
+// to avoid a race condition where ChangeDetected switching from true to false triggers service abort
 func (p *ironicProvisioner) shouldAbortServicing(data provisioner.ServicingData) bool {
 	// Abort if no changes detected for both firmware types
 	if !data.FirmwareSettingsChangeDetected && !data.FirmwareComponentsChangeDetected {
