@@ -1464,6 +1464,31 @@ func (p *ironicProvisioner) Deprovision(restartOnFailure bool) (result provision
 			nodes.ProvisionStateOpts{Target: nodes.TargetDeleted},
 		)
 
+	case nodes.ServiceFail:
+		p.log.Info("deprovisioning node in service failed state", "lastError", ironicNode.LastError)
+		// Clear maintenance flag first if it's set, similar to CleanFail handling
+		if ironicNode.Maintenance {
+			p.log.Info("clearing maintenance flag before proceeding with deprovisioning", "maintenanceReason", ironicNode.MaintenanceReason)
+			return p.setMaintenanceFlag(ironicNode, false, "")
+		}
+		// Abort servicing and proceed with deprovisioning
+		p.log.Info("aborting failed servicing operation and starting deprovisioning")
+		p.publisher("DeprovisioningStarted", "Aborting failed servicing and starting deprovisioning")
+		return p.changeNodeProvisionState(
+			ironicNode,
+			nodes.ProvisionStateOpts{Target: nodes.TargetAbort},
+		)
+
+	case nodes.Servicing, nodes.ServiceWait:
+		p.log.Info("deprovisioning node during servicing operation", "serviceStep", ironicNode.ServiceStep)
+		// Abort the in-progress servicing operation first
+		p.log.Info("aborting in-progress servicing operation for deprovisioning")
+		p.publisher("DeprovisioningStarted", "Aborting servicing for deprovisioning")
+		return p.changeNodeProvisionState(
+			ironicNode,
+			nodes.ProvisionStateOpts{Target: nodes.TargetAbort},
+		)
+
 	default:
 		// FIXME(zaneb): this error is unlikely to actually be transient
 		return transientError(fmt.Errorf("unhandled ironic state %s", ironicNode.ProvisionState))
