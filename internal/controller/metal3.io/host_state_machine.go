@@ -367,7 +367,7 @@ func (hsm *hostStateMachine) ensureRegistered(info *reconcileInfo) (result actio
 		// registration in that state. In later versions, where the controller
 		// is available and we need images, inspection will not be disabled.
 		if _, hasInfraEnv := hsm.Host.Labels["infraenvs.agent-install.openshift.io"]; hsm.NextState == metal3api.StateInspecting || hasInfraEnv {
-			if inspectionDisabled(hsm.Host) {
+			if hsm.Host.InspectionDisabled() {
 				// No need to register if we are not actually going to inspect
 				return
 			}
