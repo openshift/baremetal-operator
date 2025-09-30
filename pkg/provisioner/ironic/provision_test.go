@@ -317,6 +317,34 @@ func TestDeprovision(t *testing.T) {
 			expectedDirty:        true,
 		},
 		{
+			name: "service fail state",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.ServiceFail),
+				UUID:           nodeUUID,
+				LastError:      "Service step failed",
+			}),
+			expectedRequestAfter: 10,
+			expectedDirty:        true,
+		},
+		{
+			name: "servicing state",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.Servicing),
+				UUID:           nodeUUID,
+			}),
+			expectedRequestAfter: 10,
+			expectedDirty:        true,
+		},
+		{
+			name: "service wait state",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.ServiceWait),
+				UUID:           nodeUUID,
+			}),
+			expectedRequestAfter: 10,
+			expectedDirty:        true,
+		},
+		{
 			name: "clean fail state",
 			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
 				ProvisionState: string(nodes.CleanFail),
