@@ -1484,9 +1484,20 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 
 	hasChanges := fwDirty || hfsDirty || hfcDirty
 
+	// Check if there are any firmware changes pending according to HFS/HFC controllers
+	// This prevents servicing retries when both ChangeDetected conditions are False
+	firmwareChangesPending := servicingData.FirmwareSettingsChangeDetected || servicingData.FirmwareComponentsChangeDetected
+
 	// Even if settings are clean, we need to check the result of the current servicing.
 	if !hasChanges && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing && info.host.Status.ErrorType != metal3api.ServicingError {
 		// If nothing is going on, return control to the power management.
+		return nil
+	}
+
+	// Don't start or retry servicing if no firmware changes are detected by HFS/HFC controllers
+	// This prevents race conditions where servicing continues after changes have been applied
+	if !firmwareChangesPending && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing && info.host.Status.ErrorType != metal3api.ServicingError {
+		info.log.Info("skipping servicing - no firmware changes pending according to HFS/HFC controllers")
 		return nil
 	}
 
