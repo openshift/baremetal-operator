@@ -33,7 +33,7 @@ echo "BMO_E2E_EMULATOR=${BMO_E2E_EMULATOR}"
 export E2E_CONF_FILE="${REPO_ROOT}/test/e2e/config/ironic.yaml"
 export E2E_BMCS_CONF_FILE="${REPO_ROOT}/test/e2e/config/bmcs-${BMC_PROTOCOL}.yaml"
 
-case "${GINKGO_FOCUS:-}" in
+ case "${GINKGO_FOCUS,,}" in
   *upgrade*)
     export DEPLOY_IRONIC="false"
     export DEPLOY_BMO="false"
@@ -156,9 +156,9 @@ popd
 # Generate credentials
 BMO_OVERLAYS=(
   "${REPO_ROOT}/config/overlays/e2e"
-  "${REPO_ROOT}/config/overlays/e2e-release-0.8"
   "${REPO_ROOT}/config/overlays/e2e-release-0.9"
   "${REPO_ROOT}/config/overlays/e2e-release-0.10"
+  "${REPO_ROOT}/config/overlays/e2e-release-0.11"
 )
 IRONIC_OVERLAYS=(
   "${REPO_ROOT}/ironic-deployment/overlays/e2e"
@@ -166,6 +166,8 @@ IRONIC_OVERLAYS=(
   "${REPO_ROOT}/ironic-deployment/overlays/e2e-release-27.0"
   "${REPO_ROOT}/ironic-deployment/overlays/e2e-release-28.0"
   "${REPO_ROOT}/ironic-deployment/overlays/e2e-release-29.0"
+  "${REPO_ROOT}/ironic-deployment/overlays/e2e-release-30.0"
+  "${REPO_ROOT}/ironic-deployment/overlays/e2e-release-31.0"
 )
 
 IRONIC_USERNAME="$(uuidgen)"

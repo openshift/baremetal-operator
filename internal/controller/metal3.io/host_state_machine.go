@@ -367,7 +367,7 @@ func (hsm *hostStateMachine) ensureRegistered(info *reconcileInfo) (result actio
 		// registration in that state. In later versions, where the controller
 		// is available and we need images, inspection will not be disabled.
 		if _, hasInfraEnv := hsm.Host.Labels["infraenvs.agent-install.openshift.io"]; hsm.NextState == metal3api.StateInspecting || hasInfraEnv {
-			if inspectionDisabled(hsm.Host) {
+			if hsm.Host.InspectionDisabled() {
 				// No need to register if we are not actually going to inspect
 				return
 			}
@@ -423,7 +423,7 @@ func (hsm *hostStateMachine) handleRegistering(_ *reconcileInfo) actionResult {
 	// if the credentials change and the Host must be re-registered.
 	if hsm.Host.Spec.ExternallyProvisioned {
 		hsm.NextState = metal3api.StateExternallyProvisioned
-	} else if inspectionDisabled(hsm.Host) {
+	} else if hsm.Host.InspectionDisabled() {
 		hsm.NextState = metal3api.StatePreparing
 	} else {
 		hsm.NextState = metal3api.StateInspecting
@@ -454,8 +454,7 @@ func (hsm *hostStateMachine) handleExternallyProvisioned(info *reconcileInfo) ac
 		return hsm.Reconciler.actionManageSteadyState(hsm.Provisioner, info)
 	}
 
-	// TODO(dtantsur): move this logic inside NeedsHardwareInspection?
-	if hsm.Host.NeedsHardwareInspection() && !inspectionDisabled(hsm.Host) {
+	if hsm.Host.NeedsHardwareInspection() {
 		hsm.NextState = metal3api.StateInspecting
 	} else {
 		hsm.NextState = metal3api.StatePreparing
@@ -479,7 +478,7 @@ func (hsm *hostStateMachine) handleAvailable(info *reconcileInfo) actionResult {
 		return actionComplete{}
 	}
 
-	if hasInspectAnnotation(hsm.Host) {
+	if inspectionRefreshRequested(hsm.Host) {
 		hsm.NextState = metal3api.StateInspecting
 		return actionComplete{}
 	}

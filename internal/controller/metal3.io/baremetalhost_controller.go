@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"strings"
 	"time"
 
@@ -269,7 +270,7 @@ func (r *BareMetalHostReconciler) Reconcile(ctx context.Context, request ctrl.Re
 // inspect.metal3.io=disabled or there are no existing HardwareDetails.
 func (r *BareMetalHostReconciler) updateHardwareDetails(ctx context.Context, request ctrl.Request, host *metal3api.BareMetalHost) (bool, error) {
 	updated := false
-	if host.Status.HardwareDetails == nil || inspectionDisabled(host) {
+	if host.Status.HardwareDetails == nil || host.InspectionDisabled() {
 		objHardwareDetails, err := r.getHardwareDetailsFromAnnotation(host)
 		if err != nil {
 			return updated, fmt.Errorf("error parsing HardwareDetails from annotation: %w", err)
@@ -446,16 +447,9 @@ func clearRebootAnnotations(host *metal3api.BareMetalHost) (dirty bool) {
 	return
 }
 
-// inspectionDisabled checks for existence of inspect.metal3.io=disabled
-// which means we don't inspect even in Inspecting state.
-func inspectionDisabled(host *metal3api.BareMetalHost) bool {
-	annotations := host.GetAnnotations()
-	return annotations[metal3api.InspectAnnotationPrefix] == metal3api.InspectAnnotationValueDisabled
-}
-
-// hasInspectAnnotation checks for existence of inspect.metal3.io annotation
-// and returns true if it exist.
-func hasInspectAnnotation(host *metal3api.BareMetalHost) bool {
+// inspectionRefreshRequested checks for existence of inspect.metal3.io
+// annotation and returns true if it exist.
+func inspectionRefreshRequested(host *metal3api.BareMetalHost) bool {
 	annotations := host.GetAnnotations()
 	if annotations != nil {
 		if expect, ok := annotations[metal3api.InspectAnnotationPrefix]; ok && expect != metal3api.InspectAnnotationValueDisabled {
@@ -694,6 +688,19 @@ func (r *BareMetalHostReconciler) preprovImageAvailable(info *reconcileInfo, ima
 	return false, nil
 }
 
+// getControllerArchitecture returns the CPU architecture of the currently
+// running Go program in a format that mimics the output of "uname -p".
+func getControllerArchitecture() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64"
+	case "arm64":
+		return "aarch64"
+	default:
+		return runtime.GOARCH
+	}
+}
+
 func getHostArchitecture(host *metal3api.BareMetalHost) string {
 	if host.Spec.Architecture != "" {
 		return host.Spec.Architecture
@@ -703,8 +710,8 @@ func getHostArchitecture(host *metal3api.BareMetalHost) string {
 		host.Status.HardwareDetails.CPU.Arch != "" {
 		return host.Status.HardwareDetails.CPU.Arch
 	}
-	// This is probably the case for most hardware, and is useful for compatibility with hardware profiles.
-	return "x86_64"
+
+	return getControllerArchitecture()
 }
 
 func (r *BareMetalHostReconciler) getPreprovImage(info *reconcileInfo, formats []metal3api.ImageFormat) (*provisioner.PreprovisioningImage, error) {
@@ -807,10 +814,14 @@ func (r *BareMetalHostReconciler) registerHost(prov provisioner.Provisioner, inf
 		return actionError{err}
 	}
 	switch info.host.Status.Provisioning.State {
-	case metal3api.StateRegistering, metal3api.StateExternallyProvisioned, metal3api.StateDeleting, metal3api.StatePoweringOffBeforeDelete:
+	case metal3api.StateRegistering, metal3api.StateDeleting, metal3api.StatePoweringOffBeforeDelete:
 		// No need to create PreprovisioningImage if host is not yet registered
-		// or is externally provisioned
 		preprovImgFormats = nil
+	case metal3api.StateProvisioned, metal3api.StateExternallyProvisioned:
+		// Provisioned hosts only need the image for servicing
+		if info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing {
+			preprovImgFormats = nil
+		}
 	case metal3api.StateDeprovisioning:
 		// PreprovisioningImage is not required for deprovisioning when cleaning is disabled
 		if info.host.Spec.AutomatedCleaningMode == metal3api.CleaningModeDisabled {
@@ -844,6 +855,7 @@ func (r *BareMetalHostReconciler) registerHost(prov provisioner.Provisioner, inf
 			BootMode:                   info.host.Status.Provisioning.BootMode,
 			AutomatedCleaningMode:      info.host.Spec.AutomatedCleaningMode,
 			State:                      info.host.Status.Provisioning.State,
+			OperationalStatus:          info.host.Status.OperationalStatus,
 			CurrentImage:               getCurrentImage(info.host),
 			PreprovisioningImage:       preprovImg,
 			PreprovisioningNetworkData: preprovisioningNetworkData,
@@ -977,15 +989,15 @@ func updateRootDeviceHints(host *metal3api.BareMetalHost, info *reconcileInfo) (
 func (r *BareMetalHostReconciler) actionInspecting(prov provisioner.Provisioner, info *reconcileInfo) actionResult {
 	info.log.Info("inspecting hardware")
 
-	if inspectionDisabled(info.host) {
-		info.log.Info("inspection disabled by annotation")
-		info.publishEvent("InspectionSkipped", "disabled by annotation")
+	if info.host.InspectionDisabled() {
+		info.log.Info("inspection disabled by user")
+		info.publishEvent("InspectionSkipped", "disabled by user")
 		return actionComplete{}
 	}
 
 	info.log.Info("inspecting hardware")
 
-	refresh := hasInspectAnnotation(info.host)
+	refresh := inspectionRefreshRequested(info.host)
 	forceReboot, _ := hasRebootAnnotation(info, true)
 
 	provResult, started, details, err := prov.InspectHardware(
@@ -1007,7 +1019,7 @@ func (r *BareMetalHostReconciler) actionInspecting(prov provisioner.Provisioner,
 		dirty := false
 
 		// Delete inspect annotation if exists
-		if hasInspectAnnotation(info.host) {
+		if inspectionRefreshRequested(info.host) {
 			delete(info.host.Annotations, metal3api.InspectAnnotationPrefix)
 			dirty = true
 		}
@@ -1470,6 +1482,8 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 	// going to impact a small subset of Firmware Settings implementations.
 	if info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing {
 		info.host.Status.OperationalStatus = metal3api.OperationalStatusServicing
+		// NOTE(dtantsur): it's very important to yield to the controller and retry before actually calling Ironic:
+		// a PreprovisioningImage may be missing until we get to the registration code.
 		return actionUpdate{}
 	}
 
