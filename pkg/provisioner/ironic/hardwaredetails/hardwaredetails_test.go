@@ -129,6 +129,130 @@ func TestGetVLANsMalformed(t *testing.T) {
 	}
 }
 
+func TestGetLLDPData(t *testing.T) {
+	// Test all fields present
+	lldpData := getLLDPData(map[string]interface{}{
+		"switch_chassis_id":   "aa:bb:cc:dd:ee:ff",
+		"switch_port_id":      "Ethernet1/1",
+		"switch_system_name":  "switch01.example.com",
+	})
+	expected := &metal3api.LLDP{
+		SwitchID:   "aa:bb:cc:dd:ee:ff",
+		PortID:     "Ethernet1/1",
+		SwitchInfo: "switch01.example.com",
+	}
+	if !reflect.DeepEqual(lldpData, expected) {
+		t.Errorf("Expected LLDP data %+v, got %+v", expected, lldpData)
+	}
+
+	// Test only switch_chassis_id
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id": "aa:bb:cc:dd:ee:ff",
+	})
+	expected = &metal3api.LLDP{
+		SwitchID: "aa:bb:cc:dd:ee:ff",
+	}
+	if !reflect.DeepEqual(lldpData, expected) {
+		t.Errorf("Expected LLDP data %+v, got %+v", expected, lldpData)
+	}
+
+	// Test only switch_port_id
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_port_id": "Ethernet1/1",
+	})
+	expected = &metal3api.LLDP{
+		PortID: "Ethernet1/1",
+	}
+	if !reflect.DeepEqual(lldpData, expected) {
+		t.Errorf("Expected LLDP data %+v, got %+v", expected, lldpData)
+	}
+
+	// Test only switch_system_name
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_system_name": "switch01.example.com",
+	})
+	expected = &metal3api.LLDP{
+		SwitchInfo: "switch01.example.com",
+	}
+	if !reflect.DeepEqual(lldpData, expected) {
+		t.Errorf("Expected LLDP data %+v, got %+v", expected, lldpData)
+	}
+
+	// Test partial fields (chassis ID and port ID)
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id": "aa:bb:cc:dd:ee:ff",
+		"switch_port_id":    "Ethernet1/1",
+	})
+	expected = &metal3api.LLDP{
+		SwitchID: "aa:bb:cc:dd:ee:ff",
+		PortID:   "Ethernet1/1",
+	}
+	if !reflect.DeepEqual(lldpData, expected) {
+		t.Errorf("Expected LLDP data %+v, got %+v", expected, lldpData)
+	}
+
+	// Test nil input
+	lldpData = getLLDPData(nil)
+	if lldpData != nil {
+		t.Errorf("Expected nil for nil input, got %+v", lldpData)
+	}
+
+	// Test empty map
+	lldpData = getLLDPData(map[string]interface{}{})
+	if lldpData != nil {
+		t.Errorf("Expected nil for empty map, got %+v", lldpData)
+	}
+
+	// Test empty strings (should return nil)
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id":  "",
+		"switch_port_id":     "",
+		"switch_system_name": "",
+	})
+	if lldpData != nil {
+		t.Errorf("Expected nil for empty strings, got %+v", lldpData)
+	}
+
+	// Test wrong data types (should be ignored)
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id":  123,
+		"switch_port_id":     []string{"port1"},
+		"switch_system_name": map[string]string{"name": "switch"},
+	})
+	if lldpData != nil {
+		t.Errorf("Expected nil for wrong types, got %+v", lldpData)
+	}
+
+	// Test mixed valid and invalid fields
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id":  "aa:bb:cc:dd:ee:ff",
+		"switch_port_id":     123, // wrong type
+		"switch_system_name": "",  // empty string
+	})
+	expected = &metal3api.LLDP{
+		SwitchID: "aa:bb:cc:dd:ee:ff",
+	}
+	if !reflect.DeepEqual(lldpData, expected) {
+		t.Errorf("Expected LLDP data %+v, got %+v", expected, lldpData)
+	}
+
+	// Test with extra unknown fields (should be ignored)
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id":  "aa:bb:cc:dd:ee:ff",
+		"switch_port_id":     "Ethernet1/1",
+		"switch_system_name": "switch01.example.com",
+		"unknown_field":      "should be ignored",
+	})
+	expected = &metal3api.LLDP{
+		SwitchID:   "aa:bb:cc:dd:ee:ff",
+		PortID:     "Ethernet1/1",
+		SwitchInfo: "switch01.example.com",
+	}
+	if !reflect.DeepEqual(lldpData, expected) {
+		t.Errorf("Expected LLDP data %+v, got %+v", expected, lldpData)
+	}
+}
+
 func TestGetNICDetailsInspector(t *testing.T) {
 	ironicData := inventory.StandardPluginData{
 		AllInterfaces: map[string]inventory.ProcessedInterfaceType{
@@ -144,6 +268,9 @@ func TestGetNICDetailsInspector(t *testing.T) {
 					},
 				},
 				"switch_port_untagged_vlan_id": 1,
+				"switch_chassis_id":            "aa:bb:cc:dd:ee:ff",
+				"switch_port_id":               "Ethernet1/1",
+				"switch_system_name":           "switch01.example.com",
 			},
 		},
 	}
@@ -158,6 +285,9 @@ func TestGetNICDetailsInspector(t *testing.T) {
 						},
 					},
 					"switch_port_untagged_vlan_id": 1,
+					"switch_chassis_id":            "aa:bb:cc:dd:ee:ff",
+					"switch_port_id":               "Ethernet1/1",
+					"switch_system_name":           "switch01.example.com",
 				},
 			},
 		},
@@ -213,8 +343,13 @@ func TestGetNICDetailsInspector(t *testing.T) {
 					{ID: 1},
 				},
 				VLANID: 1,
+				LLDP: &metal3api.LLDP{
+					SwitchID:   "aa:bb:cc:dd:ee:ff",
+					PortID:     "Ethernet1/1",
+					SwitchInfo: "switch01.example.com",
+				},
 			})) {
-				t.Errorf("Unexpected NIC data")
+				t.Errorf("Unexpected NIC data: %+v", nics[0])
 			}
 			if (!reflect.DeepEqual(nics[1], metal3api.NIC{
 				Name:      "eth1",

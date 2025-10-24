@@ -658,6 +658,21 @@ type VLAN struct {
 	Name string `json:"name,omitempty"`
 }
 
+// LLDP represents Link Layer Discovery Protocol data for a network interface.
+type LLDP struct {
+	// The switch chassis ID from LLDP
+	// +optional
+	SwitchID string `json:"switchId,omitempty"`
+
+	// The switch port ID from LLDP
+	// +optional
+	PortID string `json:"portId,omitempty"`
+
+	// The switch system name from LLDP
+	// +optional
+	SwitchInfo string `json:"switchInfo,omitempty"`
+}
+
 // NIC describes one network interface on the host.
 type NIC struct {
 	// The name of the network interface, e.g. "en0"
@@ -687,6 +702,10 @@ type NIC struct {
 
 	// Whether the NIC is PXE Bootable
 	PXE bool `json:"pxe,omitempty"`
+
+	// LLDP data for this interface
+	// +optional
+	LLDP *LLDP `json:"lldp,omitempty"`
 }
 
 // Firmware describes the firmware on the host.
