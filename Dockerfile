@@ -1,5 +1,5 @@
 # Support FROM override
-ARG BUILD_IMAGE=docker.io/golang:1.24.7@sha256:5e9d14d681c3224276f0c8e318525ef6fc96b47fbcbb89f8bec0e402e18ea8bf
+ARG BUILD_IMAGE=docker.io/golang:1.24.9@sha256:02ce1d7ea7825dccb7cd10222e44e7c0565a08c5a38795e50fbf43936484507b
 ARG BASE_IMAGE=gcr.io/distroless/static:nonroot@sha256:9ecc53c269509f63c69a266168e4a687c7eb8c0cfd753bd8bfcaa4f58a90876f
 
 # Build the manager binary
@@ -14,9 +14,10 @@ COPY apis/go.mod apis/go.sum apis/
 COPY hack/tools/go.mod hack/tools/go.sum hack/tools/
 COPY pkg/hardwareutils/go.mod pkg/hardwareutils/go.sum pkg/hardwareutils/
 RUN go mod download
+ARG LDFLAGS=-s -w -extldflags=-static
 
 COPY . .
-RUN CGO_ENABLED=0 GO111MODULE=on go build -a -o baremetal-operator main.go
+RUN CGO_ENABLED=0 GO111MODULE=on go build -a -ldflags "${LDFLAGS}" -o baremetal-operator main.go
 
 # Copy the controller-manager into a thin image
 # BMO has a dependency preventing us to use the static one,

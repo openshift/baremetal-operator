@@ -15,6 +15,10 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+const (
+	defaultInspectInterface = "agent"
+)
+
 func bmcAddressMatches(ironicNode *nodes.Node, driverInfo map[string]interface{}) bool {
 	newAddress := make(map[string]interface{})
 	ironicAddress := make(map[string]interface{})
@@ -234,19 +238,15 @@ func (p *ironicProvisioner) Register(data provisioner.ManagementAccessData, cred
 }
 
 func (p *ironicProvisioner) enrollNode(data provisioner.ManagementAccessData, bmcAccess bmc.AccessDetails, driverInfo map[string]interface{}) (ironicNode *nodes.Node, retry bool, err error) {
-	inspectInterface, err := p.getInspectInterface(bmcAccess)
-	if err != nil {
-		return nil, true, err
-	}
-
 	nodeCreateOpts := nodes.CreateOpts{
 		Driver:              bmcAccess.Driver(),
 		BIOSInterface:       bmcAccess.BIOSInterface(),
 		BootInterface:       bmcAccess.BootInterface(),
 		Name:                ironicNodeName(p.objectMeta),
 		DriverInfo:          driverInfo,
+		FirmwareInterface:   bmcAccess.FirmwareInterface(),
 		DeployInterface:     p.deployInterface(data),
-		InspectInterface:    inspectInterface,
+		InspectInterface:    defaultInspectInterface,
 		ManagementInterface: bmcAccess.ManagementInterface(),
 		PowerInterface:      bmcAccess.PowerInterface(),
 		RAIDInterface:       bmcAccess.RAIDInterface(),
@@ -256,10 +256,6 @@ func (p *ironicProvisioner) enrollNode(data provisioner.ManagementAccessData, bm
 			"capabilities": buildCapabilitiesValue(nil, data.BootMode),
 			"cpu_arch":     data.CPUArchitecture,
 		},
-	}
-
-	if p.availableFeatures.HasFirmwareUpdates() {
-		nodeCreateOpts.FirmwareInterface = bmcAccess.FirmwareInterface()
 	}
 
 	ironicNode, err = nodes.Create(p.ctx, p.client, nodeCreateOpts).Extract()

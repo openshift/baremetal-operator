@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/gophercloud/gophercloud/v2/openstack/baremetal/inventory"
-	"github.com/gophercloud/gophercloud/v2/openstack/baremetalintrospection/v1/introspection"
 	metal3api "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,18 +23,10 @@ func TestGetVLANs(t *testing.T) {
 		},
 		"switch_port_untagged_vlan_id": 1,
 	})
-	if vid != 1 {
-		t.Errorf("Unexpected untagged VLAN ID %d", vid)
-	}
-	if len(vlans) != 2 {
-		t.Errorf("Expected 2 VLANs, got %d", len(vlans))
-	}
-	if (vlans[0] != metal3api.VLAN{ID: 1, Name: "vlan1"}) {
-		t.Errorf("Unexpected VLAN %d %s", vlans[0].ID, vlans[0].Name)
-	}
-	if (vlans[1] != metal3api.VLAN{ID: 4094, Name: "vlan4094"}) {
-		t.Errorf("Unexpected VLAN %d %s", vlans[1].ID, vlans[1].Name)
-	}
+	assert.Equal(t, metal3api.VLANID(1), vid, "Unexpected untagged VLAN ID")
+	assert.Len(t, vlans, 2)
+	assert.Equal(t, metal3api.VLAN{ID: 1, Name: "vlan1"}, vlans[0])
+	assert.Equal(t, metal3api.VLAN{ID: 4094, Name: "vlan4094"}, vlans[1])
 }
 
 func TestGetVLANsMalformed(t *testing.T) {
@@ -63,27 +54,13 @@ func TestGetVLANsMalformed(t *testing.T) {
 		},
 		"switch_port_untagged_vlan_id": "1",
 	})
-	if vid != 0 {
-		t.Errorf("Unexpected untagged VLAN ID %d", vid)
-	}
-	if len(vlans) != 5 {
-		t.Errorf("Expected 5 VLANs, got %d", len(vlans))
-	}
-	if (vlans[0] != metal3api.VLAN{Name: "vlan1"}) {
-		t.Errorf("Unexpected VLAN %d %s", vlans[0].ID, vlans[0].Name)
-	}
-	if (vlans[1] != metal3api.VLAN{ID: 1}) {
-		t.Errorf("Unexpected VLAN %d %s", vlans[0].ID, vlans[0].Name)
-	}
-	if (vlans[2] != metal3api.VLAN{Name: "vlan2"}) {
-		t.Errorf("Unexpected VLAN %d %s", vlans[0].ID, vlans[0].Name)
-	}
-	if (vlans[3] != metal3api.VLAN{ID: 3}) {
-		t.Errorf("Unexpected VLAN %d %s", vlans[0].ID, vlans[0].Name)
-	}
-	if (vlans[4] != metal3api.VLAN{}) {
-		t.Errorf("Unexpected VLAN %d %s", vlans[0].ID, vlans[0].Name)
-	}
+	assert.Equal(t, metal3api.VLANID(0), vid, "Unexpected untagged VLAN ID")
+	assert.Len(t, vlans, 5)
+	assert.Equal(t, metal3api.VLAN{Name: "vlan1"}, vlans[0])
+	assert.Equal(t, metal3api.VLAN{ID: 1}, vlans[1])
+	assert.Equal(t, metal3api.VLAN{Name: "vlan2"}, vlans[2])
+	assert.Equal(t, metal3api.VLAN{ID: 3}, vlans[3])
+	assert.Equal(t, metal3api.VLAN{}, vlans[4])
 
 	vlans, vid = getVLANs(map[string]interface{}{
 		"switch_port_vlans": map[string]interface{}{
@@ -91,45 +68,131 @@ func TestGetVLANsMalformed(t *testing.T) {
 		},
 		"switch_port_untagged_vlan_id": "1",
 	})
-	if vid != 0 {
-		t.Errorf("Unexpected untagged VLAN ID %d", vid)
-	}
-	if len(vlans) != 0 {
-		t.Errorf("Expected 0 VLANs, got %d", len(vlans))
-	}
+	assert.Equal(t, metal3api.VLANID(0), vid, "Unexpected untagged VLAN ID")
+	assert.Empty(t, vlans)
 
 	vlans, vid = getVLANs(map[string]interface{}{
 		"switch_port_vlans": []interface{}{
 			"foo",
 		},
 	})
-	if vid != 0 {
-		t.Errorf("Unexpected untagged VLAN ID %d", vid)
-	}
-	if len(vlans) != 0 {
-		t.Errorf("Expected 0 VLANs, got %d", len(vlans))
-	}
+	assert.Equal(t, metal3api.VLANID(0), vid, "Unexpected untagged VLAN ID")
+	assert.Empty(t, vlans)
 
 	vlans, vid = getVLANs(map[string]interface{}{
 		"switch_port_vlans": "foo",
 	})
-	if vid != 0 {
-		t.Errorf("Unexpected untagged VLAN ID %d", vid)
-	}
-	if len(vlans) != 0 {
-		t.Errorf("Expected 0 VLANs, got %d", len(vlans))
-	}
+	assert.Equal(t, metal3api.VLANID(0), vid, "Unexpected untagged VLAN ID")
+	assert.Empty(t, vlans)
 
 	vlans, vid = getVLANs(map[string]interface{}{})
-	if vid != 0 {
-		t.Errorf("Unexpected untagged VLAN ID %d", vid)
-	}
-	if len(vlans) != 0 {
-		t.Errorf("Expected 0 VLANs, got %d", len(vlans))
-	}
+	assert.Equal(t, metal3api.VLANID(0), vid, "Unexpected untagged VLAN ID")
+	assert.Empty(t, vlans)
 }
 
-func TestGetNICDetailsInspector(t *testing.T) {
+func TestGetLLDPData(t *testing.T) {
+	// Test all fields present
+	lldpData := getLLDPData(map[string]interface{}{
+		"switch_chassis_id":  "aa:bb:cc:dd:ee:ff",
+		"switch_port_id":     "Ethernet1/1",
+		"switch_system_name": "switch01.example.com",
+	})
+	expected := &metal3api.LLDP{
+		SwitchID:         "aa:bb:cc:dd:ee:ff",
+		PortID:           "Ethernet1/1",
+		SwitchSystemName: "switch01.example.com",
+	}
+	assert.Equal(t, expected, lldpData)
+
+	// Test only switch_chassis_id
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id": "aa:bb:cc:dd:ee:ff",
+	})
+	expected = &metal3api.LLDP{
+		SwitchID: "aa:bb:cc:dd:ee:ff",
+	}
+	assert.Equal(t, expected, lldpData)
+
+	// Test only switch_port_id
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_port_id": "Ethernet1/1",
+	})
+	expected = &metal3api.LLDP{
+		PortID: "Ethernet1/1",
+	}
+	assert.Equal(t, expected, lldpData)
+
+	// Test only switch_system_name
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_system_name": "switch01.example.com",
+	})
+	expected = &metal3api.LLDP{
+		SwitchSystemName: "switch01.example.com",
+	}
+	assert.Equal(t, expected, lldpData)
+
+	// Test partial fields (chassis ID and port ID)
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id": "aa:bb:cc:dd:ee:ff",
+		"switch_port_id":    "Ethernet1/1",
+	})
+	expected = &metal3api.LLDP{
+		SwitchID: "aa:bb:cc:dd:ee:ff",
+		PortID:   "Ethernet1/1",
+	}
+	assert.Equal(t, expected, lldpData)
+
+	// Test nil input
+	lldpData = getLLDPData(nil)
+	assert.Nil(t, lldpData, "Expected nil for nil input")
+
+	// Test empty map
+	lldpData = getLLDPData(map[string]interface{}{})
+	assert.Nil(t, lldpData, "Expected nil for empty map")
+
+	// Test empty strings (should return nil)
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id":  "",
+		"switch_port_id":     "",
+		"switch_system_name": "",
+	})
+	assert.Nil(t, lldpData, "Expected nil for empty strings")
+
+	// Test wrong data types (should be ignored)
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id":  123,
+		"switch_port_id":     []string{"port1"},
+		"switch_system_name": map[string]string{"name": "switch"},
+	})
+	assert.Nil(t, lldpData, "Expected nil for wrong types")
+
+	// Test mixed valid and invalid fields
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id":  "aa:bb:cc:dd:ee:ff",
+		"switch_port_id":     123, // wrong type
+		"switch_system_name": "",  // empty string
+	})
+	expected = &metal3api.LLDP{
+		SwitchID: "aa:bb:cc:dd:ee:ff",
+	}
+	assert.Equal(t, expected, lldpData)
+
+	// Test with extra unknown fields (should be ignored)
+	lldpData = getLLDPData(map[string]interface{}{
+		"switch_chassis_id":  "aa:bb:cc:dd:ee:ff",
+		"switch_port_id":     "Ethernet1/1",
+		"switch_system_name": "switch01.example.com",
+		"unknown_field":      "should be ignored",
+	})
+	expected = &metal3api.LLDP{
+		SwitchID:         "aa:bb:cc:dd:ee:ff",
+		PortID:           "Ethernet1/1",
+		SwitchSystemName: "switch01.example.com",
+	}
+	assert.Equal(t, expected, lldpData)
+}
+
+func TestGetNICDetails(t *testing.T) {
 	ironicData := inventory.StandardPluginData{
 		AllInterfaces: map[string]inventory.ProcessedInterfaceType{
 			"eth0": {
@@ -144,21 +207,9 @@ func TestGetNICDetailsInspector(t *testing.T) {
 					},
 				},
 				"switch_port_untagged_vlan_id": 1,
-			},
-		},
-	}
-	inspectorData := introspection.Data{
-		AllInterfaces: map[string]introspection.BaseInterfaceType{
-			"eth0": {
-				PXE: true,
-				LLDPProcessed: map[string]interface{}{
-					"switch_port_vlans": []map[string]interface{}{
-						{
-							"id": 1,
-						},
-					},
-					"switch_port_untagged_vlan_id": 1,
-				},
+				"switch_chassis_id":            "aa:bb:cc:dd:ee:ff",
+				"switch_port_id":               "Ethernet1/1",
+				"switch_system_name":           "switch01.example.com",
 			},
 		},
 	}
@@ -182,69 +233,54 @@ func TestGetNICDetailsInspector(t *testing.T) {
 			MACAddress: "00:11:22:33:44:77"},
 	}
 
-	cases := []struct {
-		name          string
-		ironicData    *inventory.StandardPluginData
-		inspectorData *introspection.Data
-	}{
-		{
-			name:          "with-ironic",
-			ironicData:    &ironicData,
-			inspectorData: nil,
-		},
-		{
-			name:          "with-inspector",
-			ironicData:    nil,
-			inspectorData: &inspectorData,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			nics := getNICDetails(interfaces, tc.ironicData, tc.inspectorData)
+	nics := getNICDetails(interfaces, ironicData)
 
-			// 5 expected because eth46 results in two items
-			assert.Len(t, nics, 5)
-			if (!reflect.DeepEqual(nics[0], metal3api.NIC{
-				Name: "eth0",
-				MAC:  "00:11:22:33:44:55",
-				IP:   "192.0.2.1",
-				PXE:  true,
-				VLANs: []metal3api.VLAN{
-					{ID: 1},
-				},
-				VLANID: 1,
-			})) {
-				t.Errorf("Unexpected NIC data")
-			}
-			if (!reflect.DeepEqual(nics[1], metal3api.NIC{
-				Name:      "eth1",
-				MAC:       "66:77:88:99:aa:bb",
-				IP:        "2001:db8::1",
-				SpeedGbps: 1,
-			})) {
-				t.Errorf("Unexpected NIC data")
-			}
-			if (!reflect.DeepEqual(nics[2], metal3api.NIC{
-				Name: "eth46",
-				MAC:  "00:11:22:33:44:66",
-				IP:   "192.0.2.2",
-			})) {
-				t.Errorf("Unexpected NIC data")
-			}
-			if (!reflect.DeepEqual(nics[3], metal3api.NIC{
-				Name: "eth46",
-				MAC:  "00:11:22:33:44:66",
-				IP:   "2001:db8::2",
-			})) {
-				t.Errorf("Unexpected NIC data")
-			}
-			if (!reflect.DeepEqual(nics[4], metal3api.NIC{
-				Name: "ethNoIp",
-				MAC:  "00:11:22:33:44:77",
-			})) {
-				t.Errorf("Unexpected NIC data")
-			}
-		})
+	// 5 expected because eth46 results in two items
+	assert.Len(t, nics, 5)
+	if (!reflect.DeepEqual(nics[0], metal3api.NIC{
+		Name: "eth0",
+		MAC:  "00:11:22:33:44:55",
+		IP:   "192.0.2.1",
+		PXE:  true,
+		VLANs: []metal3api.VLAN{
+			{ID: 1},
+		},
+		VLANID: 1,
+		LLDP: &metal3api.LLDP{
+			SwitchID:         "aa:bb:cc:dd:ee:ff",
+			PortID:           "Ethernet1/1",
+			SwitchSystemName: "switch01.example.com",
+		},
+	})) {
+		t.Errorf("Unexpected NIC data")
+	}
+	if (!reflect.DeepEqual(nics[1], metal3api.NIC{
+		Name:      "eth1",
+		MAC:       "66:77:88:99:aa:bb",
+		IP:        "2001:db8::1",
+		SpeedGbps: 1,
+	})) {
+		t.Errorf("Unexpected NIC data")
+	}
+	if (!reflect.DeepEqual(nics[2], metal3api.NIC{
+		Name: "eth46",
+		MAC:  "00:11:22:33:44:66",
+		IP:   "192.0.2.2",
+	})) {
+		t.Errorf("Unexpected NIC data")
+	}
+	if (!reflect.DeepEqual(nics[3], metal3api.NIC{
+		Name: "eth46",
+		MAC:  "00:11:22:33:44:66",
+		IP:   "2001:db8::2",
+	})) {
+		t.Errorf("Unexpected NIC data")
+	}
+	if (!reflect.DeepEqual(nics[4], metal3api.NIC{
+		Name: "ethNoIp",
+		MAC:  "00:11:22:33:44:77",
+	})) {
+		t.Errorf("Unexpected NIC data")
 	}
 }
 
@@ -256,7 +292,5 @@ func TestGetFirmwareDetails(t *testing.T) {
 		BuildDate: "2019-07-10",
 	})
 
-	if firmware.BIOS.Vendor != "foobar" {
-		t.Errorf("Expected firmware BIOS vendor to be foobar, but got: %s", firmware)
-	}
+	assert.Equal(t, "foobar", firmware.BIOS.Vendor)
 }
