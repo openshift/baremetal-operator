@@ -87,6 +87,17 @@ const (
 
 	// ManagedNodeAnnotationDomain is one of the CAPI managed Node annotation domains.
 	ManagedNodeAnnotationDomain = "node.cluster.x-k8s.io"
+
+	// PendingAcknowledgeMoveAnnotation is an internal annotation added by the MS controller to a machine when being
+	// moved from the oldMS to the newMS. The annotation is removed as soon as the MS controller get the acknowledgment about the
+	// replica being accounted from the corresponding MD.
+	// Note: The annotation is added when reconciling the oldMS, and it is removed when reconciling the newMS.
+	// Note: This annotation is used in pair with AcknowledgedMoveAnnotation on MachineSets.
+	PendingAcknowledgeMoveAnnotation = "in-place-updates.internal.cluster.x-k8s.io/pending-acknowledge-move"
+
+	// UpdateInProgressAnnotation is an internal annotation added to machines by the controller owning the Machine when in-place update
+	// is started, e.g. by the MachineSet controller; the annotation will be removed by the Machine controller when in-place update is completed.
+	UpdateInProgressAnnotation = "in-place-updates.internal.cluster.x-k8s.io/update-in-progress"
 )
 
 // Machine's Available condition and corresponding reasons.
@@ -109,7 +120,7 @@ const (
 // Machine's Ready condition and corresponding reasons.
 const (
 	// MachineReadyCondition is true if the Machine's deletionTimestamp is not set, Machine's BootstrapConfigReady, InfrastructureReady,
-	// NodeHealthy and HealthCheckSucceeded (if present) conditions are true; if other conditions are defined in spec.readinessGates,
+	// NodeHealthy and HealthCheckSucceeded (if present) conditions are true, Updating condition is false; if other conditions are defined in spec.readinessGates,
 	// these conditions must be true as well.
 	// Note:
 	// - When summarizing the Deleting condition:
@@ -151,6 +162,24 @@ const (
 
 	// MachineNotUpToDateReason surface when a Machine spec does not match the spec of the Machine's owner resource, e.g. KubeadmControlPlane or MachineDeployment.
 	MachineNotUpToDateReason = "NotUpToDate"
+)
+
+// Machine's Updating condition and corresponding reasons.
+// Note: Updating condition is set by the Machine controller during in-place updates.
+const (
+	// MachineUpdatingCondition is true while an in-place update is in progress on the Machine.
+	// The condition is owned by the Machine controller and is used to track the progress of in-place updates.
+	// This condition is considered when computing the UpToDate condition.
+	MachineUpdatingCondition = "Updating"
+
+	// MachineNotUpdatingReason surfaces when the Machine is not performing an in-place update.
+	MachineNotUpdatingReason = "NotUpdating"
+
+	// MachineInPlaceUpdatingReason surfaces when the Machine is waiting for in-place update to complete.
+	MachineInPlaceUpdatingReason = "InPlaceUpdating"
+
+	// MachineInPlaceUpdateFailedReason surfaces when the in-place update has failed.
+	MachineInPlaceUpdateFailedReason = "InPlaceUpdateFailed"
 )
 
 // Machine's BootstrapConfigReady condition and corresponding reasons.
@@ -275,6 +304,10 @@ const (
 	// MachineHealthCheckUnhealthyNodeReason surfaces when the node hosted on the machine does not pass the health checks
 	// defined by a MachineHealthCheck object.
 	MachineHealthCheckUnhealthyNodeReason = "UnhealthyNode"
+
+	// MachineHealthCheckUnhealthyMachineReason surfaces when the machine does not pass the health checks
+	// defined by a MachineHealthCheck object.
+	MachineHealthCheckUnhealthyMachineReason = "UnhealthyMachine"
 
 	// MachineHealthCheckNodeStartupTimeoutReason surfaces when the node hosted on the machine does not appear within
 	// the timeout defined by a MachineHealthCheck object.
@@ -537,7 +570,7 @@ type MachineStatus struct {
 
 	// phase represents the current phase of machine actuation.
 	// +optional
-	// +kubebuilder:validation:Enum=Pending;Provisioning;Provisioned;Running;Deleting;Deleted;Failed;Unknown
+	// +kubebuilder:validation:Enum=Pending;Provisioning;Provisioned;Running;Updating;Deleting;Deleted;Failed;Unknown
 	Phase string `json:"phase,omitempty"`
 
 	// certificatesExpiryDate is the expiry date of the machine certificates.
@@ -695,6 +728,7 @@ func (m *MachineStatus) GetTypedPhase() MachinePhase {
 		MachinePhaseProvisioning,
 		MachinePhaseProvisioned,
 		MachinePhaseRunning,
+		MachinePhaseUpdating,
 		MachinePhaseDeleting,
 		MachinePhaseDeleted,
 		MachinePhaseFailed:
