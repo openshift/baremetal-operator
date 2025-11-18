@@ -73,6 +73,11 @@ func (src *Cluster) ConvertTo(dstRaw conversion.Hub) error {
 		return err
 	}
 
+	dst.Spec.Topology.ControlPlane.HealthCheck.Checks.UnhealthyMachineConditions = restored.Spec.Topology.ControlPlane.HealthCheck.Checks.UnhealthyMachineConditions
+	for i, md := range restored.Spec.Topology.Workers.MachineDeployments {
+		dst.Spec.Topology.Workers.MachineDeployments[i].HealthCheck.Checks.UnhealthyMachineConditions = md.HealthCheck.Checks.UnhealthyMachineConditions
+	}
+
 	// Recover intent for bool values converted to *bool.
 	clusterv1.Convert_bool_To_Pointer_bool(src.Spec.Paused, ok, restored.Spec.Paused, &dst.Spec.Paused)
 
@@ -143,6 +148,11 @@ func (src *ClusterClass) ConvertTo(dstRaw conversion.Hub) error {
 	ok, err := utilconversion.UnmarshalData(src, restored)
 	if err != nil {
 		return err
+	}
+
+	dst.Spec.ControlPlane.HealthCheck.Checks.UnhealthyMachineConditions = restored.Spec.ControlPlane.HealthCheck.Checks.UnhealthyMachineConditions
+	for i, md := range restored.Spec.Workers.MachineDeployments {
+		dst.Spec.Workers.MachineDeployments[i].HealthCheck.Checks.UnhealthyMachineConditions = md.HealthCheck.Checks.UnhealthyMachineConditions
 	}
 
 	// Recover intent for bool values converted to *bool.
@@ -247,6 +257,10 @@ func (src *ClusterClass) ConvertTo(dstRaw conversion.Hub) error {
 		}
 		dst.Status.Variables[i] = variable
 	}
+
+	dst.Spec.KubernetesVersions = restored.Spec.KubernetesVersions
+
+	dst.Spec.Upgrade.External.GenerateUpgradePlanExtension = restored.Spec.Upgrade.External.GenerateUpgradePlanExtension
 
 	return nil
 }
@@ -394,6 +408,10 @@ func (src *Machine) ConvertTo(dstRaw conversion.Hub) error {
 	// Recover other values.
 	if ok {
 		dst.Spec.MinReadySeconds = restored.Spec.MinReadySeconds
+		// Restore the phase, this also means that any client using v1beta1 during a round-trip
+		// won't be able to write the Phase field. But that's okay as the only client writing the Phase
+		// field should be the Machine controller.
+		dst.Status.Phase = restored.Status.Phase
 	}
 
 	return nil
@@ -508,6 +526,8 @@ func (src *MachineHealthCheck) ConvertTo(dstRaw conversion.Hub) error {
 	if err != nil {
 		return err
 	}
+
+	dst.Spec.Checks.UnhealthyMachineConditions = restored.Spec.Checks.UnhealthyMachineConditions
 
 	clusterv1.Convert_int32_To_Pointer_int32(src.Status.ExpectedMachines, ok, restored.Status.ExpectedMachines, &dst.Status.ExpectedMachines)
 	clusterv1.Convert_int32_To_Pointer_int32(src.Status.CurrentHealthy, ok, restored.Status.CurrentHealthy, &dst.Status.CurrentHealthy)
@@ -1637,6 +1657,13 @@ func Convert_v1beta2_MachineStatus_To_v1beta1_MachineStatus(in *clusterv1.Machin
 	if err := autoConvert_v1beta2_MachineStatus_To_v1beta1_MachineStatus(in, out, s); err != nil {
 		return err
 	}
+
+	// Convert v1beta2 Updating phase to v1beta1 Running as Updating did not exist in v1beta1.
+	// We don't have to support a round-trip as only the core CAPI controller should write the Phase field.
+	if out.Phase == "Updating" {
+		out.Phase = "Running"
+	}
+
 	if !reflect.DeepEqual(in.LastUpdated, metav1.Time{}) {
 		out.LastUpdated = ptr.To(in.LastUpdated)
 	}
@@ -2285,8 +2312,6 @@ func convertToObjectReference(ref clusterv1.ContractVersionedObjectReference, na
 }
 
 func Convert_v1beta1_JSONSchemaProps_To_v1beta2_JSONSchemaProps(in *JSONSchemaProps, out *clusterv1.JSONSchemaProps, s apimachineryconversion.Scope) error {
-	// This conversion func is also required due to a bug in conversion gen that does not recognize the changes for converting bool to *bool.
-	// By implementing this func, autoConvert_v1beta1_JSONSchemaProps_To_v1beta2_JSONSchemaProps is generated properly.
 	if err := autoConvert_v1beta1_JSONSchemaProps_To_v1beta2_JSONSchemaProps(in, out, s); err != nil {
 		return err
 	}

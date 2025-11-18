@@ -35,6 +35,7 @@ import (
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/ironic"
 	"github.com/metal3-io/baremetal-operator/pkg/secretutils"
 	"github.com/metal3-io/baremetal-operator/pkg/version"
+	ironicv1alpha1 "github.com/metal3-io/ironic-standalone-operator/api/v1alpha1"
 	"go.uber.org/zap/zapcore"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -42,6 +43,7 @@ import (
 	cliflag "k8s.io/component-base/cli/flag"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -75,6 +77,7 @@ func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
 	_ = metal3api.AddToScheme(scheme)
+	_ = ironicv1alpha1.AddToScheme(scheme)
 }
 
 func printVersion() {
@@ -200,10 +203,36 @@ func main() {
 	restConfig.QPS = float32(restConfigQPS)
 	restConfig.Burst = restConfigBurst
 
-	var watchNamespaces map[string]cache.Config
-	if watchNamespace != "" {
-		watchNamespaces = map[string]cache.Config{
-			watchNamespace: {},
+	watchNamespaces := make(map[string]cache.Config)
+
+	if strings.Contains(watchNamespace, ",") {
+		setupLog.Info("Manager set up with multiple namespaces to watch", "namespaces", watchNamespace)
+		namespaces := strings.Split(watchNamespace, ",")
+		for _, namespace := range namespaces {
+			watchNamespaces[namespace] = cache.Config{}
+		}
+	} else if watchNamespace != "" {
+		setupLog.Info("Manager set up to watch a single namespace", "namespace", watchNamespace)
+		watchNamespaces[watchNamespace] = cache.Config{}
+	} else {
+		setupLog.Info("Manager set up with cluster scope")
+	}
+
+	// Setup cache options
+	var byObject map[client.Object]cache.ByObject
+
+	ironicName := os.Getenv("IRONIC_NAME")
+	ironicNamespace := os.Getenv("IRONIC_NAMESPACE")
+	if ironicNamespace == "" {
+		ironicNamespace = leaderElectionNamespace
+	}
+	if ironicName != "" && ironicNamespace != "" {
+		byObject = map[client.Object]cache.ByObject{
+			&ironicv1alpha1.Ironic{}: {
+				Namespaces: map[string]cache.Config{
+					ironicNamespace: {},
+				},
+			},
 		}
 	}
 
@@ -225,7 +254,7 @@ func main() {
 		LeaderElectionReleaseOnCancel: true,
 		HealthProbeBindAddress:        healthAddr,
 		Cache: cache.Options{
-			ByObject:          secretutils.AddSecretSelector(nil),
+			ByObject:          secretutils.AddSecretSelector(byObject),
 			DefaultNamespaces: watchNamespaces,
 		},
 	}
@@ -280,7 +309,17 @@ func main() {
 		provisionerFactory = &demo.Demo{}
 	} else {
 		provLog := zap.New(zap.UseFlagOptions(&logOpts)).WithName("provisioner")
-		provisionerFactory = ironic.NewProvisionerFactory(provLog, preprovImgEnable)
+		// Check if we should use Ironic CR integration
+		if ironicName != "" && ironicNamespace != "" {
+			provisionerFactory, err = ironic.NewProvisionerFactoryWithClient(provLog, preprovImgEnable,
+				mgr.GetClient(), mgr.GetAPIReader(), ironicName, ironicNamespace)
+		} else {
+			provisionerFactory, err = ironic.NewProvisionerFactory(provLog, preprovImgEnable)
+		}
+		if err != nil {
+			setupLog.Error(err, "cannot start ironic provisioner")
+			os.Exit(1)
+		}
 	}
 
 	maxConcurrency, err := getMaxConcurrentReconciles(controllerConcurrency)

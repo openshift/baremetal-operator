@@ -457,7 +457,10 @@ func TestValidateCreate(t *testing.T) {
 				Spec: metal3api.BareMetalHostSpec{
 					BMC: metal3api.BMCDetails{
 						Address: "ipmi://[fe80::fc33:62ff:fe33:8xff]:6223"}}},
-			oldBMH:    nil,
+			oldBMH: nil,
+			// TODO(honza): Restore this line once we have golang 1.24.9 in CI.
+			// See ffa977e9e2f31a459857d51b4212d4a29bf933aa
+			// wantedErr: "failed to parse BMC address information: parse \"ipmi://[fe80::fc33:62ff:fe33:8xff]:6223\": invalid host: ParseAddr(\"fe80::fc33:62ff:fe33:8xff\"): unexpected character, want colon (at \"xff\")",
 			wantedErr: "failed to parse BMC address information: BMC address hostname/IP : [fe80::fc33:62ff:fe33:8xff] is invalid",
 		},
 		{
@@ -1055,10 +1058,39 @@ func TestValidateUpdate(t *testing.T) {
 		{
 			name: "updateBootMAC",
 			newBMH: &metal3api.BareMetalHost{
-				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "test-mac-changed"}},
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "00:11:22:33:44:66"}},
 			oldBMH: &metal3api.BareMetalHost{
-				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "test-mac"}},
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "00:11:22:33:44:55"}},
 			wantedErr: "bootMACAddress can not be changed once it is set",
+		},
+		{
+			name: "updateBootMACCaseOnly",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "AA:BB:CC:DD:EE:FF"}},
+			oldBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "aa:bb:cc:dd:ee:ff"}},
+			wantedErr: "",
+		},
+		{
+			name: "updateBootMACCaseMixed",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "aA:Bb:cC:Dd:Ee:Ff"}},
+			oldBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "AA:BB:CC:DD:EE:FF"}},
+			wantedErr: "",
+		},
+		{
+			name: "updateBootMACInvalidNew",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "redfish://127.0.0.1",
+						CredentialsName: "test1",
+					},
+					BootMACAddress: "invalid-mac"}},
+			oldBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "00:11:22:33:44:55"}},
+			wantedErr: "address invalid-mac: invalid MAC address",
 		},
 		{
 			name: "updateExternallyProvisioned",

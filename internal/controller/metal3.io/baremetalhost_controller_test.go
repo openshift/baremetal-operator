@@ -274,6 +274,36 @@ func TestHardwareDetails_EmptyStatus(t *testing.T) {
 	)
 }
 
+// TestHardwareDetails_FromHardwareData ensures that hardware details in
+// the status field are populated when the HardwareData object
+// is present and no existing HarwareDetails are present.
+func TestHardwareDetails_FromHardwareData(t *testing.T) {
+	host := newDefaultHost(t)
+	hwdata := &metal3api.HardwareData{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      host.Name,
+			Namespace: host.Namespace,
+		},
+		Spec: metal3api.HardwareDataSpec{
+			HardwareDetails: &metal3api.HardwareDetails{},
+		},
+	}
+	err := json.Unmarshal([]byte(hwdAnnotation), hwdata.Spec.HardwareDetails)
+	require.NoError(t, err)
+
+	r := newTestReconciler(t, host, hwdata)
+
+	tryReconcile(t, r, host,
+		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
+			_, found := host.Annotations[metal3api.HardwareDetailsAnnotation]
+			if host.Status.HardwareDetails != nil && host.Status.HardwareDetails.Hostname == "hwdAnnotation-0" && !found {
+				return true
+			}
+			return false
+		},
+	)
+}
+
 // TestHardwareDetails_StatusPresent ensures that hardware details in
 // the hardwaredetails annotation is ignored with existing Status.
 func TestHardwareDetails_StatusPresent(t *testing.T) {
@@ -316,6 +346,43 @@ func TestHardwareDetails_StatusPresentInspectDisabled(t *testing.T) {
 	host.Status.HardwareDetails = &hwd
 
 	r := newTestReconciler(t, host)
+
+	tryReconcile(t, r, host,
+		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
+			_, found := host.Annotations[metal3api.HardwareDetailsAnnotation]
+			if host.Status.HardwareDetails != nil && host.Status.HardwareDetails.Hostname == "hwdAnnotation-0" && !found {
+				return true
+			}
+			return false
+		},
+	)
+}
+
+// TestHardwareDetails_StatusPresentInspectDisabled ensures that
+// hardware details in the HardwareData object are consumed
+// even when existing status exists, when inspection is disabled.
+func TestHardwareDetails_HardwareDataStatusPresentInspectDisabled(t *testing.T) {
+	host := newDefaultHost(t)
+	host.Spec.InspectionMode = metal3api.InspectionModeDisabled
+	time := metav1.Now()
+	host.Status.LastUpdated = &time
+	hwd := metal3api.HardwareDetails{}
+	hwd.Hostname = "existinghost"
+	host.Status.HardwareDetails = &hwd
+
+	hwdata := &metal3api.HardwareData{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      host.Name,
+			Namespace: host.Namespace,
+		},
+		Spec: metal3api.HardwareDataSpec{
+			HardwareDetails: &metal3api.HardwareDetails{},
+		},
+	}
+	err := json.Unmarshal([]byte(hwdAnnotation), hwdata.Spec.HardwareDetails)
+	require.NoError(t, err)
+
+	r := newTestReconciler(t, host, hwdata)
 
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
@@ -510,6 +577,42 @@ func TestInspectEnabled(t *testing.T) {
 	r := newTestReconciler(t, host)
 	waitForProvisioningState(t, r, host, metal3api.StatePreparing)
 	assert.NotNil(t, host.Status.HardwareDetails)
+}
+
+// TestInspectLLDPData ensures that LLDP data is removed from BareMetalHost status
+// but retained in HardwareData resource.
+func TestInspectLLDPData(t *testing.T) {
+	host := newDefaultHost(t)
+	r := newTestReconciler(t, host)
+
+	// Wait for inspection to complete
+	waitForProvisioningState(t, r, host, metal3api.StatePreparing)
+
+	// Verify that the BMH status has hardware details
+	assert.NotNil(t, host.Status.HardwareDetails, "Hardware details should not be nil")
+	assert.Len(t, host.Status.HardwareDetails.NIC, 2, "Should have 2 NICs")
+
+	// Verify that HardwareData resource was created with LLDP data intact
+	hardwareData := &metal3api.HardwareData{}
+	hardwareDataKey := client.ObjectKey{
+		Name:      host.Name,
+		Namespace: host.Namespace,
+	}
+	err := r.Client.Get(t.Context(), hardwareDataKey, hardwareData)
+	require.NoError(t, err, "HardwareData should be created")
+	assert.NotNil(t, hardwareData.Spec.HardwareDetails, "HardwareData should have hardware details")
+	assert.Len(t, hardwareData.Spec.HardwareDetails.NIC, 2, "HardwareData should have 2 NICs")
+
+	// Verify LLDP data is present in HardwareData
+	assert.NotNil(t, hardwareData.Spec.HardwareDetails.NIC[0].LLDP, "LLDP data should be present in HardwareData for NIC 0")
+	assert.Equal(t, "aa:bb:cc:dd:ee:ff", hardwareData.Spec.HardwareDetails.NIC[0].LLDP.SwitchID)
+	assert.Equal(t, "Ethernet1/1", hardwareData.Spec.HardwareDetails.NIC[0].LLDP.PortID)
+	assert.Equal(t, "switch01.example.com", hardwareData.Spec.HardwareDetails.NIC[0].LLDP.SwitchSystemName)
+
+	assert.NotNil(t, hardwareData.Spec.HardwareDetails.NIC[1].LLDP, "LLDP data should be present in HardwareData for NIC 1")
+	assert.Equal(t, "ff:ee:dd:cc:bb:aa", hardwareData.Spec.HardwareDetails.NIC[1].LLDP.SwitchID)
+	assert.Equal(t, "Ethernet1/2", hardwareData.Spec.HardwareDetails.NIC[1].LLDP.PortID)
+	assert.Equal(t, "switch02.example.com", hardwareData.Spec.HardwareDetails.NIC[1].LLDP.SwitchSystemName)
 }
 
 // TestAddFinalizers ensures that the finalizers for the host are
