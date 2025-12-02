@@ -184,7 +184,7 @@ func (r *HostFirmwareComponentsReconciler) updateHostFirmware(info *rhfcInfo, co
 
 	// Check if the updates in the Spec are different than Status
 	updatesMismatch := !reflect.DeepEqual(info.hfc.Status.Updates, info.hfc.Spec.Updates)
-	if len(info.hfc.Spec.Updates) == 0 && len(info.hfc.Status.Updates) == 0 {
+	if len(info.hfc.Spec.Updates) == 0 {
 		updatesMismatch = false
 	}
 
