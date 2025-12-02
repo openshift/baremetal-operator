@@ -1467,6 +1467,25 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 			servicingData.ActualFirmwareSettings = hfs.Status.Settings
 			servicingData.TargetFirmwareSettings = hfs.Spec.Settings
 		}
+
+		// Track if HFS spec has actual settings - check independently since getHostFirmwareSettings
+		// returns nil when no changes even if object exists
+		hfsExists := &metal3api.HostFirmwareSettings{}
+		hfsExistsErr := r.Get(info.ctx, info.request.NamespacedName, hfsExists)
+		servicingData.HasFirmwareSettingsSpec = (hfsExistsErr == nil && len(hfsExists.Spec.Settings) > 0)
+		info.log.Info("janders_debug: HFS spec check",
+			"hfsExistsErr", hfsExistsErr,
+			"settingsIsNil", hfsExists.Spec.Settings == nil,
+			"settingsLen", len(hfsExists.Spec.Settings),
+			"hasSettingsSpec", servicingData.HasFirmwareSettingsSpec)
+
+		// Set trigger state in host status when servicing starts, or read existing state
+		if hfsDirty && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing {
+			// Servicing is starting - set the trigger flag
+			info.host.Status.ServicingTriggeredBySettings = true
+		}
+		// Use persisted trigger state from host status
+		servicingData.ServicingTriggeredBySettings = info.host.Status.ServicingTriggeredBySettings
 	}
 
 	if liveFirmwareUpdatesAllowed {
@@ -1483,14 +1502,88 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 				servicingData.TargetFirmwareComponents = hfc.Spec.Updates
 			}
 		}
+
+		// Track if HFC spec has actual updates - check independently since getHostFirmwareComponents
+		// returns nil when no changes even if object exists
+		hfcExists := &metal3api.HostFirmwareComponents{}
+		hfcExistsErr := r.Get(info.ctx, info.request.NamespacedName, hfcExists)
+		servicingData.HasFirmwareComponentsSpec = (hfcExistsErr == nil && len(hfcExists.Spec.Updates) > 0)
+		info.log.Info("janders_debug: HFC spec check",
+			"hfcExistsErr", hfcExistsErr,
+			"updatesIsNil", hfcExists.Spec.Updates == nil,
+			"updatesLen", len(hfcExists.Spec.Updates),
+			"hasComponentsSpec", servicingData.HasFirmwareComponentsSpec)
+
+		// Set trigger state in host status when servicing starts, or read existing state
+		if hfcDirty && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing {
+			// Servicing is starting - set the trigger flag
+			info.host.Status.ServicingTriggeredByComponents = true
+		}
+		// Use persisted trigger state from host status
+		servicingData.ServicingTriggeredByComponents = info.host.Status.ServicingTriggeredByComponents
 	}
 
 	hasChanges := fwDirty || hfsDirty || hfcDirty
+
+	info.log.Info("janders_debug: servicing data flags",
+		"hasSettingsSpec", servicingData.HasFirmwareSettingsSpec,
+		"hasComponentsSpec", servicingData.HasFirmwareComponentsSpec,
+		"triggeredBySettings", servicingData.ServicingTriggeredBySettings,
+		"triggeredByComponents", servicingData.ServicingTriggeredByComponents,
+		"fwDirty", fwDirty, "hfsDirty", hfsDirty, "hfcDirty", hfcDirty,
+		"hasChanges", hasChanges)
 
 	// Even if settings are clean, we need to check the result of the current servicing.
 	if !hasChanges && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing && info.host.Status.ErrorType != metal3api.ServicingError {
 		// If nothing is going on, return control to the power management.
 		return nil
+	}
+
+	// If we're in a servicing error state, use direct API reads to make abort decision
+	if info.host.Status.ErrorType == metal3api.ServicingError {
+		// For abort operations, use direct API reads to bypass potential cache staleness
+		hasSettingsSpecDirect, hasComponentsSpecDirect, err := r.getSpecStatusDirect(info)
+		if err != nil {
+			info.log.Error(err, "failed to get direct spec status for abort decision")
+			return actionError{fmt.Errorf("failed to get direct spec status for abort decision: %w", err)}
+		}
+
+		// Check if we should abort based on direct reads and trigger logic
+		shouldAbort := r.shouldAbortBasedOnTriggers(servicingData, hasSettingsSpecDirect, hasComponentsSpecDirect)
+
+		info.log.Info("janders_debug: abort decision with direct reads",
+			"cachedHasSettingsSpec", servicingData.HasFirmwareSettingsSpec,
+			"cachedHasComponentsSpec", servicingData.HasFirmwareComponentsSpec,
+			"directHasSettingsSpec", hasSettingsSpecDirect,
+			"directHasComponentsSpec", hasComponentsSpecDirect,
+			"cachedHasChanges", hasChanges,
+			"shouldAbort", shouldAbort)
+
+		// If direct reads indicate we should abort
+		if shouldAbort {
+			info.log.Info("updates removed from spec while in servicing error state, attempting recovery")
+			provResult, _, err := prov.Service(servicingData, false, false)
+			if err != nil {
+				return actionError{fmt.Errorf("failed to recover from servicing error: %w", err)}
+			}
+			if provResult.ErrorMessage != "" {
+				info.log.Info("failed to recover from servicing error", "error", provResult.ErrorMessage)
+				return actionError{fmt.Errorf("failed to recover from servicing error: %s", provResult.ErrorMessage)}
+			}
+			if provResult.Dirty {
+				info.log.Info("abort operation in progress, checking back later")
+				return actionContinue{provResult.RequeueAfter}
+			}
+			// If abort completed and no error, we've successfully recovered
+			info.log.Info("successfully recovered from servicing error")
+			info.host.Status.ErrorType = ""
+			info.host.Status.ErrorMessage = ""
+			info.host.Status.OperationalStatus = metal3api.OperationalStatusOK
+			// Clear servicing trigger flags now that servicing abort is complete
+			info.host.Status.ServicingTriggeredBySettings = false
+			info.host.Status.ServicingTriggeredByComponents = false
+			return actionComplete{}
+		}
 	}
 
 	// FIXME(janders/dtantsur): this implementation may lead to a scenario where if we never actually
@@ -1550,6 +1643,9 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 
 	// Servicing is finished at this point, clean up operational status
 	if clearErrorWithStatus(info.host, metal3api.OperationalStatusOK) {
+		// Clear servicing trigger flags now that servicing is complete
+		info.host.Status.ServicingTriggeredBySettings = false
+		info.host.Status.ServicingTriggeredByComponents = false
 		// FIXME(janders/dtantsur): this can be racy. We should consider
 		// using a generation number to decide if we start servicing or not.
 		return actionUpdate{actionContinue{delay: subResourceNotReadyRetryDelay}}
@@ -2330,6 +2426,59 @@ func (r *BareMetalHostReconciler) updateEventHandler(e event.UpdateEvent) bool {
 	}
 
 	return true
+}
+
+// getSpecStatusDirect performs direct API reads (bypassing cache) to get the current
+// spec status for HFS and HFC objects. This is used for abort decisions to avoid
+// stale cache issues.
+func (r *BareMetalHostReconciler) getSpecStatusDirect(info *reconcileInfo) (bool, bool, error) {
+	// Use a direct client that bypasses cache for critical abort decisions
+	directClient := r.Client
+
+	// Check HFS spec directly
+	hfsExists := &metal3api.HostFirmwareSettings{}
+	hfsExistsErr := directClient.Get(info.ctx, info.request.NamespacedName, hfsExists)
+	hasSettingsSpec := (hfsExistsErr == nil && len(hfsExists.Spec.Settings) > 0)
+
+	info.log.Info("janders_debug: direct HFS read",
+		"hfsExistsErr", hfsExistsErr,
+		"settingsIsNil", hfsExists.Spec.Settings == nil,
+		"settingsLen", len(hfsExists.Spec.Settings),
+		"hasSettingsSpec", hasSettingsSpec)
+
+	// Check HFC spec directly
+	hfcExists := &metal3api.HostFirmwareComponents{}
+	hfcExistsErr := directClient.Get(info.ctx, info.request.NamespacedName, hfcExists)
+	hasComponentsSpec := (hfcExistsErr == nil && len(hfcExists.Spec.Updates) > 0)
+
+	info.log.Info("janders_debug: direct HFC read",
+		"hfcExistsErr", hfcExistsErr,
+		"updatesIsNil", hfcExists.Spec.Updates == nil,
+		"updatesLen", len(hfcExists.Spec.Updates),
+		"hasComponentsSpec", hasComponentsSpec)
+
+	return hasSettingsSpec, hasComponentsSpec, nil
+}
+
+// shouldAbortBasedOnTriggers determines if servicing should be aborted based on
+// which components originally triggered servicing and which specs are currently present.
+func (r *BareMetalHostReconciler) shouldAbortBasedOnTriggers(servicingData provisioner.ServicingData, hasSettingsSpec, hasComponentsSpec bool) bool {
+	// This implements the same logic as the provisioner's shouldAbortServicing but uses
+	// direct API reads instead of potentially stale cached data
+
+	if servicingData.ServicingTriggeredBySettings && servicingData.ServicingTriggeredByComponents {
+		// Both triggered - must clear both to abort
+		return !hasSettingsSpec && !hasComponentsSpec
+	} else if servicingData.ServicingTriggeredBySettings {
+		// Only settings triggered - must clear settings to abort
+		return !hasSettingsSpec
+	} else if servicingData.ServicingTriggeredByComponents {
+		// Only components triggered - must clear components to abort
+		return !hasComponentsSpec
+	}
+
+	// Neither triggered (shouldn't happen during servicing) - don't abort
+	return false
 }
 
 // SetupWithManager registers the reconciler to be run by the manager.

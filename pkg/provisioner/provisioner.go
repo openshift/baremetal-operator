@@ -120,6 +120,12 @@ type ServicingData struct {
 	TargetFirmwareSettings   metal3api.DesiredSettingsMap
 	ActualFirmwareSettings   metal3api.SettingsMap
 	TargetFirmwareComponents []metal3api.FirmwareUpdate
+	// Flags to track if specs exist (vs. just no updates calculated)
+	HasFirmwareSettingsSpec   bool
+	HasFirmwareComponentsSpec bool
+	// Flags to track which specs triggered the current servicing operation
+	ServicingTriggeredBySettings   bool
+	ServicingTriggeredByComponents bool
 }
 
 type ProvisionData struct {
