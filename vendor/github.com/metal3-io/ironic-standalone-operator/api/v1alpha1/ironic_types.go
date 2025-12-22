@@ -17,14 +17,15 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
 	VersionLatest = Version{}
+	Version330    = Version{Major: 33, Minor: 0}
 	Version320    = Version{Major: 32, Minor: 0}
 	Version310    = Version{Major: 31, Minor: 0}
-	Version300    = Version{Major: 30, Minor: 0}
 )
 
 // SupportedVersions is a mapping of supported versions to container image tags.
@@ -34,9 +35,9 @@ var (
 // expectations.
 var SupportedVersions = map[Version]string{
 	VersionLatest: "latest",
+	Version330:    "release-33.0",
 	Version320:    "release-32.0",
 	Version310:    "release-31.0",
-	Version300:    "release-30.0",
 }
 
 // Inspection defines inspection settings.
@@ -153,6 +154,13 @@ type Networking struct {
 	// +optional
 	MACAddresses []string `json:"macAddresses,omitempty"`
 
+	// PrometheusExporterPort is the port used for the Ironic Prometheus Exporter metrics endpoint.
+	// Only used when spec.prometheusExporter.enabled is true.
+	// +kubebuilder:default=9608
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	PrometheusExporterPort int32 `json:"prometheusExporterPort,omitempty"`
+
 	// RPCPort is the internal RPC port used for Ironic.
 	// Only change this if the default value causes a conflict on your deployment.
 	// +kubebuilder:default=6189
@@ -191,6 +199,14 @@ type TLS struct {
 	// +optional
 	CertificateName string `json:"certificateName,omitempty"`
 
+	// TrustedCAName is a reference to the configmap with the CA certificate(s)
+	// to use when validating TLS connections to image servers and other services.
+	// The configmap should contain one or more CA certificates in PEM format.
+	// If the configmap contains multiple keys, only the first key will be used and
+	// a warning will be logged.
+	// +optional
+	TrustedCAName string `json:"trustedCAName,omitempty"`
+
 	// DisableVirtualMediaTLS turns off TLS on the virtual media server,
 	// which may be required for hardware that cannot accept HTTPS links.
 	// +optional
@@ -226,9 +242,13 @@ type Images struct {
 	Keepalived string `json:"keepalived,omitempty"`
 }
 
-// ExtraConfig defines environment variables to override Ironic configuration
-// More info at the end of description section
-// https://github.com/metal3-io/ironic-image
+// ExtraConfig allows overriding any Ironic configuration options.
+// See the entire listing of available options in the Ironic documentation:
+// https://docs.openstack.org/ironic/latest/configuration/config.html
+// (note that some options may not be available in earlier releases).
+//
+// Warning: modifying arbitrary options may cause your Ironic installation to
+// fail or misbehave. Do not modify anything you don't understand well.
 type ExtraConfig struct {
 
 	// The group that config belongs to.
@@ -267,9 +287,43 @@ type Overrides struct {
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 
+	// Containers to append to the main Ironic pod.
+	// If a container name matches an existing container, the existing container is replaced.
+	// +optional
+	Containers []corev1.Container `json:"containers,omitempty"`
+
+	// InitContainers to append to the main Ironic pod.
+	// If a container name matches an existing init container, the existing init container is replaced.
+	// +optional
+	InitContainers []corev1.Container `json:"initContainers,omitempty"`
+
 	// Extra labels to add to each pod (including upgrade jobs).
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
+}
+
+// PrometheusExporter defines configuration for Prometheus metrics export.
+type PrometheusExporter struct {
+	// DisableServiceMonitor controls whether a ServiceMonitor resource is created.
+	// Set to true if your cluster does not have prometheus-operator installed,
+	// or when you want to run the exporter but manage Prometheus configuration manually.
+	//
+	// Must be set to true for a highly available deployment. In this case, every replica
+	// provides different metrics, which must be aggregated on the consumer side.
+	// +optional
+	DisableServiceMonitor bool `json:"disableServiceMonitor,omitempty"`
+
+	// Enabled controls whether sensor data collection and metrics export is active.
+	// When true, configures Ironic to collect sensor data and deploys the
+	// ironic-prometheus-exporter container.
+	Enabled bool `json:"enabled"`
+
+	// SensorCollectionInterval defines how often (in seconds) sensor data
+	// is collected from BMCs using Ironic. Must be at least 60 seconds.
+	// +kubebuilder:default=60
+	// +kubebuilder:validation:Minimum=60
+	// +optional
+	SensorCollectionInterval int `json:"sensorCollectionInterval,omitempty"`
 }
 
 // IronicSpec defines the desired state of Ironic.
@@ -289,7 +343,7 @@ type IronicSpec struct {
 	// +optional
 	DeployRamdisk DeployRamdisk `json:"deployRamdisk,omitempty"`
 
-	// ExtraConfig defines extra options for Ironic configuration.
+	// ExtraConfig allows overriding any Ironic configuration options.
 	// +optional
 	ExtraConfig []ExtraConfig `json:"extraConfig,omitempty"`
 
@@ -322,6 +376,12 @@ type IronicSpec struct {
 	// EXPERIMENTAL: requires feature gate Overrides.
 	// +optional
 	Overrides *Overrides `json:"overrides,omitempty"`
+
+	// PrometheusExporter configures sensor data collection and Prometheus metrics export.
+	// When enabled, this configures Ironic to collect sensor data and deploys the
+	// ironic-prometheus-exporter container.
+	// +optional
+	PrometheusExporter *PrometheusExporter `json:"prometheusExporter,omitempty"`
 
 	// TLS defines TLS-related settings for various network interactions.
 	// +optional

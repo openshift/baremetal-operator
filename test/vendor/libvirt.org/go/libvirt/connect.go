@@ -1926,6 +1926,8 @@ type NodeCPUStats struct {
 	Intr           uint64
 	UtilizationSet bool
 	Utilization    uint64
+	GuestSet       bool
+	Guest          uint64
 }
 
 // See also https://libvirt.org/html/libvirt-libvirt-host.html#virNodeGetCPUStats
@@ -1967,6 +1969,9 @@ func (c *Connect) GetCPUStats(cpuNum int, flags uint32) (*NodeCPUStats, error) {
 		case C.VIR_NODE_CPU_STATS_UTILIZATION:
 			stats.UtilizationSet = true
 			stats.Utilization = uint64(param.value)
+		case C.VIR_NODE_CPU_STATS_GUEST:
+			stats.GuestSet = true
+			stats.Guest = uint64(param.value)
 		}
 	}
 
@@ -2887,6 +2892,184 @@ func getDomainStatsNetFieldInfo(idx int, params *DomainStatsNet) map[string]type
 	}
 }
 
+type domainStatsBlockTimedStatsLengths struct {
+	TimedStatsGroupCount    uint64
+	TimedStatsGroupCountSet bool
+}
+
+func getDomainStatsBlockTimedStatsLengthsFieldInfo(idx int, params *domainStatsBlockTimedStatsLengths) map[string]typedParamsFieldInfo {
+	return map[string]typedParamsFieldInfo{
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_COUNT, idx): typedParamsFieldInfo{
+			set: &params.TimedStatsGroupCountSet,
+			ul:  &params.TimedStatsGroupCount,
+		},
+	}
+}
+
+type DomainStatsBlockTimedStats struct {
+	IntervalLength             uint64
+	IntervalLengthSet          bool
+	RdLatencyMin               uint64
+	RdLatencyMinSet            bool
+	RdLatencyMax               uint64
+	RdLatencyMaxSet            bool
+	RdLatencyAvg               uint64
+	RdLatencyAvgSet            bool
+	WrLatencyMin               uint64
+	WrLatencyMinSet            bool
+	WrLatencyMax               uint64
+	WrLatencyMaxSet            bool
+	WrLatencyAvg               uint64
+	WrLatencyAvgSet            bool
+	ZoneAppendLatencyMin       uint64
+	ZoneAppendLatencyMinSet    bool
+	ZoneAppendLatencyMax       uint64
+	ZoneAppendLatencyMaxSet    bool
+	ZoneAppendLatencyAvg       uint64
+	ZoneAppendLatencyAvgSet    bool
+	FlushLatencyMin            uint64
+	FlushLatencyMinSet         bool
+	FlushLatencyMax            uint64
+	FlushLatencyMaxSet         bool
+	FlushLatencyAvg            uint64
+	FlushLatencyAvgSet         bool
+	RdQueueDepthAvg            float64
+	RdQueueDepthAvgSet         bool
+	WrQueueDepthAvg            float64
+	WrQueueDepthAvgSet         bool
+	ZoneAppendQueueDepthAvg    float64
+	ZoneAppendQueueDepthAvgSet bool
+}
+
+func getDomainStatsBlockTimedStatsFieldInfo(idx1, idx2 int, params *DomainStatsBlockTimedStats) map[string]typedParamsFieldInfo {
+	return map[string]typedParamsFieldInfo{
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_INTERVAL, idx1, idx2): typedParamsFieldInfo{
+			set: &params.IntervalLengthSet,
+			ul:  &params.IntervalLength,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_LATENCY_MIN, idx1, idx2): typedParamsFieldInfo{
+			set: &params.RdLatencyMinSet,
+			ul:  &params.RdLatencyMin,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_LATENCY_MAX, idx1, idx2): typedParamsFieldInfo{
+			set: &params.RdLatencyMaxSet,
+			ul:  &params.RdLatencyMax,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_LATENCY_AVG, idx1, idx2): typedParamsFieldInfo{
+			set: &params.RdLatencyAvgSet,
+			ul:  &params.RdLatencyAvg,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_LATENCY_MIN, idx1, idx2): typedParamsFieldInfo{
+			set: &params.WrLatencyMinSet,
+			ul:  &params.WrLatencyMin,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_LATENCY_MAX, idx1, idx2): typedParamsFieldInfo{
+			set: &params.WrLatencyMaxSet,
+			ul:  &params.WrLatencyMax,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_LATENCY_AVG, idx1, idx2): typedParamsFieldInfo{
+			set: &params.WrLatencyAvgSet,
+			ul:  &params.WrLatencyAvg,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_LATENCY_MIN, idx1, idx2): typedParamsFieldInfo{
+			set: &params.ZoneAppendLatencyMinSet,
+			ul:  &params.ZoneAppendLatencyMin,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_LATENCY_MAX, idx1, idx2): typedParamsFieldInfo{
+			set: &params.ZoneAppendLatencyMaxSet,
+			ul:  &params.ZoneAppendLatencyMax,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_LATENCY_AVG, idx1, idx2): typedParamsFieldInfo{
+			set: &params.ZoneAppendLatencyAvgSet,
+			ul:  &params.ZoneAppendLatencyAvg,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_FLUSH_LATENCY_MIN, idx1, idx2): typedParamsFieldInfo{
+			set: &params.FlushLatencyMinSet,
+			ul:  &params.FlushLatencyMin,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_FLUSH_LATENCY_MAX, idx1, idx2): typedParamsFieldInfo{
+			set: &params.FlushLatencyMaxSet,
+			ul:  &params.FlushLatencyMax,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_FLUSH_LATENCY_AVG, idx1, idx2): typedParamsFieldInfo{
+			set: &params.FlushLatencyAvgSet,
+			ul:  &params.FlushLatencyAvg,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_RD_QUEUE_DEPTH_AVG, idx1, idx2): typedParamsFieldInfo{
+			set: &params.RdQueueDepthAvgSet,
+			d:   &params.RdQueueDepthAvg,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_WR_QUEUE_DEPTH_AVG, idx1, idx2): typedParamsFieldInfo{
+			set: &params.WrQueueDepthAvgSet,
+			d:   &params.WrQueueDepthAvg,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_TIMED_GROUP_SUFFIX_ZONE_APPEND_QUEUE_DEPTH_AVG, idx1, idx2): typedParamsFieldInfo{
+			set: &params.ZoneAppendQueueDepthAvgSet,
+			d:   &params.ZoneAppendQueueDepthAvg,
+		},
+	}
+}
+
+type DomainStatsBlockLimits struct {
+	RequestAlignment          uint64
+	RequestAlignmentSet       bool
+	DiscardMax                uint64
+	DiscardMaxSet             bool
+	DiscardAlignment          uint64
+	DiscardAlignmentSet       bool
+	WriteZeroesMax            uint64
+	WriteZeroesMaxSet         bool
+	WriteZeroesAlignment      uint64
+	WriteZeroesAlignmentSet   bool
+	TransferOptimal           uint64
+	TransferOptimalSet        bool
+	TransferMax               uint64
+	TransferMaxSet            bool
+	TransferHwMax             uint64
+	TransferHwMaxSet          bool
+	IovMax                    uint64
+	IovMaxSet                 bool
+	IovHwMax                  uint64
+	IovHwMaxSet               bool
+	MemoryAlignmentMinimal    uint64
+	MemoryAlignmentMinimalSet bool
+	MemoryAlignmentOptimal    uint64
+	MemoryAlignmentOptimalSet bool
+}
+
 type DomainStatsBlock struct {
 	NameSet         bool
 	Name            string
@@ -2920,6 +3103,8 @@ type DomainStatsBlock struct {
 	Physical        uint64
 	ThresholdSet    bool
 	Threshold       uint64
+	Limits          DomainStatsBlockLimits
+	TimedStats      []DomainStatsBlockTimedStats
 }
 
 func getDomainStatsBlockFieldInfo(idx int, params *DomainStatsBlock) map[string]typedParamsFieldInfo {
@@ -3003,6 +3188,66 @@ func getDomainStatsBlockFieldInfo(idx int, params *DomainStatsBlock) map[string]
 			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_THRESHOLD, idx): typedParamsFieldInfo{
 			set: &params.ThresholdSet,
 			ul:  &params.Threshold,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_REQUEST_ALIGNMENT, idx): typedParamsFieldInfo{
+			set: &params.Limits.RequestAlignmentSet,
+			ul:  &params.Limits.RequestAlignment,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_DISCARD_MAX, idx): typedParamsFieldInfo{
+			set: &params.Limits.DiscardMaxSet,
+			ul:  &params.Limits.DiscardMax,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_DISCARD_ALIGNMENT, idx): typedParamsFieldInfo{
+			set: &params.Limits.DiscardAlignmentSet,
+			ul:  &params.Limits.DiscardAlignment,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_WRITE_ZEROES_MAX, idx): typedParamsFieldInfo{
+			set: &params.Limits.WriteZeroesMaxSet,
+			ul:  &params.Limits.WriteZeroesMax,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_WRITE_ZEROES_ALIGNMENT, idx): typedParamsFieldInfo{
+			set: &params.Limits.WriteZeroesAlignmentSet,
+			ul:  &params.Limits.WriteZeroesAlignment,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_TRANSFER_OPTIMAL, idx): typedParamsFieldInfo{
+			set: &params.Limits.TransferOptimalSet,
+			ul:  &params.Limits.TransferOptimal,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_TRANSFER_MAX, idx): typedParamsFieldInfo{
+			set: &params.Limits.TransferMaxSet,
+			ul:  &params.Limits.TransferMax,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_TRANSFER_HW_MAX, idx): typedParamsFieldInfo{
+			set: &params.Limits.TransferHwMaxSet,
+			ul:  &params.Limits.TransferHwMax,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_IOV_MAX, idx): typedParamsFieldInfo{
+			set: &params.Limits.IovMaxSet,
+			ul:  &params.Limits.IovMax,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_IOV_HW_MAX, idx): typedParamsFieldInfo{
+			set: &params.Limits.IovHwMaxSet,
+			ul:  &params.Limits.IovHwMax,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_MEMORY_ALIGNMENT_MINIMAL, idx): typedParamsFieldInfo{
+			set: &params.Limits.MemoryAlignmentMinimalSet,
+			ul:  &params.Limits.MemoryAlignmentMinimal,
+		},
+		fmt.Sprintf(C.VIR_DOMAIN_STATS_BLOCK_PREFIX+"%d"+
+			C.VIR_DOMAIN_STATS_BLOCK_SUFFIX_LIMITS_MEMORY_ALIGNMENT_OPTIMAL, idx): typedParamsFieldInfo{
+			set: &params.Limits.MemoryAlignmentOptimalSet,
+			ul:  &params.Limits.MemoryAlignmentOptimal,
 		},
 	}
 }
@@ -3446,8 +3691,8 @@ func (c *Connect) GetAllDomainStats(doms []*Domain, statsTypes DomainStatsTypes,
 
 		if cpuLengths.CacheMonitorCountSet && cpuLengths.CacheMonitorCount > 0 {
 			cpu.CacheMonitors = make([]DomainStatsCPUCacheMonitor, cpuLengths.CacheMonitorCount)
-			for i := 0; i < int(cpuLengths.CacheMonitorCount); i++ {
-				cpuCacheInfo := getDomainStatsCPUCacheMonitorFieldInfo(i, &cpu.CacheMonitors[i])
+			for j := 0; j < int(cpuLengths.CacheMonitorCount); j++ {
+				cpuCacheInfo := getDomainStatsCPUCacheMonitorFieldInfo(j, &cpu.CacheMonitors[j])
 
 				_, gerr = typedParamsUnpack(cdomstats.params, cdomstats.nparams, cpuCacheInfo)
 				if gerr != nil {
@@ -3464,8 +3709,8 @@ func (c *Connect) GetAllDomainStats(doms []*Domain, statsTypes DomainStatsTypes,
 
 				if cpuCacheMonitorLengths.BankCountSet && cpuCacheMonitorLengths.BankCount > 0 {
 					cpu.CacheMonitors[i].Banks = make([]DomainStatsCPUCacheMonitorBank, cpuCacheMonitorLengths.BankCount)
-					for j := 0; j < int(cpuCacheMonitorLengths.BankCount); j++ {
-						cpuCacheBankInfo := getDomainStatsCPUCacheMonitorBankFieldInfo(i, j, &cpu.CacheMonitors[i].Banks[j])
+					for k := 0; k < int(cpuCacheMonitorLengths.BankCount); k++ {
+						cpuCacheBankInfo := getDomainStatsCPUCacheMonitorBankFieldInfo(j, k, &cpu.CacheMonitors[j].Banks[k])
 
 						_, gerr = typedParamsUnpack(cdomstats.params, cdomstats.nparams, cpuCacheBankInfo)
 						if gerr != nil {
@@ -3548,6 +3793,31 @@ func (c *Connect) GetAllDomainStats(doms []*Domain, statsTypes DomainStatsTypes,
 				if gerr != nil {
 					return []DomainStats{}, gerr
 				}
+
+				timedStatsLenghts := domainStatsBlockTimedStatsLengths{}
+				timedStatsLenghtsInfo := getDomainStatsBlockTimedStatsLengthsFieldInfo(j, &timedStatsLenghts)
+
+				_, gerr = typedParamsUnpack(cdomstats.params, cdomstats.nparams, timedStatsLenghtsInfo)
+				if gerr != nil {
+					return nil, gerr
+				}
+
+				if timedStatsLenghts.TimedStatsGroupCountSet && timedStatsLenghts.TimedStatsGroupCount > 0 {
+					block.TimedStats = make([]DomainStatsBlockTimedStats, timedStatsLenghts.TimedStatsGroupCount)
+
+					for k := 0; k < int(timedStatsLenghts.TimedStatsGroupCount); k++ {
+						timedStats := DomainStatsBlockTimedStats{}
+						timedStatsInfo := getDomainStatsBlockTimedStatsFieldInfo(j, k, &timedStats)
+
+						_, gerr = typedParamsUnpack(cdomstats.params, cdomstats.nparams, timedStatsInfo)
+						if gerr != nil {
+							return nil, gerr
+						}
+
+						block.TimedStats[k] = timedStats
+					}
+				}
+
 				if count != 0 {
 					domstats.Block[j] = block
 				}
