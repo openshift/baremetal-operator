@@ -319,6 +319,14 @@ func RunUpgradeTest(ctx context.Context, input *BMOIronicUpgradeInput, upgradeCl
 		})
 	}
 
+	// After deployment rollout, wait for the BMO controller to actually be processing events.
+	// There's a race condition where the deployment is "available" but the new pod hasn't
+	// acquired the leader lease yet or hasn't started its watches. If we patch the BMH
+	// during this window, the controller may miss the update event.
+	By("Waiting for BMO controller to be ready to process events")
+	WaitForBmhReconciled(ctx, upgradeClusterProxy.GetClient(), bmh,
+		e2eConfig.GetIntervals("default", "wait-deployment")...)
+
 	By("Patching the BMH to test provisioning")
 	// Using Eventually here since the webhook can take some time after the deployment is ready
 	Eventually(func() error {
@@ -365,7 +373,7 @@ var _ = Describe("Upgrade", Label("optional", "upgrade"), func() {
 			upgradeClusterName := fmt.Sprintf("bmo-e2e-upgrade-%d", GinkgoParallelProcess())
 			upgradeClusterProvider = bootstrap.CreateKindBootstrapClusterAndLoadImages(ctx, bootstrap.CreateKindBootstrapClusterAndLoadImagesInput{
 				Name:              upgradeClusterName,
-				Images:            e2eConfig.Images,
+				Images:            e2eConfig.GetClusterctlImages(),
 				ExtraPortMappings: e2eConfig.KindExtraPortMappings,
 			})
 			Expect(upgradeClusterProvider).ToNot(BeNil(), "Failed to create a cluster")

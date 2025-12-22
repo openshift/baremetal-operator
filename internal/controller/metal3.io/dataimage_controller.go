@@ -20,12 +20,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/go-logr/logr"
 	metal3api "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
-	"github.com/metal3-io/baremetal-operator/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -116,11 +116,12 @@ func (r *DataImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// There might not be any BareMetalHost for the DataImage
 		if k8serrors.IsNotFound(err) {
 			reqLogger.Info("bareMetalHost not found for the dataImage, remove finalizer if it exists")
-			di.Finalizers = utils.FilterStringFromList(
-				di.Finalizers, metal3api.DataImageFinalizer)
-
-			if err = r.Update(ctx, di); err != nil {
-				return ctrl.Result{Requeue: true, RequeueAfter: dataImageRetryDelay}, fmt.Errorf("failed to update resource after remove finalizer, %w", err)
+			if controllerutil.RemoveFinalizer(di, metal3api.DataImageFinalizer) {
+				if err = r.Update(ctx, di); err != nil {
+					return ctrl.Result{Requeue: true, RequeueAfter: dataImageRetryDelay}, fmt.Errorf("failed to update resource after remove finalizer, %w", err)
+				}
+			} else {
+				reqLogger.Info("finalizer already removed, no update needed")
 			}
 			return ctrl.Result{}, nil
 		}
@@ -151,7 +152,7 @@ func (r *DataImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Add finalizer for newly created DataImage
-	if di.DeletionTimestamp.IsZero() && !utils.StringInList(di.Finalizers, metal3api.DataImageFinalizer) {
+	if di.DeletionTimestamp.IsZero() && !slices.Contains(di.Finalizers, metal3api.DataImageFinalizer) {
 		reqLogger.Info("adding finalizer")
 		di.Finalizers = append(di.Finalizers, metal3api.DataImageFinalizer)
 
@@ -168,12 +169,10 @@ func (r *DataImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// finalizer without checking for dataImage attached status
 		if !di.DeletionTimestamp.IsZero() {
 			reqLogger.Info("dataImage deletion requested in detached state, removing finalizer")
-
-			di.Finalizers = utils.FilterStringFromList(
-				di.Finalizers, metal3api.DataImageFinalizer)
-
-			if err := r.Update(ctx, di); err != nil {
-				return ctrl.Result{Requeue: true, RequeueAfter: dataImageRetryDelay}, fmt.Errorf("failed to update resource after remove finalizer, %w", err)
+			if controllerutil.RemoveFinalizer(di, metal3api.DataImageFinalizer) {
+				if err := r.Update(ctx, di); err != nil {
+					return ctrl.Result{Requeue: true, RequeueAfter: dataImageRetryDelay}, fmt.Errorf("failed to update resource after remove finalizer, %w", err)
+				}
 			}
 			return ctrl.Result{}, nil
 		}
@@ -234,11 +233,10 @@ func (r *DataImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{Requeue: true, RequeueAfter: dataImageRetryDelay}, nil
 		}
 
-		di.Finalizers = utils.FilterStringFromList(
-			di.Finalizers, metal3api.DataImageFinalizer)
-
-		if err := r.Update(ctx, di); err != nil {
-			return ctrl.Result{Requeue: true, RequeueAfter: dataImageRetryDelay}, fmt.Errorf("failed to update resource after remove finalizer, %w", err)
+		if controllerutil.RemoveFinalizer(di, metal3api.DataImageFinalizer) {
+			if err := r.Update(ctx, di); err != nil {
+				return ctrl.Result{Requeue: true, RequeueAfter: dataImageRetryDelay}, fmt.Errorf("failed to update resource after remove finalizer, %w", err)
+			}
 		}
 		return ctrl.Result{}, nil
 	}

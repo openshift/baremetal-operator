@@ -1,6 +1,7 @@
 package ironic
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -19,9 +20,9 @@ const (
 	defaultInspectInterface = "agent"
 )
 
-func bmcAddressMatches(ironicNode *nodes.Node, driverInfo map[string]interface{}) bool {
-	newAddress := make(map[string]interface{})
-	ironicAddress := make(map[string]interface{})
+func bmcAddressMatches(ironicNode *nodes.Node, driverInfo map[string]any) bool {
+	newAddress := make(map[string]any)
+	ironicAddress := make(map[string]any)
 	reg := regexp.MustCompile("_address$")
 	for key, value := range driverInfo {
 		if reg.MatchString(key) {
@@ -82,10 +83,10 @@ func (p *ironicProvisioner) Register(data provisioner.ManagementAccessData, cred
 
 	ironicNode, err = p.findExistingHost(p.bootMACAddress)
 	if err != nil {
-		switch err.(type) {
-		case macAddressConflictError:
-			result, err = operationFailed(err.Error())
-		default:
+		var target macAddressConflictError
+		if errors.As(err, &target) {
+			result, err = operationFailed(target.Error())
+		} else {
 			result, err = transientError(fmt.Errorf("failed to find existing host: %w", err))
 		}
 		return result, "", err
@@ -162,7 +163,7 @@ func (p *ironicProvisioner) Register(data provisioner.ManagementAccessData, cred
 	if !p.config.havePreprovImgBuilder {
 		networkDataRaw := data.PreprovisioningNetworkData
 		if networkDataRaw != "" {
-			var networkData map[string]interface{}
+			var networkData map[string]any
 			if yamlErr := yaml.Unmarshal([]byte(networkDataRaw), &networkData); yamlErr != nil {
 				p.log.Info("failed to unmarshal networkData from PreprovisioningNetworkData")
 				result, err = transientError(fmt.Errorf("invalid preprovisioningNetworkData: %w", yamlErr))
@@ -237,7 +238,7 @@ func (p *ironicProvisioner) Register(data provisioner.ManagementAccessData, cred
 	}
 }
 
-func (p *ironicProvisioner) enrollNode(data provisioner.ManagementAccessData, bmcAccess bmc.AccessDetails, driverInfo map[string]interface{}) (ironicNode *nodes.Node, retry bool, err error) {
+func (p *ironicProvisioner) enrollNode(data provisioner.ManagementAccessData, bmcAccess bmc.AccessDetails, driverInfo map[string]any) (ironicNode *nodes.Node, retry bool, err error) {
 	nodeCreateOpts := nodes.CreateOpts{
 		Driver:              bmcAccess.Driver(),
 		BIOSInterface:       bmcAccess.BIOSInterface(),
@@ -252,7 +253,7 @@ func (p *ironicProvisioner) enrollNode(data provisioner.ManagementAccessData, bm
 		RAIDInterface:       bmcAccess.RAIDInterface(),
 		VendorInterface:     bmcAccess.VendorInterface(),
 		DisablePowerOff:     &data.DisablePowerOff,
-		Properties: map[string]interface{}{
+		Properties: map[string]any{
 			"capabilities": buildCapabilitiesValue(nil, data.BootMode),
 			"cpu_arch":     data.CPUArchitecture,
 		},
@@ -265,7 +266,7 @@ func (p *ironicProvisioner) enrollNode(data provisioner.ManagementAccessData, bm
 		p.log.Info("could not register host in ironic, busy")
 		return nil, true, nil
 	} else {
-		return nil, true, fmt.Errorf("failed to register host in ironic: %s", err)
+		return nil, true, fmt.Errorf("failed to register host in ironic: %w", err)
 	}
 
 	// If we know the MAC, create a port. Otherwise we will have
