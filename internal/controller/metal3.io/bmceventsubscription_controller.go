@@ -20,12 +20,12 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/go-logr/logr"
 	metal3api "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
-	"github.com/metal3-io/baremetal-operator/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -201,12 +202,12 @@ func (r *BMCEventSubscriptionReconciler) deleteSubscription(ctx context.Context,
 		}
 
 		// Remove finalizer to allow deletion
-		subscription.Finalizers = utils.FilterStringFromList(
-			subscription.Finalizers, metal3api.BMCEventSubscriptionFinalizer)
-		reqLogger.Info("cleanup is complete, removed finalizer",
-			"remaining", subscription.Finalizers)
-		if err := r.Update(ctx, subscription); err != nil {
-			return err
+		if controllerutil.RemoveFinalizer(subscription, metal3api.BMCEventSubscriptionFinalizer) {
+			reqLogger.Info("cleanup is complete, removed finalizer",
+				"remaining", subscription.Finalizers)
+			if err := r.Update(ctx, subscription); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -301,5 +302,5 @@ func (r *BMCEventSubscriptionReconciler) SetupWithManager(mgr ctrl.Manager, maxC
 }
 
 func subscriptionHasFinalizer(subscription *metal3api.BMCEventSubscription) bool {
-	return utils.StringInList(subscription.Finalizers, metal3api.BMCEventSubscriptionFinalizer)
+	return slices.Contains(subscription.Finalizers, metal3api.BMCEventSubscriptionFinalizer)
 }

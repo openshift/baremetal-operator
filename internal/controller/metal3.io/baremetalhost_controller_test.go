@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/metal3-io/baremetal-operator/pkg/hardwareutils/bmc"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/fixture"
 	"github.com/metal3-io/baremetal-operator/pkg/secretutils"
-	"github.com/metal3-io/baremetal-operator/pkg/utils"
 	promutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -624,14 +624,14 @@ func TestAddFinalizers(t *testing.T) {
 	tryReconcile(t, r, host,
 		func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
 			t.Logf("host finalizers: %v", host.ObjectMeta.Finalizers)
-			if !utils.StringInList(host.ObjectMeta.Finalizers, metal3api.BareMetalHostFinalizer) {
+			if !slices.Contains(host.ObjectMeta.Finalizers, metal3api.BareMetalHostFinalizer) {
 				return false
 			}
 
 			hostSecret := getHostSecret(t, r, host)
 			t.Logf("BMC secret finalizers: %v", hostSecret.ObjectMeta.Finalizers)
 
-			return utils.StringInList(hostSecret.ObjectMeta.Finalizers, secretutils.SecretsFinalizer)
+			return slices.Contains(hostSecret.ObjectMeta.Finalizers, secretutils.SecretsFinalizer)
 		},
 	)
 }
@@ -1710,7 +1710,7 @@ func TestDeleteHost(t *testing.T) {
 
 			tryReconcile(t, r, host,
 				func(host *metal3api.BareMetalHost, result reconcile.Result) bool {
-					return fix.Deleted && host == nil && !utils.StringInList(badSecret.Finalizers, secretutils.SecretsFinalizer)
+					return fix.Deleted && host == nil && !slices.Contains(badSecret.Finalizers, secretutils.SecretsFinalizer)
 				},
 			)
 		})
@@ -2642,6 +2642,48 @@ func TestGetPreprovImageNotCurrent(t *testing.T) {
 	i := makeReconcileInfo(host)
 
 	imgData, err := r.getPreprovImage(i, []metal3api.ImageFormat{metal3api.ImageFormatISO})
+	require.NoError(t, err)
+	assert.Nil(t, imgData)
+}
+
+func TestGetPreprovImageBeingDeleted(t *testing.T) {
+	host := newDefaultHost(t)
+	imageURL := "http://example.test/image.iso"
+	acceptFormats := []metal3api.ImageFormat{metal3api.ImageFormatISO, metal3api.ImageFormatInitRD}
+	now := metav1.Now()
+	image := &metal3api.PreprovisioningImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              host.Name,
+			Namespace:         namespace,
+			DeletionTimestamp: &now, // PPI is being deleted
+			Finalizers:        []string{"test-finalizer"},
+		},
+		Spec: metal3api.PreprovisioningImageSpec{
+			Architecture:  "x86_64",
+			AcceptFormats: acceptFormats,
+		},
+		Status: metal3api.PreprovisioningImageStatus{
+			Architecture: "x86_64",
+			Format:       metal3api.ImageFormatISO,
+			ImageUrl:     imageURL,
+			Conditions: []metav1.Condition{
+				{
+					Type:   string(metal3api.ConditionImageReady),
+					Status: metav1.ConditionTrue,
+				},
+				{
+					Type:   string(metal3api.ConditionImageError),
+					Status: metav1.ConditionFalse,
+				},
+			},
+		},
+	}
+	r := newTestReconciler(t, host, image)
+	i := makeReconcileInfo(host)
+
+	// Even though the image is ready, it should be treated as unavailable
+	// because it has a DeletionTimestamp
+	imgData, err := r.getPreprovImage(i, acceptFormats)
 	require.NoError(t, err)
 	assert.Nil(t, imgData)
 }

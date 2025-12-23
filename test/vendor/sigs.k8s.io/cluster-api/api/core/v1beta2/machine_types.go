@@ -162,6 +162,10 @@ const (
 
 	// MachineNotUpToDateReason surface when a Machine spec does not match the spec of the Machine's owner resource, e.g. KubeadmControlPlane or MachineDeployment.
 	MachineNotUpToDateReason = "NotUpToDate"
+
+	// MachineUpToDateUpdatingReason surface when a Machine spec matches the spec of the Machine's owner resource,
+	// but the Machine is still updating in-place.
+	MachineUpToDateUpdatingReason = "Updating"
 )
 
 // Machine's Updating condition and corresponding reasons.
@@ -484,6 +488,23 @@ type MachineSpec struct {
 	// deletion contains configuration options for Machine deletion.
 	// +optional
 	Deletion MachineDeletionSpec `json:"deletion,omitempty,omitzero"`
+
+	// taints are the node taints that Cluster API will manage.
+	// This list is not necessarily complete: other Kubernetes components may add or remove other taints from nodes,
+	// e.g. the node controller might add the node.kubernetes.io/not-ready taint.
+	// Only those taints defined in this list will be added or removed by core Cluster API controllers.
+	//
+	// There can be at most 64 taints.
+	// A pod would have to tolerate all existing taints to run on the corresponding node.
+	//
+	// NOTE: This list is implemented as a "map" type, meaning that individual elements can be managed by different owners.
+	// +optional
+	// +listType=map
+	// +listMapKey=key
+	// +listMapKey=effect
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=64
+	Taints []MachineTaint `json:"taints,omitempty"`
 }
 
 // MachineDeletionSpec contains configuration options for Machine deletion.
@@ -535,7 +556,7 @@ type MachineReadinessGate struct {
 type MachineStatus struct {
 	// conditions represents the observations of a Machine's current state.
 	// Known condition types are Available, Ready, UpToDate, BootstrapConfigReady, InfrastructureReady, NodeReady,
-	// NodeHealthy, Deleting, Paused.
+	// NodeHealthy, Updating, Deleting, Paused.
 	// If a MachineHealthCheck is targeting this machine, also HealthCheckSucceeded, OwnerRemediated conditions are added.
 	// Additionally control plane Machines controlled by KubeadmControlPlane will have following additional conditions:
 	// APIServerPodHealthy, ControllerManagerPodHealthy, SchedulerPodHealthy, EtcdPodHealthy, EtcdMemberHealthy.

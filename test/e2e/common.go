@@ -142,6 +142,64 @@ func PatchBMHForProvisioning(ctx context.Context, input PatchBMHForProvisioningI
 	return helper.Patch(ctx, input.bmh)
 }
 
+// WaitForBmhReconciled waits for the BMO controller to process a BMH update.
+// This is used after BMO deployment rollout to ensure the controller is actually
+// processing events before making further changes. It works by adding/updating
+// an annotation and waiting for the status.lastUpdated timestamp to change,
+// which proves the controller reconciled the BMH.
+func WaitForBmhReconciled(ctx context.Context, c client.Client, bmh metal3api.BareMetalHost, intervals ...interface{}) {
+	key := types.NamespacedName{Namespace: bmh.Namespace, Name: bmh.Name}
+
+	// Get the initial lastUpdated timestamp before we trigger a reconcile
+	currentBmh := &metal3api.BareMetalHost{}
+	Expect(c.Get(ctx, key, currentBmh)).To(Succeed())
+	initialLastUpdated := currentBmh.Status.LastUpdated
+
+	// Touch the BMH with an annotation update to trigger a reconcile.
+	// Use Eventually because the webhook may not be ready immediately after
+	// BMO deployment upgrade - it can take time for the webhook service
+	// endpoint to become available.
+	// We delete the annotation first, then add it, to ensure we always trigger
+	// a fresh change even if a previous retry partially succeeded.
+	Eventually(func() error {
+		currentBmh := &metal3api.BareMetalHost{}
+		if err := c.Get(ctx, key, currentBmh); err != nil {
+			return err
+		}
+		helper, err := patch.NewHelper(currentBmh, c)
+		if err != nil {
+			return err
+		}
+		// Delete annotation first to ensure a fresh change on each retry
+		delete(currentBmh.Annotations, "e2e.metal3.io/reconcile-check")
+		if err = helper.Patch(ctx, currentBmh); err != nil {
+			return err
+		}
+		// Now add the annotation to trigger reconcile
+		helper, err = patch.NewHelper(currentBmh, c)
+		if err != nil {
+			return err
+		}
+		if currentBmh.Annotations == nil {
+			currentBmh.Annotations = make(map[string]string)
+		}
+		currentBmh.Annotations["e2e.metal3.io/reconcile-check"] = metav1.Now().Format("2006-01-02T15:04:05Z")
+		return helper.Patch(ctx, currentBmh)
+	}, intervals...).Should(Succeed(), "failed to patch BMH to trigger reconcile (webhook may not be ready)")
+
+	// Wait for lastUpdated to change, proving the controller processed our update
+	Eventually(func(g Gomega) {
+		updatedBmh := &metal3api.BareMetalHost{}
+		g.Expect(c.Get(ctx, key, updatedBmh)).To(Succeed())
+		// Check that lastUpdated has changed (controller reconciled)
+		g.Expect(updatedBmh.Status.LastUpdated).NotTo(BeNil(), "BMH status.lastUpdated should not be nil")
+		if initialLastUpdated != nil {
+			g.Expect(updatedBmh.Status.LastUpdated.Before(initialLastUpdated)).To(BeFalse(),
+				"BMH status.lastUpdated should have been updated by controller")
+		}
+	}, intervals...).Should(Succeed())
+}
+
 // DeleteBmhsInNamespace deletes all BMHs in the given namespace.
 func DeleteBmhsInNamespace(ctx context.Context, deleter client.Client, namespace string) {
 	bmh := metal3api.BareMetalHost{}
@@ -278,13 +336,13 @@ func CreateSecret(ctx context.Context, client client.Client, secretNamespace, se
 func executeSSHCommand(client *ssh.Client, command string) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {
-		return "", fmt.Errorf("failed to create SSH session: %v", err)
+		return "", fmt.Errorf("failed to create SSH session: %w", err)
 	}
 	defer session.Close()
 
 	output, err := session.CombinedOutput(command)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute command '%s': %v", command, err)
+		return "", fmt.Errorf("failed to execute command '%s': %w", command, err)
 	}
 
 	return string(output), nil

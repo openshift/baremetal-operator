@@ -261,34 +261,37 @@ func (p *ironicProvisioner) findExistingHost(bootMACAddress string) (ironicNode 
 	}
 
 	// Try to load the node by port address
-	p.log.Info("looking for existing node by MAC", "MAC", bootMACAddress)
-	allPorts, err := p.listAllPorts(bootMACAddress)
+	// Skip MAC-based lookup if bootMACAddress is empty to avoid false conflicts
+	if bootMACAddress != "" {
+		p.log.Info("looking for existing node by MAC", "MAC", bootMACAddress)
+		allPorts, err := p.listAllPorts(bootMACAddress)
 
-	if err != nil {
-		p.log.Info("failed to find an existing port with address", "MAC", bootMACAddress)
-		return nil, nil //nolint:nilerr,nilnil
-	}
+		if err != nil {
+			p.log.Info("failed to find an existing port with address", "MAC", bootMACAddress)
+			return nil, nil //nolint:nilerr,nilnil
+		}
 
-	if len(allPorts) > 0 {
-		nodeUUID := allPorts[0].NodeUUID
-		ironicNode, err = nodes.Get(p.ctx, p.client, nodeUUID).Extract()
-		if err == nil {
-			p.debugLog.Info("found existing node by MAC", "MAC", bootMACAddress, "node", ironicNode.UUID, "name", ironicNode.Name)
+		if len(allPorts) > 0 {
+			nodeUUID := allPorts[0].NodeUUID
+			ironicNode, err = nodes.Get(p.ctx, p.client, nodeUUID).Extract()
+			if err == nil {
+				p.debugLog.Info("found existing node by MAC", "MAC", bootMACAddress, "node", ironicNode.UUID, "name", ironicNode.Name)
 
-			// If the node has a name, this means we didn't find it above.
-			if ironicNode.Name != "" {
-				return nil, NewMacAddressConflictError(bootMACAddress, ironicNode.Name)
+				// If the node has a name, this means we didn't find it above.
+				if ironicNode.Name != "" {
+					return nil, NewMacAddressConflictError(bootMACAddress, ironicNode.Name)
+				}
+
+				return ironicNode, nil
 			}
+			if gophercloud.ResponseCodeIs(err, http.StatusNotFound) {
+				return nil, fmt.Errorf("port %s exists but linked node %s doesn't: %w", bootMACAddress, nodeUUID, err)
+			}
+			return nil, fmt.Errorf("port %s exists but failed to find linked node %s by ID: %w", bootMACAddress, nodeUUID, err)
+		}
 
-			return ironicNode, nil
-		}
-		if gophercloud.ResponseCodeIs(err, http.StatusNotFound) {
-			return nil, fmt.Errorf("port %s exists but linked node %s doesn't: %w", bootMACAddress, nodeUUID, err)
-		}
-		return nil, fmt.Errorf("port %s exists but failed to find linked node %s by ID: %w", bootMACAddress, nodeUUID, err)
+		p.log.Info("port with address doesn't exist", "MAC", bootMACAddress)
 	}
-
-	p.log.Info("port with address doesn't exist", "MAC", bootMACAddress)
 	// Either the node was never created or the Ironic database has
 	// been dropped.
 	return nil, nil //nolint:nilnil
@@ -364,7 +367,8 @@ func (p *ironicProvisioner) configureNode(data provisioner.ManagementAccessData,
 	}
 
 	switch data.State {
-	case metal3api.StateInspecting,
+	case metal3api.StateDeprovisioning,
+		metal3api.StateInspecting,
 		metal3api.StatePreparing:
 		if deployImageInfo == nil && p.config.havePreprovImgBuilder {
 			result, err = transientError(provisioner.ErrNeedsPreprovisioningImage)
@@ -405,7 +409,7 @@ func (p *ironicProvisioner) PreprovisioningImageFormats() ([]metal3api.ImageForm
 	return formats, nil
 }
 
-func setExternalURL(p *ironicProvisioner, driverInfo map[string]interface{}) map[string]interface{} {
+func setExternalURL(p *ironicProvisioner, driverInfo map[string]any) map[string]any {
 	if _, ok := driverInfo["external_http_url"]; ok {
 		driverInfo["external_http_url"] = nil
 	}
@@ -620,7 +624,12 @@ func (p *ironicProvisioner) setDirectDeployUpdateOptsForNode(ironicNode *nodes.N
 		"image_disk_format": imageData.DiskFormat,
 	}
 
-	if checksumType == "" {
+	// For OCI images without checksum, don't set checksum fields
+	if checksum == "" && checksumType == "" {
+		optValues["image_checksum"] = nil
+		optValues["image_os_hash_algo"] = nil
+		optValues["image_os_hash_value"] = nil
+	} else if checksumType == "" {
 		optValues["image_checksum"] = checksum
 		optValues["image_os_hash_algo"] = nil
 		optValues["image_os_hash_value"] = nil
@@ -907,7 +916,10 @@ func (p *ironicProvisioner) ironicHasSameImage(ironicNode *nodes.Node, image met
 			"provisionState", ironicNode.ProvisionState)
 	} else {
 		checksum, checksumType, _ := image.GetChecksum()
-		if checksumType == "" {
+		// For OCI images without checksum, only compare the URL
+		if image.IsOCI() && checksum == "" {
+			sameImage = (ironicNode.InstanceInfo["image_source"] == image.URL)
+		} else if checksumType == "" {
 			sameImage = (ironicNode.InstanceInfo["image_source"] == image.URL &&
 				ironicNode.InstanceInfo["image_checksum"] == checksum &&
 				ironicNode.InstanceInfo["image_os_hash_algo"] == nil &&
@@ -929,7 +941,7 @@ func (p *ironicProvisioner) ironicHasSameImage(ironicNode *nodes.Node, image met
 	return sameImage
 }
 
-func (p *ironicProvisioner) getNewFirmwareSettings(actualFirmwareSettings metal3api.SettingsMap, targetFirmwareSettings metal3api.DesiredSettingsMap, fwConfigSettings []map[string]string) (newSettings []map[string]interface{}) {
+func (p *ironicProvisioner) getNewFirmwareSettings(actualFirmwareSettings metal3api.SettingsMap, targetFirmwareSettings metal3api.DesiredSettingsMap, fwConfigSettings []map[string]string) (newSettings []map[string]any) {
 	if actualFirmwareSettings != nil {
 		// If we have the current settings from Ironic, update the settings to contain:
 		// 1. settings converted by BMC drivers that are different than current settings
@@ -1004,7 +1016,7 @@ func (p *ironicProvisioner) buildManualCleaningSteps(bmcAccess bmc.AccessDetails
 			nodes.CleanStep{
 				Interface: nodes.InterfaceBIOS,
 				Step:      "apply_configuration",
-				Args: map[string]interface{}{
+				Args: map[string]any{
 					"settings": newSettings,
 				},
 			},
@@ -1020,7 +1032,7 @@ func (p *ironicProvisioner) buildManualCleaningSteps(bmcAccess bmc.AccessDetails
 			nodes.CleanStep{
 				Interface: nodes.InterfaceFirmware,
 				Step:      "update",
-				Args: map[string]interface{}{
+				Args: map[string]any{
 					"settings": newUpdates,
 				},
 			},
@@ -1032,7 +1044,7 @@ func (p *ironicProvisioner) buildManualCleaningSteps(bmcAccess bmc.AccessDetails
 	return cleanSteps, nil
 }
 
-func buildFirmwareSettings(settings []map[string]interface{}, name string, value intstr.IntOrString) []map[string]interface{} {
+func buildFirmwareSettings(settings []map[string]any, name string, value intstr.IntOrString) []map[string]any {
 	// if name already exists, don't add it
 	for _, setting := range settings {
 		if setting["name"] == name {
@@ -1041,9 +1053,9 @@ func buildFirmwareSettings(settings []map[string]interface{}, name string, value
 	}
 
 	if value.Type == intstr.Int {
-		settings = append(settings, map[string]interface{}{"name": name, "value": value.IntValue()})
+		settings = append(settings, map[string]any{"name": name, "value": value.IntValue()})
 	} else {
-		settings = append(settings, map[string]interface{}{"name": name, "value": value.String()})
+		settings = append(settings, map[string]any{"name": name, "value": value.String()})
 	}
 
 	return settings
@@ -1184,7 +1196,7 @@ func (p *ironicProvisioner) getConfigDrive(data provisioner.ProvisionData) (conf
 		return configDrive, fmt.Errorf("could not retrieve network data: %w", err)
 	}
 	if networkDataRaw != "" {
-		var networkData map[string]interface{}
+		var networkData map[string]any
 		if err = yaml.Unmarshal([]byte(networkDataRaw), &networkData); err != nil {
 			return configDrive, fmt.Errorf("failed to unmarshal network_data.json from secret: %w", err)
 		}
@@ -1192,7 +1204,7 @@ func (p *ironicProvisioner) getConfigDrive(data provisioner.ProvisionData) (conf
 	}
 
 	// Retrieve meta data with fallback to defaults from provisioner.
-	configDrive.MetaData = map[string]interface{}{
+	configDrive.MetaData = map[string]any{
 		"uuid":             string(p.objectMeta.UID),
 		"metal3-namespace": p.objectMeta.Namespace,
 		"metal3-name":      p.objectMeta.Name,
@@ -1218,7 +1230,7 @@ func (p *ironicProvisioner) getCustomDeploySteps(customDeploy *metal3api.CustomD
 		deploySteps = append(deploySteps, nodes.DeployStep{
 			Interface: nodes.InterfaceDeploy,
 			Step:      customDeploy.Method,
-			Args:      map[string]interface{}{},
+			Args:      map[string]any{},
 			Priority:  customDeployPriority,
 		})
 	}
@@ -1495,7 +1507,21 @@ func (p *ironicProvisioner) Delete() (result provisioner.Result, err error) {
 	)
 
 	currentProvState := nodes.ProvisionState(ironicNode.ProvisionState)
-	if currentProvState == nodes.Available || currentProvState == nodes.Manageable {
+
+	// Handle verifying state specially: Ironic holds an exclusive lock during
+	// verification, so we can't set maintenance mode or delete until it completes.
+	// Just wait for the verification to finish (success or timeout).
+	if currentProvState == nodes.Verifying {
+		p.log.Info("node is verifying, waiting for verification to complete before deletion")
+		return operationContinuing(provisionRequeueDelay)
+	}
+
+	// For enroll state, the node can be deleted directly without maintenance mode
+	// since it has no Nova associations and isn't locked.
+	if currentProvState == nodes.Enroll {
+		p.log.Info("node is in enroll state, proceeding to delete directly")
+		// Fall through to deletion
+	} else if currentProvState == nodes.Available || currentProvState == nodes.Manageable {
 		// Make sure we don't have a stale instance UUID
 		if ironicNode.InstanceUUID != "" {
 			var success bool
