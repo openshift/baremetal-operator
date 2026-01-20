@@ -524,11 +524,8 @@ func TestValidateCreate(t *testing.T) {
 				Spec: metal3api.BareMetalHostSpec{
 					BMC: metal3api.BMCDetails{
 						Address: "ipmi://[fe80::fc33:62ff:fe33:8xff]:6223"}}},
-			oldBMH: nil,
-			// TODO(honza): Restore this line once we have golang 1.24.9 in CI.
-			// See ffa977e9e2f31a459857d51b4212d4a29bf933aa
-			// wantedErr: "failed to parse BMC address information: parse \"ipmi://[fe80::fc33:62ff:fe33:8xff]:6223\": invalid host: ParseAddr(\"fe80::fc33:62ff:fe33:8xff\"): unexpected character, want colon (at \"xff\")",
-			wantedErr: "failed to parse BMC address information: BMC address hostname/IP : [fe80::fc33:62ff:fe33:8xff] is invalid",
+			oldBMH:    nil,
+			wantedErr: "failed to parse BMC address information: parse \"ipmi://[fe80::fc33:62ff:fe33:8xff]:6223\": invalid host: ParseAddr(\"fe80::fc33:62ff:fe33:8xff\"): unexpected character, want colon (at \"xff\")",
 		},
 		{
 			name: "validRootDeviceHint",
