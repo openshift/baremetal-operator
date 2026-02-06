@@ -1401,7 +1401,9 @@ func (r *BareMetalHostReconciler) actionDeprovisioning(prov provisioner.Provisio
 
 	info.log.Info("deprovisioning")
 
-	provResult, err := prov.Deprovision(info.host.Status.ErrorType == metal3api.ProvisioningError)
+	provResult, err := prov.Deprovision(
+		info.host.Status.ErrorType == metal3api.ProvisioningError,
+		info.host.Spec.AutomatedCleaningMode)
 	if err != nil {
 		return actionError{fmt.Errorf("failed to deprovision: %w", err)}
 	}

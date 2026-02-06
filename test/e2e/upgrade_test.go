@@ -19,157 +19,6 @@ import (
 	"sigs.k8s.io/cluster-api/test/framework/bootstrap"
 )
 
-const hardwareDetailsRelease04 = `
-{
-  "cpu": {
-    "arch": "x86_64",
-    "count": 2,
-    "flags": [
-      "3dnowprefetch",
-      "abm",
-      "adx",
-      "aes",
-      "apic",
-      "arat",
-      "arch_capabilities",
-      "avx",
-      "avx2",
-      "avx_vnni",
-      "bmi1",
-      "bmi2",
-      "clflush",
-      "clflushopt",
-      "clwb",
-      "cmov",
-      "constant_tsc",
-      "cpuid",
-      "cpuid_fault",
-      "cx16",
-      "cx8",
-      "de",
-      "ept",
-      "ept_ad",
-      "erms",
-      "f16c",
-      "flexpriority",
-      "fma",
-      "fpu",
-      "fsgsbase",
-      "fsrm",
-      "fxsr",
-      "gfni",
-      "hypervisor",
-      "ibpb",
-      "ibrs",
-      "ibrs_enhanced",
-      "invpcid",
-      "lahf_lm",
-      "lm",
-      "mca",
-      "mce",
-      "md_clear",
-      "mmx",
-      "movbe",
-      "movdir64b",
-      "movdiri",
-      "msr",
-      "mtrr",
-      "nopl",
-      "nx",
-      "ospke",
-      "pae",
-      "pat",
-      "pclmulqdq",
-      "pdpe1gb",
-      "pge",
-      "pku",
-      "pni",
-      "popcnt",
-      "pse",
-      "pse36",
-      "rdpid",
-      "rdrand",
-      "rdseed",
-      "rdtscp",
-      "rep_good",
-      "sep",
-      "serialize",
-      "sha_ni",
-      "smap",
-      "smep",
-      "ss",
-      "ssbd",
-      "sse",
-      "sse2",
-      "sse4_1",
-      "sse4_2",
-      "ssse3",
-      "stibp",
-      "syscall",
-      "tpr_shadow",
-      "tsc",
-      "tsc_adjust",
-      "tsc_deadline_timer",
-      "tsc_known_freq",
-      "umip",
-      "vaes",
-      "vme",
-      "vmx",
-      "vnmi",
-      "vpclmulqdq",
-      "vpid",
-      "waitpkg",
-      "x2apic",
-      "xgetbv1",
-      "xsave",
-      "xsavec",
-      "xsaveopt",
-      "xsaves",
-      "xtopology"
-    ],
-    "model": "12th Gen Intel(R) Core(TM) i9-12900H"
-  },
-  "firmware": {
-    "bios": {
-      "date": "04/01/2014",
-      "vendor": "SeaBIOS",
-      "version": "1.15.0-1"
-    }
-  },
-  "hostname": "bmo-e2e-1",
-  "nics": [
-    {
-      "ip": "192.168.223.122",
-      "mac": "00:60:2f:31:81:02",
-      "model": "0x1af4 0x0001",
-      "name": "enp1s0",
-      "pxe": true
-    },
-    {
-      "ip": "fe80::570a:edf2:a3a7:4eb8%enp1s0",
-      "mac": "00:60:2f:31:81:02",
-      "model": "0x1af4 0x0001",
-      "name": "enp1s0",
-      "pxe": true
-    }
-  ],
-  "ramMebibytes": 4096,
-  "storage": [
-    {
-      "name": "/dev/disk/by-path/pci-0000:04:00.0",
-      "rotational": true,
-      "sizeBytes": 21474836480,
-      "type": "HDD",
-      "vendor": "0x1af4"
-    }
-  ],
-  "systemVendor": {
-    "manufacturer": "QEMU",
-    "productName": "Standard PC (Q35 + ICH9, 2009)"
-  }
-}
-`
-
 // RunUpgradeTest tests upgrade from an older version of BMO or Ironic --> main branch version with the following steps:
 //   - Initiate the cluster with an the older version of either BMO or Ironic, and the latest Ironic/BMO version that is suitable with it
 //   - Create a new namespace, and in it a BMH object with "disabled" annotation.
@@ -179,24 +28,21 @@ const hardwareDetailsRelease04 = `
 //   - If the BMH is successfully provisioned, it means the upgraded BMO/Ironic recognized that BMH, hence the upgrade succeeded.
 //
 // The function returns the namespace object, with its cancelFunc. These can be used to clean up the created resources.
-func RunUpgradeTest(ctx context.Context, input *BMOIronicUpgradeInput, upgradeClusterProxy framework.ClusterProxy) (*corev1.Namespace, context.CancelFunc, string) {
+// The testCaseArtifactFolder parameter specifies where to store test artifacts.
+func RunUpgradeTest(ctx context.Context, input *BMOIronicUpgradeInput, upgradeClusterProxy framework.ClusterProxy, testCaseArtifactFolder string) (*corev1.Namespace, context.CancelFunc) {
 	bmoIronicNamespace := "baremetal-operator-system"
 	initBMOKustomization := input.InitBMOKustomization
 	initIronicKustomization := input.InitIronicKustomization
 	upgradeEntityName := input.UpgradeEntityName
 	specName := "upgrade"
-	var upgradeDeploymentName, upgradeFromKustomization string
+	testCaseName := getUpgradeTestCaseName(input)
+	var upgradeDeploymentName string
 	switch upgradeEntityName {
 	case bmoString:
-		upgradeFromKustomization = initBMOKustomization
 		upgradeDeploymentName = "baremetal-operator-controller-manager"
 	case ironicString:
-		upgradeFromKustomization = initIronicKustomization
 		upgradeDeploymentName = "ironic-service"
 	}
-	upgradeFromKustomizationName := strings.ReplaceAll(filepath.Base(upgradeFromKustomization), ".", "-")
-	testCaseName := fmt.Sprintf("%s-upgrade-from-%s", upgradeEntityName, upgradeFromKustomizationName)
-	testCaseArtifactFolder := filepath.Join(artifactFolder, testCaseName)
 	if input.DeployIronic {
 		// Install Ironic
 		By(fmt.Sprintf("Installing Ironic from kustomization %s on the upgrade cluster", initIronicKustomization))
@@ -257,10 +103,8 @@ func RunUpgradeTest(ctx context.Context, input *BMOIronicUpgradeInput, upgradeCl
 			Name:      testCaseName,
 			Namespace: namespace.Name,
 			Annotations: map[string]string{
-				metal3api.InspectAnnotationPrefix: "disabled",
-				// hardwareDetails of release0.4 is compatible to release0.3 and release0.5 as well
-				// This can be changed to the new hardwareDetails once we no longer test release0.4
-				metal3api.HardwareDetailsAnnotation: hardwareDetailsRelease04,
+				metal3api.InspectAnnotationPrefix:   "disabled",
+				metal3api.HardwareDetailsAnnotation: hardwareDetails,
 			},
 		},
 		Spec: metal3api.BareMetalHostSpec{
@@ -270,7 +114,7 @@ func RunUpgradeTest(ctx context.Context, input *BMOIronicUpgradeInput, upgradeCl
 				CredentialsName:                secretName,
 				DisableCertificateVerification: bmc.DisableCertificateVerification,
 			},
-			BootMode:       metal3api.Legacy,
+			BootMode:       metal3api.BootMode(e2eConfig.GetVariable("BOOT_MODE")),
 			BootMACAddress: bmc.BootMacAddress,
 		},
 	}
@@ -344,7 +188,21 @@ func RunUpgradeTest(ctx context.Context, input *BMOIronicUpgradeInput, upgradeCl
 		Bmh:    bmh,
 		State:  metal3api.StateProvisioned,
 	}, e2eConfig.GetIntervals(specName, "wait-provisioned")...)
-	return namespace, cancelWatches, testCaseArtifactFolder
+	return namespace, cancelWatches
+}
+
+// getUpgradeTestCaseName returns the test case name for an upgrade test.
+// The name takes the form [upgrade-entity]-upgrade-from-[kustomization-path].
+func getUpgradeTestCaseName(input *BMOIronicUpgradeInput) string {
+	var upgradeFromKustomization string
+	switch input.UpgradeEntityName {
+	case bmoString:
+		upgradeFromKustomization = input.InitBMOKustomization
+	case ironicString:
+		upgradeFromKustomization = input.InitIronicKustomization
+	}
+	upgradeFromKustomizationName := strings.ReplaceAll(filepath.Base(upgradeFromKustomization), ".", "-")
+	return fmt.Sprintf("%s-upgrade-from-%s", input.UpgradeEntityName, upgradeFromKustomizationName)
 }
 
 var _ = Describe("Upgrade", Label("optional", "upgrade"), func() {
@@ -378,6 +236,10 @@ var _ = Describe("Upgrade", Label("optional", "upgrade"), func() {
 			})
 			Expect(upgradeClusterProvider).ToNot(BeNil(), "Failed to create a cluster")
 			kubeconfigPath = upgradeClusterProvider.GetKubeconfigPath()
+
+			// Configure provisioning network for dnsmasq to work properly.
+			// TODO(lentzi90): This is a workaround. Fix it properly and get rid of it.
+			ConfigureProvisioningNetwork(ctx, upgradeClusterName, e2eConfig.GetVariable("IRONIC_PROVISIONING_IP"))
 		}
 		Expect(kubeconfigPath).To(BeAnExistingFile(), "Failed to get the kubeconfig file for the cluster")
 		scheme := runtime.NewScheme()
@@ -414,7 +276,10 @@ var _ = Describe("Upgrade", Label("optional", "upgrade"), func() {
 	DescribeTable("",
 		// Test function that runs for each table entry
 		func(ctx context.Context, input *BMOIronicUpgradeInput) {
-			namespace, cancelWatches, testArtifactFolder = RunUpgradeTest(ctx, input, upgradeClusterProxy)
+			testCaseName := getUpgradeTestCaseName(input)
+			// Set testArtifactFolder before RunUpgradeTest so it's available in AfterEach even if the test fails
+			testArtifactFolder = filepath.Join(artifactFolder, testCaseName)
+			namespace, cancelWatches = RunUpgradeTest(ctx, input, upgradeClusterProxy, testArtifactFolder)
 		},
 		// Description function that generates test descriptions
 		func(ctx context.Context, input *BMOIronicUpgradeInput) string {
@@ -426,7 +291,7 @@ var _ = Describe("Upgrade", Label("optional", "upgrade"), func() {
 			case ironicString:
 				upgradeFromKustomization = input.InitIronicKustomization
 			}
-			return fmt.Sprintf("Should upgrade %s from %s to latest version", input.UpgradeEntityName, upgradeFromKustomization)
+			return fmt.Sprintf("Should upgrade %s from %s to %s", input.UpgradeEntityName, upgradeFromKustomization, input.UpgradeEntityKustomization)
 		},
 		entries,
 	)

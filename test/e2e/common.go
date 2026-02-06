@@ -660,29 +660,127 @@ func GetKubeconfigPath() string {
 	return kubeconfigPath
 }
 
+// writeToFile writes the given content to a file at the specified path.
+// It creates any necessary parent directories.
+func writeToFile(filePath string, content string) {
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, filePerm750); err != nil {
+		Logf("Failed to create directory %s: %v", dir, err)
+		return
+	}
+	if err := os.WriteFile(filePath, []byte(content), filePerm600); err != nil {
+		Logf("Failed to write file %s: %v", filePath, err)
+	}
+}
+
+// kubectlDescribe runs kubectl describe for the given resource and returns the output.
+func kubectlDescribe(ctx context.Context, kubeconfigPath, resourceType, name, namespace string) (string, error) {
+	args := []string{"describe", resourceType, name, "-n", namespace, "--kubeconfig", kubeconfigPath}
+	cmd := testexec.NewCommand(
+		testexec.WithCommand("kubectl"),
+		testexec.WithArgs(args...),
+	)
+
+	stdout, stderr, err := cmd.Run(ctx)
+	if err != nil {
+		return "", fmt.Errorf("kubectl describe %s %s -n %s --kubeconfig %s failed: %w, stderr: %s", resourceType, name, namespace, kubeconfigPath, err, string(stderr))
+	}
+	return string(stdout), nil
+}
+
+// dumpPodDescriptions dumps kubectl describe output for all pods in a namespace.
+func dumpPodDescriptions(ctx context.Context, kubeconfigPath string, namespace string, artifactFolder string) {
+	args := []string{"get", "pods", "-n", namespace, "-o", "jsonpath={.items[*].metadata.name}", "--kubeconfig", kubeconfigPath}
+	cmd := testexec.NewCommand(
+		testexec.WithCommand("kubectl"),
+		testexec.WithArgs(args...),
+	)
+
+	stdout, stderr, err := cmd.Run(ctx)
+	if err != nil {
+		Logf("Failed to list pods in namespace %s: %v, stderr: %s", namespace, err, string(stderr))
+		return
+	}
+
+	podNames := strings.Fields(string(stdout))
+	for _, podName := range podNames {
+		description, err := kubectlDescribe(ctx, kubeconfigPath, "pod", podName, namespace)
+		if err != nil {
+			Logf("Failed to describe pod %s/%s: %v", namespace, podName, err)
+			continue
+		}
+		filePath := filepath.Join(artifactFolder, "pod-descriptions", podName+".txt")
+		writeToFile(filePath, description)
+	}
+}
+
+// dumpDeploymentDescriptions dumps kubectl describe output for all deployments in a namespace.
+func dumpDeploymentDescriptions(ctx context.Context, kubeconfigPath string, namespace string, artifactFolder string) {
+	args := []string{"get", "deployments", "-n", namespace, "-o", "jsonpath={.items[*].metadata.name}", "--kubeconfig", kubeconfigPath}
+	cmd := testexec.NewCommand(
+		testexec.WithCommand("kubectl"),
+		testexec.WithArgs(args...),
+	)
+
+	stdout, stderr, err := cmd.Run(ctx)
+	if err != nil {
+		Logf("Failed to list deployments in namespace %s: %v, stderr: %s", namespace, err, string(stderr))
+		return
+	}
+
+	deployNames := strings.Fields(string(stdout))
+	for _, deployName := range deployNames {
+		description, err := kubectlDescribe(ctx, kubeconfigPath, "deployment", deployName, namespace)
+		if err != nil {
+			Logf("Failed to describe deployment %s/%s: %v", namespace, deployName, err)
+			continue
+		}
+		filePath := filepath.Join(artifactFolder, "deployment-descriptions", deployName+".txt")
+		writeToFile(filePath, description)
+	}
+}
+
 // DumpObj tries to dump the given object into a file in YAML format.
 func dumpObj[T any](obj T, name string, path string) {
 	objYaml, err := yaml.Marshal(obj)
-	Expect(err).ToNot(HaveOccurred(), "Failed to marshal %s", name)
+	if err != nil {
+		Logf("Failed to marshal %s: %v", name, err)
+		return
+	}
 	fullpath := filepath.Join(path, name)
 	filepath.Clean(fullpath)
-	Expect(os.MkdirAll(filepath.Dir(fullpath), filePerm750)).To(Succeed(), "Failed to create folders on path %s", filepath.Dir(fullpath))
-	f, err := os.OpenFile(fullpath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm600)
-	Expect(err).ToNot(HaveOccurred(), "Failed to open file with path %s", fullpath)
+	if err = os.MkdirAll(filepath.Dir(fullpath), filePerm750); err != nil {
+		Logf("Failed to create folders on path %s: %v", filepath.Dir(fullpath), err)
+		return
+	}
+	var f *os.File
+	f, err = os.OpenFile(fullpath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm600)
+	if err != nil {
+		Logf("Failed to open file with path %s: %v", fullpath, err)
+		return
+	}
 	defer f.Close()
-	Expect(os.WriteFile(f.Name(), objYaml, filePerm600)).To(Succeed())
+	if err := os.WriteFile(f.Name(), objYaml, filePerm600); err != nil {
+		Logf("Failed to write file %s: %v", f.Name(), err)
+	}
 }
 
 // DumpCRDs fetches all CRDs and filedumps them.
 func dumpCRDS(ctx context.Context, cli client.Client, artifactFolder string) {
 	crds := apiextensionsv1.CustomResourceDefinitionList{}
-	Expect(cli.List(ctx, &crds)).To(Succeed())
+	if err := cli.List(ctx, &crds); err != nil {
+		Logf("Failed to list CRDs: %v", err)
+		return
+	}
 	for _, crd := range crds.Items {
 		dumpObj(crd, crd.ObjectMeta.Name, artifactFolder)
 		crGVK, _ := schema.ParseKindArg(crd.Status.AcceptedNames.ListKind + "." + crd.Status.StoredVersions[0] + "." + crd.Spec.Group)
 		crs := &unstructured.UnstructuredList{}
 		crs.SetGroupVersionKind(*crGVK)
-		Expect(cli.List(ctx, crs)).To(Succeed())
+		if err := cli.List(ctx, crs); err != nil {
+			Logf("Failed to list CRs for CRD %s: %v", crd.ObjectMeta.Name, err)
+			continue
+		}
 		for _, cr := range crs.Items {
 			dumpObj(cr, cr.GetName(), path.Join(artifactFolder, crd.Spec.Names.Plural))
 		}
@@ -691,9 +789,20 @@ func dumpCRDS(ctx context.Context, cli client.Client, artifactFolder string) {
 
 // DumpResources dumps resources related to BMO e2e tests as YAML.
 func DumpResources(ctx context.Context, e2eConfig *Config, clusterProxy framework.ClusterProxy, artifactFolder string) {
-	dumpCRDS(ctx, clusterProxy.GetClient(), filepath.Join(artifactFolder, "crd"))
+	cli := clusterProxy.GetClient()
+	kubeconfigPath := clusterProxy.GetKubeconfigPath()
+
+	// Dump all CRDs and their instances (includes BMH, Ironic, etc.)
+	dumpCRDS(ctx, cli, filepath.Join(artifactFolder, "crd"))
 	if e2eConfig.GetBoolVariable("FETCH_IRONIC_NODES") {
 		dumpIronicNodes(ctx, e2eConfig, artifactFolder)
+	}
+
+	// Dump pod and deployment descriptions for key namespaces using kubectl describe
+	namespaces := []string{"baremetal-operator-system", "ironic-standalone-operator-system"}
+	for _, ns := range namespaces {
+		dumpPodDescriptions(ctx, kubeconfigPath, ns, filepath.Join(artifactFolder, ns))
+		dumpDeploymentDescriptions(ctx, kubeconfigPath, ns, filepath.Join(artifactFolder, ns))
 	}
 }
 
@@ -709,41 +818,60 @@ func dumpIronicNodes(ctx context.Context, e2eConfig *Config, artifactFolder stri
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true, // #nosec G402 Skip verification as we are using self-signed certificates
 	}
-	client := &http.Client{
+	httpClient := &http.Client{
 		Transport: &http.Transport{TLSClientConfig: tlsConfig},
 	}
 
 	// Create the request
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ironicURL, http.NoBody)
-	Expect(err).ToNot(HaveOccurred(), "Failed to create request")
+	if err != nil {
+		Logf("Failed to create request for ironic nodes: %v", err)
+		return
+	}
 
 	// Set basic auth header
 	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 	req.Header.Add("Authorization", "Basic "+auth)
 
 	// Make the request
-	resp, err := client.Do(req)
-	Expect(err).ToNot(HaveOccurred(), "Failed to send request")
-	Expect(resp.StatusCode).To(Equal(http.StatusOK), fmt.Sprintf("Unexpected Status Code: %d", resp.StatusCode))
-
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		Logf("Failed to send request for ironic nodes: %v", err)
+		return
+	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		Logf("Unexpected status code when fetching ironic nodes: %d", resp.StatusCode)
+		return
+	}
+
 	// Read and output the response
 	body, err := io.ReadAll(resp.Body)
-	Expect(err).ToNot(HaveOccurred(), "Failed to read response body")
+	if err != nil {
+		Logf("Failed to read ironic nodes response body: %v", err)
+		return
+	}
 
 	var logOutput bytes.Buffer
 
 	// Format the JSON with indentation
-	err = json.Indent(&logOutput, body, "", "    ")
-	Expect(err).ToNot(HaveOccurred(), "Error formatting JSON")
+	if err = json.Indent(&logOutput, body, "", "    "); err != nil {
+		Logf("Error formatting ironic nodes JSON: %v", err)
+		return
+	}
 
 	file, err := os.Create(path.Join(artifactFolder, "ironic-nodes.json"))
-	Expect(err).ToNot(HaveOccurred(), "Error creating file")
+	if err != nil {
+		Logf("Error creating ironic-nodes.json file: %v", err)
+		return
+	}
 	defer file.Close()
 
 	// Write indented JSON to file
-	_, err = file.Write(logOutput.Bytes())
-	Expect(err).ToNot(HaveOccurred(), "Error writing JSON to file")
+	if _, err = file.Write(logOutput.Bytes()); err != nil {
+		Logf("Error writing ironic nodes JSON to file: %v", err)
+	}
 }
 
 // WaitForIronicReady waits until the given Ironic resource has Ready condition = True.
@@ -777,4 +905,32 @@ type WaitForIronicInput struct {
 	Name      string
 	Namespace string
 	Intervals []interface{} // e.g. []interface{}{time.Minute * 15, time.Second * 5}
+}
+
+// ConfigureProvisioningNetwork adds the provisioning IP with /24 netmask to the kind cluster node.
+// TODO(lentzi90): Implement support for this in the keepalived image we use.
+// This is a workaround for the fact that keepalived only adds a /32 address, which causes
+// dnsmasq to fail with "no address range available for DHCP request" because it cannot
+// find a matching subnet for the DHCP range.
+// See https://github.com/metal3-io/baremetal-operator/issues/2792
+func ConfigureProvisioningNetwork(ctx context.Context, clusterName string, provisioningIP string) {
+	containerName := clusterName + "-control-plane"
+	// Add the provisioning IP with /24 netmask to eth0
+	// This allows dnsmasq to see the DHCP range as part of the local subnet
+	ipWithCIDR := provisioningIP + "/24"
+
+	Logf("Configuring provisioning network: adding %s to %s", ipWithCIDR, containerName)
+
+	cmd := testexec.NewCommand(
+		testexec.WithCommand("docker"),
+		testexec.WithArgs("exec", containerName, "ip", "addr", "add", ipWithCIDR, "dev", "eth0"),
+	)
+
+	stdout, stderr, err := cmd.Run(ctx)
+	// Ignore "RTNETLINK answers: File exists" error - the address may already be configured
+	if err != nil && !strings.Contains(string(stderr), "File exists") {
+		Logf("Warning: failed to configure provisioning network: %v\nstdout: %s\nstderr: %s", err, string(stdout), string(stderr))
+	} else {
+		Logf("Provisioning network configured successfully")
+	}
 }
