@@ -18,9 +18,6 @@ const (
 	defaultBackoff  = 0.5
 )
 
-func init() {
-	rand.Seed(time.Now().UTC().UnixNano())
-}
 
 // actionResult is an interface that encapsulates the result of a Reconcile
 // call, as returned by the action corresponding to the current state.

@@ -443,7 +443,7 @@ func TestDeprovisionSyncAutomatedClean(t *testing.T) {
 					}
 				}
 				assert.True(t, found, "should have updated /automated_clean field")
-			} else if updates != nil {
+			} else {
 				// Should not have updated automated_clean (already matches)
 				for _, update := range updates {
 					assert.NotEqual(t, "/automated_clean", update.Path, "should not update automated_clean if already synced")

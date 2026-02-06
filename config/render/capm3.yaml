@@ -2,8 +2,11 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    cert-manager.io/inject-ca-from: baremetal-operator-system/baremetal-operator-serving-cert
+    capability.openshift.io/name: baremetal
     controller-gen.kubebuilder.io/version: v0.16.5
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
   name: baremetalhosts.metal3.io
 spec:
   group: metal3.io
@@ -1294,7 +1297,11 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    capability.openshift.io/name: baremetal
     controller-gen.kubebuilder.io/version: v0.16.5
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
   name: bmceventsubscriptions.metal3.io
 spec:
   group: metal3.io
@@ -1383,7 +1390,11 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    capability.openshift.io/name: baremetal
     controller-gen.kubebuilder.io/version: v0.16.5
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
   name: dataimages.metal3.io
 spec:
   group: metal3.io
@@ -1464,7 +1475,11 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    capability.openshift.io/name: baremetal
     controller-gen.kubebuilder.io/version: v0.16.5
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
   name: firmwareschemas.metal3.io
 spec:
   group: metal3.io
@@ -1558,7 +1573,11 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    capability.openshift.io/name: baremetal
     controller-gen.kubebuilder.io/version: v0.16.5
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
   name: hardwaredata.metal3.io
 spec:
   group: metal3.io
@@ -1792,431 +1811,11 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    capability.openshift.io/name: baremetal
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: hostclaims.metal3.io
-spec:
-  group: metal3.io
-  names:
-    kind: HostClaim
-    listKind: HostClaimList
-    plural: hostclaims
-    singular: hostclaim
-  scope: Namespaced
-  versions:
-  - name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: HostClaim is the Schema for the hostclaims API.
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: HostClaimSpec defines the desired state of HostClaim.
-            properties:
-              consumerRef:
-                description: |-
-                  ConsumerRef can be used to store information about something
-                  that is using a host. When it is not empty, the host is
-                  considered "in use". The common use case is a link to a Machine
-                  resource when the host is used by Cluster API.
-                properties:
-                  apiVersion:
-                    description: API version of the referent.
-                    type: string
-                  fieldPath:
-                    description: |-
-                      If referring to a piece of an object instead of an entire object, this string
-                      should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
-                      For example, if the object reference is to a container within a pod, this would take on a value like:
-                      "spec.containers{name}" (where "name" refers to the name of the container that triggered
-                      the event) or if no container name is specified "spec.containers[2]" (container with
-                      index 2 in this pod). This syntax is chosen only to have some well-defined way of
-                      referencing a part of an object.
-                    type: string
-                  kind:
-                    description: |-
-                      Kind of the referent.
-                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-                    type: string
-                  name:
-                    description: |-
-                      Name of the referent.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                  namespace:
-                    description: |-
-                      Namespace of the referent.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
-                    type: string
-                  resourceVersion:
-                    description: |-
-                      Specific resourceVersion to which this reference is made, if any.
-                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
-                    type: string
-                  uid:
-                    description: |-
-                      UID of the referent.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
-              customDeploy:
-                description: |-
-                  A custom deploy procedure. This is an advanced feature that allows
-                  using a custom deploy step provided by a site-specific deployment
-                  ramdisk. Most users will want to use "image" instead. Setting this
-                  field triggers provisioning.
-                properties:
-                  method:
-                    description: |-
-                      Custom deploy method name.
-                      This name is specific to the deploy ramdisk used. If you don't have
-                      a custom deploy ramdisk, you shouldn't use CustomDeploy.
-                    type: string
-                required:
-                - method
-                type: object
-              failureDomain:
-                description: |-
-                  FailureDomain is the failure domain unique identifier this HostClaim
-                  should be attached to, as defined in Cluster API. It is implemented
-                  when set as a preference for binding BareMetalHost having the label
-                  infrastructure.cluster.x-k8s.io/failure-domain set to the value of
-                  the field.
-                type: string
-              hostSelector:
-                description: |-
-                  HostSelector specifies matching criteria for labels on BareMetalHosts.
-                  This is used to limit the set of BareMetalHost objects considered for
-                  claiming for a HostClaim.
-                properties:
-                  inNamespace:
-                    description: |-
-                      InNamespace specifies a single namespace where the BareMetalHost should
-                      reside. If not specified, the selection will be done over all available
-                      namespaces with a compliant policy.
-                    type: string
-                  matchExpressions:
-                    description: Label match expressions that must be true on a chosen
-                      BareMetalHost
-                    items:
-                      properties:
-                        key:
-                          type: string
-                        operator:
-                          description: |-
-                            Operator represents a key/field's relationship to value(s).
-                            See labels.Requirement and fields.Requirement for more details.
-                          type: string
-                        values:
-                          items:
-                            type: string
-                          type: array
-                      required:
-                      - key
-                      - operator
-                      - values
-                      type: object
-                    type: array
-                  matchLabels:
-                    additionalProperties:
-                      type: string
-                    description: Key/value pairs of labels that must exist on a chosen
-                      BareMetalHost
-                    type: object
-                type: object
-              image:
-                description: |-
-                  Image holds the details of the image to be provisioned. Populating
-                  the image will cause the target host to start provisioning.
-                properties:
-                  checksum:
-                    description: |-
-                      Checksum is the checksum for the image. Required for all formats
-                      except for "live-iso" and OCI images (oci://).
-                    type: string
-                  checksumType:
-                    description: |-
-                      ChecksumType is the checksum algorithm for the image, e.g md5, sha256 or sha512.
-                      The special value "auto" can be used to detect the algorithm from the checksum.
-                      If missing, MD5 is used. If in doubt, use "auto".
-                    enum:
-                    - md5
-                    - sha256
-                    - sha512
-                    - auto
-                    type: string
-                  format:
-                    description: |-
-                      Format contains the format of the image (raw, qcow2, ...).
-                      When set to "live-iso", an ISO 9660 image referenced by the url will
-                      be live-booted and not deployed to disk.
-                    enum:
-                    - raw
-                    - qcow2
-                    - vdi
-                    - vmdk
-                    - live-iso
-                    type: string
-                  url:
-                    description: URL is a location of an image to deploy.
-                    type: string
-                required:
-                - url
-                type: object
-              metaData:
-                description: |-
-                  MetaData holds the reference to the Secret containing host metadata
-                  (e.g. meta_data.json) which is passed to the Config Drive.
-                properties:
-                  name:
-                    description: name is unique within a namespace to reference a
-                      secret resource.
-                    type: string
-                  namespace:
-                    description: namespace defines the space within which the secret
-                      name must be unique.
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
-              networkData:
-                description: |-
-                  NetworkData holds the reference to the Secret containing network
-                  configuration which is passed to the Config Drive and interpreted
-                  by the first boot software such as cloud-init.
-                properties:
-                  name:
-                    description: name is unique within a namespace to reference a
-                      secret resource.
-                    type: string
-                  namespace:
-                    description: namespace defines the space within which the secret
-                      name must be unique.
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
-              poweredOn:
-                description: |-
-                  Should the compute resource be powered on? Changing this value will trigger
-                  a change in power state of the targeted host.
-                type: boolean
-              userData:
-                description: |-
-                  UserData holds the reference to the Secret containing the user data
-                  which is passed to the Config Drive and interpreted by the
-                  first-boot software such as cloud-init. The format of user data is
-                  specific to the first-boot software.
-                properties:
-                  name:
-                    description: name is unique within a namespace to reference a
-                      secret resource.
-                    type: string
-                  namespace:
-                    description: namespace defines the space within which the secret
-                      name must be unique.
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
-            required:
-            - poweredOn
-            type: object
-          status:
-            description: HostClaimStatus defines the observed state of HostClaim.
-            properties:
-              conditions:
-                description: Conditions defines current service state of the HostClaim.
-                items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
-                  properties:
-                    lastTransitionTime:
-                      description: |-
-                        lastTransitionTime is the last time the condition transitioned from one status to another.
-                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
-                      format: date-time
-                      type: string
-                    message:
-                      description: |-
-                        message is a human readable message indicating details about the transition.
-                        This may be an empty string.
-                      maxLength: 32768
-                      type: string
-                    observedGeneration:
-                      description: |-
-                        observedGeneration represents the .metadata.generation that the condition was set based upon.
-                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
-                        with respect to the current state of the instance.
-                      format: int64
-                      minimum: 0
-                      type: integer
-                    reason:
-                      description: |-
-                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
-                        Producers of specific condition types may define expected values and meanings for this field,
-                        and whether the values are considered a guaranteed API.
-                        The value should be a CamelCase string.
-                        This field may not be empty.
-                      maxLength: 1024
-                      minLength: 1
-                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
-                      type: string
-                    status:
-                      description: status of the condition, one of True, False, Unknown.
-                      enum:
-                      - "True"
-                      - "False"
-                      - Unknown
-                      type: string
-                    type:
-                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
-                      maxLength: 316
-                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
-                      type: string
-                  required:
-                  - lastTransitionTime
-                  - message
-                  - reason
-                  - status
-                  - type
-                  type: object
-                type: array
-              hardwareData:
-                description: |-
-                  HardwareData is a pointer to the name of the bound HardwareData
-                  structure.
-                properties:
-                  name:
-                    description: '`name` is the name of the HardwareData bound'
-                    type: string
-                  namespace:
-                    description: '`namespace` is the namespace of the HardwareData
-                      bound'
-                    type: string
-                required:
-                - name
-                - namespace
-                type: object
-              lastUpdated:
-                description: LastUpdated identifies when this status was last observed.
-                format: date-time
-                type: string
-              poweredOn:
-                description: |-
-                  The currently detected power state of the host. This field may get
-                  briefly out of sync with the actual state of the hardware while
-                  provisioning processes are running.
-                type: boolean
-            type: object
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  annotations:
-    controller-gen.kubebuilder.io/version: v0.16.5
-  name: hostdeploypolicies.metal3.io
-spec:
-  group: metal3.io
-  names:
-    kind: HostDeployPolicy
-    listKind: HostDeployPolicyList
-    plural: hostdeploypolicies
-    singular: hostdeploypolicy
-  scope: Namespaced
-  versions:
-  - name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: HostDeployPolicy is the Schema for the hostdeploypolicies API.
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: HostDeployPolicySpec defines the desired state of HostDeployPolicy.
-            properties:
-              hostClaimNamespaces:
-                description: |-
-                  HostClaimNamespaces constrains the namespaces of the HostClaims allowed
-                  to bind the BareMetalHosts in the same namespace as the HostDeployPolicy
-                properties:
-                  hasLabels:
-                    description: |-
-                      HasLabels is a list of label names and their associated value.
-                      The namespace should have all of those labels. If the value
-                      is specified, it must also match.
-                    items:
-                      properties:
-                        name:
-                          description: Name of the expected label.
-                          type: string
-                        value:
-                          description: If specified, expected value of the label.
-                          type: string
-                      required:
-                      - name
-                      type: object
-                    type: array
-                  nameMatches:
-                    description: |-
-                      NameMatches is a string interpreted as a regular expression that must be matched by the
-                      namespace of the HostClaim.
-                    type: string
-                  names:
-                    description: Namespaces is a list of namespace names where the
-                      hostClaim is authorized to reside in.
-                    items:
-                      type: string
-                    type: array
-                type: object
-            type: object
-          status:
-            description: HostDeployPolicyStatus defines the observed state of HostDeployPolicy.
-            type: object
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  annotations:
-    controller-gen.kubebuilder.io/version: v0.16.5
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
   name: hostfirmwarecomponents.metal3.io
 spec:
   group: metal3.io
@@ -2388,7 +1987,11 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    capability.openshift.io/name: baremetal
     controller-gen.kubebuilder.io/version: v0.16.5
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
   name: hostfirmwaresettings.metal3.io
 spec:
   group: metal3.io
@@ -2544,7 +2147,11 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    capability.openshift.io/name: baremetal
     controller-gen.kubebuilder.io/version: v0.16.5
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
   name: hostupdatepolicies.metal3.io
 spec:
   group: metal3.io
@@ -2604,7 +2211,11 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    capability.openshift.io/name: baremetal
     controller-gen.kubebuilder.io/version: v0.16.5
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
   name: preprovisioningimages.metal3.io
 spec:
   group: metal3.io
@@ -2779,230 +2390,6 @@ spec:
       status: {}
 ---
 apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: baremetal-operator-controller-manager
-  namespace: baremetal-operator-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: baremetal-operator-leader-election-role
-  namespace: baremetal-operator-system
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - ""
-  resources:
-  - configmaps/status
-  verbs:
-  - get
-  - update
-  - patch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: baremetal-operator-manager-role
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - namespaces
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - delete
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - ironic.metal3.io
-  resources:
-  - ironics
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - metal3.io
-  resources:
-  - baremetalhosts
-  - bmceventsubscriptions
-  - dataimages
-  - firmwareschemas
-  - hardwaredata
-  - hostclaims
-  - hostfirmwarecomponents
-  - hostfirmwaresettings
-  - preprovisioningimages
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - metal3.io
-  resources:
-  - baremetalhosts/finalizers
-  - dataimages/finalizers
-  - hardware/finalizers
-  - hostclaims/finalizers
-  - hostfirmwarecomponents/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - metal3.io
-  resources:
-  - baremetalhosts/status
-  - bmceventsubscriptions/status
-  - dataimages/status
-  - firmwareschemas/status
-  - hostclaims/status
-  - hostfirmwarecomponents/status
-  - hostfirmwaresettings/status
-  - preprovisioningimages/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - metal3.io
-  resources:
-  - hostdeploypolicies
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - metal3.io
-  resources:
-  - hostupdatepolicies
-  verbs:
-  - get
-  - list
-  - update
-  - watch
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: baremetal-operator-metrics-auth-role
-rules:
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: baremetal-operator-metrics-reader
-rules:
-- nonResourceURLs:
-  - /metrics
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: baremetal-operator-leader-election-rolebinding
-  namespace: baremetal-operator-system
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: baremetal-operator-leader-election-role
-subjects:
-- kind: ServiceAccount
-  name: baremetal-operator-controller-manager
-  namespace: baremetal-operator-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: baremetal-operator-manager-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: baremetal-operator-manager-role
-subjects:
-- kind: ServiceAccount
-  name: baremetal-operator-controller-manager
-  namespace: baremetal-operator-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: baremetal-operator-metrics-auth-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: baremetal-operator-metrics-auth-role
-subjects:
-- kind: ServiceAccount
-  name: baremetal-operator-controller-manager
-  namespace: baremetal-operator-system
----
-apiVersion: v1
 data:
   CACHEURL: http://172.22.0.1/images
   DHCP_RANGE: 172.22.0.10,172.22.0.100
@@ -3013,193 +2400,3 @@ kind: ConfigMap
 metadata:
   name: ironic
   namespace: baremetal-operator-system
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    control-plane: controller-manager
-  name: baremetal-operator-controller-manager-metrics-service
-  namespace: baremetal-operator-system
-spec:
-  ports:
-  - name: https
-    port: 8443
-    targetPort: https
-  selector:
-    control-plane: controller-manager
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: baremetal-operator-webhook-service
-  namespace: baremetal-operator-system
-spec:
-  ports:
-  - port: 443
-    targetPort: 9443
-  selector:
-    control-plane: controller-manager
-    webhook: metal3-io-v1alpha1-baremetalhost
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    control-plane: controller-manager
-    webhook: metal3-io-v1alpha1-baremetalhost
-  name: baremetal-operator-controller-manager
-  namespace: baremetal-operator-system
-spec:
-  minReadySeconds: 10
-  replicas: 1
-  selector:
-    matchLabels:
-      control-plane: controller-manager
-  template:
-    metadata:
-      labels:
-        control-plane: controller-manager
-        webhook: metal3-io-v1alpha1-baremetalhost
-    spec:
-      containers:
-      - args:
-        - --enable-leader-election
-        - --tls-min-version=TLS13
-        command:
-        - /baremetal-operator
-        env:
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        envFrom:
-        - configMapRef:
-            name: ironic
-        image: quay.io/metal3-io/baremetal-operator
-        imagePullPolicy: Always
-        livenessProbe:
-          failureThreshold: 10
-          httpGet:
-            path: /healthz
-            port: 9440
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          successThreshold: 1
-          timeoutSeconds: 2
-        name: manager
-        ports:
-        - containerPort: 9443
-          name: webhook-server
-          protocol: TCP
-        - containerPort: 8443
-          name: https
-          protocol: TCP
-        readinessProbe:
-          failureThreshold: 10
-          httpGet:
-            path: /readyz
-            port: 9440
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          successThreshold: 1
-          timeoutSeconds: 2
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          privileged: false
-          runAsGroup: 65532
-          runAsUser: 65532
-        volumeMounts:
-        - mountPath: /tmp/k8s-webhook-server/serving-certs
-          name: cert
-          readOnly: true
-      securityContext:
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
-      serviceAccountName: baremetal-operator-controller-manager
-      terminationGracePeriodSeconds: 10
-      volumes:
-      - name: cert
-        secret:
-          defaultMode: 420
-          secretName: bmo-webhook-server-cert
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: baremetal-operator-serving-cert
-  namespace: baremetal-operator-system
-spec:
-  dnsNames:
-  - baremetal-operator-webhook-service.baremetal-operator-system.svc
-  - baremetal-operator-webhook-service.baremetal-operator-system.svc.cluster.local
-  issuerRef:
-    kind: Issuer
-    name: baremetal-operator-selfsigned-issuer
-  secretName: bmo-webhook-server-cert
----
-apiVersion: cert-manager.io/v1
-kind: Issuer
-metadata:
-  name: baremetal-operator-selfsigned-issuer
-  namespace: baremetal-operator-system
-spec:
-  selfSigned: {}
----
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
-metadata:
-  annotations:
-    cert-manager.io/inject-ca-from: baremetal-operator-system/baremetal-operator-serving-cert
-  name: baremetal-operator-validating-webhook-configuration
-webhooks:
-- admissionReviewVersions:
-  - v1
-  - v1beta
-  clientConfig:
-    service:
-      name: baremetal-operator-webhook-service
-      namespace: baremetal-operator-system
-      path: /validate-metal3-io-v1alpha1-baremetalhost
-  failurePolicy: Fail
-  name: baremetalhost.metal3.io
-  rules:
-  - apiGroups:
-    - metal3.io
-    apiVersions:
-    - v1alpha1
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - baremetalhosts
-  sideEffects: None
-- admissionReviewVersions:
-  - v1
-  - v1beta
-  clientConfig:
-    service:
-      name: baremetal-operator-webhook-service
-      namespace: baremetal-operator-system
-      path: /validate-metal3-io-v1alpha1-bmceventsubscription
-  failurePolicy: Fail
-  name: bmceventsubscription.metal3.io
-  rules:
-  - apiGroups:
-    - metal3.io
-    apiVersions:
-    - v1alpha1
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - bmceventsubscriptions
-  sideEffects: None
