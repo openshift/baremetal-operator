@@ -117,6 +117,7 @@ func main() {
 	var metricsBindAddr string
 	var enableLeaderElection bool
 	var preprovImgEnable bool
+	var hostClaimEnable bool
 	var devLogging bool
 	var runInTestMode bool
 	var runInDemoMode bool
@@ -140,6 +141,7 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&preprovImgEnable, "build-preprov-image", false, "enable integration with the PreprovisioningImage API")
+	flag.BoolVar(&hostClaimEnable, "enable-hostclaim", false, "enable integration with the HostClaim API")
 	flag.BoolVar(&devLogging, "dev", false, "enable developer logging")
 	flag.BoolVar(&runInTestMode, "test-mode", false, "disable ironic communication")
 	flag.BoolVar(&runInDemoMode, "demo-mode", false,
@@ -353,12 +355,14 @@ func main() {
 			}
 		}
 	}
-	if err = (&metal3iocontroller.HostClaimReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "HostClaim")
-		os.Exit(1)
+	if hostClaimEnable {
+		if err = (&metal3iocontroller.HostClaimReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "HostClaim")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 
