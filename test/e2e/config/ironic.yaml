@@ -11,11 +11,11 @@ images:
   loadBehavior: tryLoad
 - name: quay.io/metal3-io/baremetal-operator:release-0.11
   loadBehavior: tryLoad
-- name: quay.io/jetstack/cert-manager-cainjector:v1.17.1
+- name: quay.io/jetstack/cert-manager-cainjector:v1.19.2
   loadBehavior: tryLoad
-- name: quay.io/jetstack/cert-manager-webhook:v1.17.1
+- name: quay.io/jetstack/cert-manager-webhook:v1.19.2
   loadBehavior: tryLoad
-- name: quay.io/jetstack/cert-manager-controller:v1.17.1
+- name: quay.io/jetstack/cert-manager-controller:v1.19.2
   loadBehavior: tryLoad
 - name: quay.io/metal3-io/ironic-standalone-operator:v0.5.1
   loadBehavior: tryLoad
@@ -44,7 +44,7 @@ variables:
   IMAGE_URL: "http://192.168.222.1/cirros-0.6.2-x86_64-disk.img"
   ISO_IMAGE_URL: "http://192.168.222.1/minimal_linux_live-v2.iso"
   IMAGE_CHECKSUM: "c8fc807773e5354afe61636071771906"
-  CERT_MANAGER_VERSION: "v1.17.1"
+  CERT_MANAGER_VERSION: "v1.19.2"
   SSH_CHECK_PROVISIONED: "true"
   SSH_USERNAME: "root"
   SSH_PORT: "22"
@@ -55,6 +55,8 @@ variables:
   IRONIC_PASSWORD: "changeme"
   IRONIC_PROVISIONING_IP: "192.168.222.2"
   IRONIC_PROVISIONING_PORT: "6385"
+  # Boot mode can be legacy, UEFI or UEFISecureBoot
+  BOOT_MODE: "UEFI"
 
   NAMESPACE_SCOPED: "true"
 
@@ -113,27 +115,28 @@ bmoIronicUpgradeSpecs:
   initIronicKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e"
   upgradeEntityKustomization: "../../config/overlays/e2e"
   upgradeEntityName: "bmo"
-# Upgrade Ironic 27.0 -> latest | BMO 0.9
+# Upgrade Ironic 27.0 -> 29.0 | BMO 0.9
 - deployIronic: true
   deployBMO: true
   initBMOKustomization: "../../config/overlays/e2e-release-0.9"
   initIronicKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e-release-27.0"
-  upgradeEntityKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e"
+  upgradeEntityKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e-release-29.0"
   upgradeEntityName: "ironic"
-# Upgrade Ironic 28.0 -> latest | BMO 0.10
+# Upgrade Ironic 28.0 -> 29.0 | BMO 0.10
 - deployIronic: true
   deployBMO: true
   initBMOKustomization: "../../config/overlays/e2e-release-0.10"
   initIronicKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e-release-28.0"
-  upgradeEntityKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e"
+  upgradeEntityKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e-release-29.0"
   upgradeEntityName: "ironic"
 # Upgrade Ironic 29.0 -> latest | BMO 0.10
-- deployIronic: true
-  deployBMO: true
-  initBMOKustomization: "../../config/overlays/e2e-release-0.10"
-  initIronicKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e-release-29.0"
-  upgradeEntityKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e"
-  upgradeEntityName: "ironic"
+# Broken. See https://github.com/metal3-io/baremetal-operator/issues/2909
+# - deployIronic: true
+#   deployBMO: true
+#   initBMOKustomization: "../../config/overlays/e2e-release-0.10"
+#   initIronicKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e-release-29.0"
+#   upgradeEntityKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e"
+#   upgradeEntityName: "ironic"
 # Upgrade Ironic 30.0 -> latest | BMO 0.11
 - deployIronic: true
   deployBMO: true
