@@ -255,6 +255,12 @@ func (p *fixtureProvisioner) Service(_ provisioner.ServicingData, unprepared boo
 	return
 }
 
+// AbortServicing aborts an in-progress or failed servicing operation.
+func (p *fixtureProvisioner) AbortServicing() (result provisioner.Result, started bool, err error) {
+	p.log.Info("aborting servicing")
+	return
+}
+
 // Adopt notifies the provisioner that the state machine believes the host
 // to be currently provisioned, and that it should be managed as such.
 func (p *fixtureProvisioner) Adopt(_ provisioner.AdoptData, _ bool) (result provisioner.Result, err error) {

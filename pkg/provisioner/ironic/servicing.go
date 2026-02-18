@@ -76,6 +76,38 @@ func (p *ironicProvisioner) startServicing(bmcAccess bmc.AccessDetails, ironicNo
 	return
 }
 
+// AbortServicing aborts an in-progress or failed servicing operation.
+func (p *ironicProvisioner) AbortServicing() (result provisioner.Result, started bool, err error) {
+	ironicNode, err := p.getNode()
+	if err != nil {
+		result, err = transientError(err)
+		return result, started, err
+	}
+
+	// Only abort if in a servicing-related state
+	state := nodes.ProvisionState(ironicNode.ProvisionState)
+	if state != nodes.ServiceFail && state != nodes.ServiceWait {
+		p.log.Info("cannot abort servicing in current state", "state", ironicNode.ProvisionState)
+		result, err = operationComplete()
+		return result, started, err
+	}
+
+	// Clear maintenance flag first if it's set
+	if ironicNode.Maintenance {
+		p.log.Info("clearing maintenance flag before aborting servicing")
+		result, err = p.setMaintenanceFlag(ironicNode, false, "")
+		return result, started, err
+	}
+
+	// Set started to let the controller know about the change
+	p.log.Info("aborting servicing")
+	started, result, err = p.tryChangeNodeProvisionState(
+		ironicNode,
+		nodes.ProvisionStateOpts{Target: nodes.TargetAbort},
+	)
+	return
+}
+
 func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, restartOnFailure bool) (result provisioner.Result, started bool, err error) {
 	bmcAccess, err := p.bmcAccess()
 	if err != nil {
@@ -119,7 +151,13 @@ func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, 
 		// Servicing finished
 		p.log.Info("servicing finished on the host")
 		result, err = operationComplete()
-	case nodes.Servicing, nodes.ServiceWait:
+	case nodes.Servicing:
+		p.log.Info("waiting for host to finish servicing",
+			"state", ironicNode.ProvisionState,
+			"serviceStep", ironicNode.ServiceStep)
+		result, err = operationContinuing(provisionRequeueDelay)
+
+	case nodes.ServiceWait:
 		p.log.Info("waiting for host to become active",
 			"state", ironicNode.ProvisionState,
 			"serviceStep", ironicNode.ServiceStep)

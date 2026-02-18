@@ -164,7 +164,7 @@ func TestService(t *testing.T) {
 			host.Status.Provisioning.ID = nodeUUID
 			prepData := provisioner.ServicingData{}
 			if !tc.skipConfig {
-				host.Spec.BMC.Address = "raid-test://test.bmc/"
+				host.Spec.BMC.Address = "bios-test://test.bmc/"
 				prepData.ActualFirmwareSettings = metal3api.SettingsMap{
 					"Answer": "unknown",
 				}

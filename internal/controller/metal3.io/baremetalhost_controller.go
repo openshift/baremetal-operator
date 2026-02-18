@@ -1447,6 +1447,7 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 	var hfcDirty bool
 	var hfc *metal3api.HostFirmwareComponents
 	var liveFirmwareSettingsAllowed, liveFirmwareUpdatesAllowed bool
+	var hasSettingsSpec, hasComponentsSpec bool
 
 	if hup != nil {
 		liveFirmwareSettingsAllowed = (hup.Spec.FirmwareSettings == metal3api.HostUpdatePolicyOnReboot)
@@ -1470,6 +1471,9 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 			servicingData.ActualFirmwareSettings = hfs.Status.Settings
 			servicingData.TargetFirmwareSettings = hfs.Spec.Settings
 		}
+
+		// Track if HFS spec has actual settings (for abort decision)
+		hasSettingsSpec = (hfs != nil && len(hfs.Spec.Settings) > 0)
 	}
 
 	if liveFirmwareUpdatesAllowed {
@@ -1486,6 +1490,9 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 				servicingData.TargetFirmwareComponents = hfc.Spec.Updates
 			}
 		}
+
+		// Track if HFC spec has actual updates (for abort decision)
+		hasComponentsSpec = (hfc != nil && len(hfc.Spec.Updates) > 0)
 	}
 
 	hasChanges := fwDirty || hfsDirty || hfcDirty
@@ -1494,6 +1501,34 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 	if !hasChanges && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing && info.host.Status.ErrorType != metal3api.ServicingError {
 		// If nothing is going on, return control to the power management.
 		return nil
+	}
+
+	// If we're in a servicing-related state and all specs have been removed,
+	// abort the servicing operation. Check both new (HFS/HFC) and old (Spec.Firmware) APIs.
+	hasFirmwareSpec := info.host.Spec.Firmware != nil
+	specsRemoved := !hasSettingsSpec && !hasComponentsSpec && !hasFirmwareSpec
+	inServicingState := info.host.Status.OperationalStatus == metal3api.OperationalStatusServicing ||
+		info.host.Status.ErrorType == metal3api.ServicingError
+	if specsRemoved && inServicingState {
+		info.log.Info("specs removed while in servicing state, attempting to abort")
+		provResult, _, err := prov.AbortServicing()
+		if err != nil {
+			return actionError{fmt.Errorf("failed to abort servicing: %w", err)}
+		}
+		if provResult.ErrorMessage != "" {
+			info.log.Info("failed to abort servicing", "error", provResult.ErrorMessage)
+			return actionError{fmt.Errorf("failed to abort servicing: %s", provResult.ErrorMessage)}
+		}
+		if provResult.Dirty {
+			info.log.Info("abort operation in progress, checking back later")
+			return actionContinue{provResult.RequeueAfter}
+		}
+		// Abort completed successfully, clear error state
+		info.log.Info("successfully aborted servicing")
+		info.host.Status.ErrorType = ""
+		info.host.Status.ErrorMessage = ""
+		info.host.Status.OperationalStatus = metal3api.OperationalStatusOK
+		return actionComplete{}
 	}
 
 	// FIXME(janders/dtantsur): this implementation may lead to a scenario where if we never actually
@@ -2148,7 +2183,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareSettings(info *reconcileInfo) (
 	}
 	if !valid {
 		info.log.Info("hostFirmwareSettings not valid", "namespacename", info.request.NamespacedName)
-		return false, nil, nil
+		return false, hfs, nil
 	}
 
 	if changed {
@@ -2162,7 +2197,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareSettings(info *reconcileInfo) (
 	}
 
 	info.log.Info("hostFirmwareSettings no updates", "namespacename", info.request.NamespacedName)
-	return false, nil, nil
+	return false, hfs, nil
 }
 
 // Get the stored firmware settings if there are valid changes.
@@ -2185,7 +2220,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareComponents(info *reconcileInfo)
 	}
 	if !valid {
 		info.log.Info("hostFirmwareComponents not valid", "namespacename", info.request.NamespacedName)
-		return false, nil, nil
+		return false, hfc, nil
 	}
 	if changed {
 		info.log.Info("hostFirmwareComponents indicating ChangeDetected", "namespacename", info.request.NamespacedName)
@@ -2193,7 +2228,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareComponents(info *reconcileInfo)
 	}
 
 	info.log.Info("hostFirmwareComponents no updates", "namespacename", info.request.NamespacedName)
-	return false, nil, nil
+	return false, hfc, nil
 }
 
 func (r *BareMetalHostReconciler) saveHostStatus(ctx context.Context, host *metal3api.BareMetalHost) error {
