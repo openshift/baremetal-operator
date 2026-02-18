@@ -106,13 +106,6 @@ func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, 
 		return result, started, err
 	}
 
-	// Check if there are any pending updates
-	serviceSteps, err := p.buildServiceSteps(bmcAccess, data)
-	if err != nil {
-		result, err = operationFailed(err.Error())
-		return result, started, err
-	}
-
 	switch nodes.ProvisionState(ironicNode.ProvisionState) {
 	case nodes.ServiceFail:
 		// When servicing failed and user actually removed the specs (not just no updates calculated),
