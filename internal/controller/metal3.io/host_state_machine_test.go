@@ -1366,6 +1366,10 @@ func (m *mockProvisioner) Service(_ provisioner.ServicingData, _ bool, _ bool) (
 	return m.getNextResultByMethod("Service"), m.nextResults["Service"].Dirty, err
 }
 
+func (m *mockProvisioner) AbortServicing() (result provisioner.Result, started bool, err error) {
+	return m.getNextResultByMethod("AbortServicing"), m.nextResults["AbortServicing"].Dirty, err
+}
+
 func (m *mockProvisioner) Adopt(_ provisioner.AdoptData, _ bool) (result provisioner.Result, err error) {
 	return m.getNextResultByMethod("Adopt"), err
 }

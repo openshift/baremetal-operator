@@ -1447,6 +1447,7 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 	var hfcDirty bool
 	var hfc *metal3api.HostFirmwareComponents
 	var liveFirmwareSettingsAllowed, liveFirmwareUpdatesAllowed bool
+	var hasSettingsSpec, hasComponentsSpec bool
 
 	if hup != nil {
 		liveFirmwareSettingsAllowed = (hup.Spec.FirmwareSettings == metal3api.HostUpdatePolicyOnReboot)
@@ -1471,8 +1472,8 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 			servicingData.TargetFirmwareSettings = hfs.Spec.Settings
 		}
 
-		// Track if HFS spec has actual settings
-		servicingData.HasFirmwareSettingsSpec = (hfs != nil && len(hfs.Spec.Settings) > 0)
+		// Track if HFS spec has actual settings (for abort decision)
+		hasSettingsSpec = (hfs != nil && len(hfs.Spec.Settings) > 0)
 	}
 
 	if liveFirmwareUpdatesAllowed {
@@ -1490,8 +1491,8 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 			}
 		}
 
-		// Track if HFC spec has actual updates
-		servicingData.HasFirmwareComponentsSpec = (hfc != nil && len(hfc.Spec.Updates) > 0)
+		// Track if HFC spec has actual updates (for abort decision)
+		hasComponentsSpec = (hfc != nil && len(hfc.Spec.Updates) > 0)
 	}
 
 	hasChanges := fwDirty || hfsDirty || hfcDirty
@@ -1502,24 +1503,28 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(prov provisioner.Provisioner
 		return nil
 	}
 
-	// If we're in a servicing error state and updates were removed from spec,
-	// let the provisioner handle the transition back to active
-	if info.host.Status.ErrorType == metal3api.ServicingError && !hasChanges {
-		info.log.Info("updates removed from spec while in servicing error state, attempting recovery")
-		provResult, _, err := prov.Service(servicingData, false, false)
+	// If we're in a servicing-related state and all specs have been removed,
+	// abort the servicing operation. Check both new (HFS/HFC) and old (Spec.Firmware) APIs.
+	hasFirmwareSpec := info.host.Spec.Firmware != nil
+	specsRemoved := !hasSettingsSpec && !hasComponentsSpec && !hasFirmwareSpec
+	inServicingState := info.host.Status.OperationalStatus == metal3api.OperationalStatusServicing ||
+		info.host.Status.ErrorType == metal3api.ServicingError
+	if specsRemoved && inServicingState {
+		info.log.Info("specs removed while in servicing state, attempting to abort")
+		provResult, _, err := prov.AbortServicing()
 		if err != nil {
-			return actionError{fmt.Errorf("failed to recover from servicing error: %w", err)}
+			return actionError{fmt.Errorf("failed to abort servicing: %w", err)}
 		}
 		if provResult.ErrorMessage != "" {
-			info.log.Info("failed to recover from servicing error", "error", provResult.ErrorMessage)
-			return actionError{fmt.Errorf("failed to recover from servicing error: %s", provResult.ErrorMessage)}
+			info.log.Info("failed to abort servicing", "error", provResult.ErrorMessage)
+			return actionError{fmt.Errorf("failed to abort servicing: %s", provResult.ErrorMessage)}
 		}
 		if provResult.Dirty {
 			info.log.Info("abort operation in progress, checking back later")
 			return actionContinue{provResult.RequeueAfter}
 		}
-		// If abort completed and no error, we've successfully recovered
-		info.log.Info("successfully recovered from servicing error")
+		// Abort completed successfully, clear error state
+		info.log.Info("successfully aborted servicing")
 		info.host.Status.ErrorType = ""
 		info.host.Status.ErrorMessage = ""
 		info.host.Status.OperationalStatus = metal3api.OperationalStatusOK

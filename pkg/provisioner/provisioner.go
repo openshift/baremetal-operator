@@ -120,9 +120,6 @@ type ServicingData struct {
 	TargetFirmwareSettings   metal3api.DesiredSettingsMap
 	ActualFirmwareSettings   metal3api.SettingsMap
 	TargetFirmwareComponents []metal3api.FirmwareUpdate
-	// Flags to track if specs exist (vs. just no updates calculated)
-	HasFirmwareSettingsSpec   bool
-	HasFirmwareComponentsSpec bool
 }
 
 type ProvisionData struct {
@@ -174,6 +171,11 @@ type Provisioner interface {
 
 	// Servicing updates configuration for a provisioned host.
 	Service(data ServicingData, unprepared, restartOnFailure bool) (result Result, started bool, err error)
+
+	// AbortServicing aborts an in-progress or failed servicing operation,
+	// returning the host to an active state. This is used when the user
+	// removes the firmware update/settings specifications.
+	AbortServicing() (result Result, started bool, err error)
 
 	// Provision writes the image from the host spec to the host. It
 	// may be called multiple times, and should return true for its

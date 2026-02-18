@@ -171,7 +171,6 @@ func TestService(t *testing.T) {
 				prepData.TargetFirmwareSettings = metal3api.DesiredSettingsMap{
 					"Answer": intstr.FromInt(42),
 				}
-				prepData.HasFirmwareSettingsSpec = true
 			}
 
 			publisher := func(reason, message string) {}
