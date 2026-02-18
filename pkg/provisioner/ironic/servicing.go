@@ -90,7 +90,6 @@ func (p *ironicProvisioner) abortServicing(ironicNode *nodes.Node) (result provi
 		ironicNode,
 		nodes.ProvisionStateOpts{Target: nodes.TargetAbort},
 	)
-	p.log.Info("janders_debug: abort result", "started", started, "result", result, "error", err)
 	return
 }
 
@@ -113,12 +112,6 @@ func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, 
 		result, err = operationFailed(err.Error())
 		return result, started, err
 	}
-
-	p.log.Info("janders_debug: servicing state check",
-		"hasSettingsSpec", data.HasFirmwareSettingsSpec,
-		"hasComponentsSpec", data.HasFirmwareComponentsSpec,
-		"serviceStepsCount", len(serviceSteps),
-		"nodeState", ironicNode.ProvisionState)
 
 	switch nodes.ProvisionState(ironicNode.ProvisionState) {
 	case nodes.ServiceFail:
@@ -157,13 +150,19 @@ func (p *ironicProvisioner) Service(data provisioner.ServicingData, unprepared, 
 		// Servicing finished
 		p.log.Info("servicing finished on the host")
 		result, err = operationComplete()
-	case nodes.Servicing, nodes.ServiceWait:
-		// If user actually removed spec.updates/spec.settings while servicing is in progress, abort immediately
+	case nodes.Servicing:
+		p.log.Info("waiting for host to finish servicing",
+			"state", ironicNode.ProvisionState,
+			"serviceStep", ironicNode.ServiceStep)
+		result, err = operationContinuing(provisionRequeueDelay)
+
+	case nodes.ServiceWait:
+		// If user removed spec.updates/spec.settings while in ServiceWait, abort
 		if !data.HasFirmwareSettingsSpec && !data.HasFirmwareComponentsSpec {
-			p.log.Info("aborting in-progress servicing because spec.updates/spec.settings was removed")
+			p.log.Info("aborting servicing because spec.updates/spec.settings was removed")
 			return p.abortServicing(ironicNode)
 		}
-		
+
 		p.log.Info("waiting for host to become active",
 			"state", ironicNode.ProvisionState,
 			"serviceStep", ironicNode.ServiceStep)
