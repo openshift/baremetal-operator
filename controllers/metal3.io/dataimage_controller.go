@@ -36,8 +36,9 @@ import (
 )
 
 const (
-	dataImageRetryDelay  = time.Second * 60
-	dataImageUpdateDelay = time.Second * 30
+	dataImageRetryDelay          = time.Second * 60
+	dataImageUpdateDelay         = time.Second * 30
+	dataImageUnmanagedRetryDelay = time.Second * 20
 )
 
 // DataImageReconciler reconciles a DataImage object.
