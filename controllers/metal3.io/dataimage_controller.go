@@ -36,8 +36,9 @@ import (
 )
 
 const (
-	dataImageRetryDelay  = time.Second * 60
-	dataImageUpdateDelay = time.Second * 30
+	dataImageRetryDelay          = time.Second * 60
+	dataImageUpdateDelay         = time.Second * 30
+	dataImageUnmanagedRetryDelay = time.Second * 20
 )
 
 // DataImageReconciler reconciles a DataImage object.
@@ -144,6 +145,26 @@ func (r *DataImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{RequeueAfter: dataImageUpdateDelay}, fmt.Errorf("failed to update resource after add finalizer, %w", err)
 		}
 		return ctrl.Result{Requeue: true}, nil
+	}
+
+	if hasDetachedAnnotation(bmh) {
+		// In detached state, if dataImage deletion is requested, then we remove the
+		// finalizer without checking for dataImage attached status
+		if !di.DeletionTimestamp.IsZero() {
+			reqLogger.Info("dataImage deletion requested in detached state, removing finalizer")
+
+			di.Finalizers = utils.FilterStringFromList(
+				di.Finalizers, metal3api.DataImageFinalizer)
+
+			if err := r.Update(ctx, di); err != nil {
+				return ctrl.Result{Requeue: true, RequeueAfter: dataImageRetryDelay}, fmt.Errorf("failed to update resource after remove finalizer, %w", err)
+			}
+			return ctrl.Result{}, nil
+		}
+
+		// If the associated BMH is detached, keep requeuing till the annotation is removed
+		reqLogger.Info("the host is detached, not running reconciler")
+		return ctrl.Result{Requeue: true, RequeueAfter: dataImageUnmanagedRetryDelay}, nil
 	}
 
 	// Create a provisioner that can access Ironic API
