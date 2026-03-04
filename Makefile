@@ -4,7 +4,7 @@ GO_TEST_FLAGS = $(TEST_FLAGS)
 DEBUG = --debug
 COVER_PROFILE = cover.out
 GO := $(shell type -P go)
-GO_VERSION ?= 1.24.13
+GO_VERSION ?= 1.25.7
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -27,6 +27,7 @@ KUSTOMIZE = tools/bin/kustomize
 CONTROLLER_GEN = tools/bin/controller-gen
 GINKGO = tools/bin/ginkgo
 DEPLOY_CLI = tools/bin/deploy-cli
+CONTAINER_RUNTIME = docker
 
 # See pkg/version.go for details
 SOURCE_GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
@@ -62,7 +63,7 @@ SKIP_RESOURCE_CLEANUP ?= false
 GINKGO_NOCOLOR ?= false
 
 GOLANGCI_LINT_BIN := golangci-lint
-GOLANGCI_LINT_VER := v2.1.6
+GOLANGCI_LINT_VER := v2.10.1
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN))
 GOLANGCI_LINT_PKG := github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
@@ -91,6 +92,8 @@ REGISTRY ?= quay.io/metal3-io
 IMG_NAME ?= baremetal-operator
 IMG_TAG ?= latest
 IMG ?= $(REGISTRY)/$(IMG_NAME)
+ARCH ?= $(shell go env GOARCH)
+ALL_ARCH = amd64
 
 # Which configuration to use when deploying (from the config directory)
 DEPLOY_CONFIG ?= default
@@ -215,6 +218,10 @@ build-e2e:
 
 .PHONY: build-vbmctl
 build-vbmctl:
+	cd test; go build --tags=e2e,vbmctl -ldflags $(LDFLAGS) -o $(abspath $(BIN_DIR)/vbmctl) ./vbmctl/cmd/vbmctl
+
+.PHONY: build-legacy-vbmctl
+build-legacy-vbmctl:
 	cd test; go build --tags=e2e,vbmctl -ldflags $(LDFLAGS) -o $(abspath $(BIN_DIR)/vbmctl) ./vbmctl/main.go
 
 .PHONY: manifests
@@ -269,22 +276,45 @@ generate: $(CONTROLLER_GEN) ## Generate code
 ## --------------------------------------
 
 .PHONY: docker
-docker: generate manifests ## Build the docker image
-	docker build . -t ${IMG}:${IMG_TAG} \
+docker: docker-build ## Alias for docker-build (for backwards compatibility)
+docker-build: generate manifests ## Build the docker image for controller-manager
+	$(CONTAINER_RUNTIME) build --platform=linux/$(ARCH) \
+	--build-arg ARCH=$(ARCH) \
 	--build-arg http_proxy=$(http_proxy) \
-	--build-arg https_proxy=$(https_proxy)
+	--build-arg https_proxy=$(https_proxy) \
+	. -t ${IMG}-$(ARCH):${IMG_TAG}
+	@# Tag with base image name for backward compatibility (amd64 is the default)
+	@if [ "$(ARCH)" = "amd64" ]; then \
+		$(CONTAINER_RUNTIME) tag ${IMG}-$(ARCH):${IMG_TAG} ${IMG}:${IMG_TAG}; \
+	fi
 
 .PHONY: docker-debug
 docker-debug: generate manifests ## Build the docker image with debug info
-	docker build . -t ${IMG}:${IMG_TAG} \
+	$(CONTAINER_RUNTIME) build --platform=linux/$(ARCH) \
+	--build-arg ARCH=$(ARCH) \
 	--build-arg http_proxy=$(http_proxy) \
 	--build-arg https_proxy=$(https_proxy) \
-	--build-arg LDFLAGS="-extldflags=-static"
+	--build-arg LDFLAGS="-extldflags=-static" \
+	. -t ${IMG}-$(ARCH):${IMG_TAG}
 
 # Push the docker image
 .PHONY: docker-push
 docker-push:
-	docker push ${IMG}:${IMG_TAG}
+	$(CONTAINER_RUNTIME) push ${IMG}-$(ARCH):${IMG_TAG}
+	@# Push base image tag for backward compatibility (amd64 is the default)
+	@if [ "$(ARCH)" = "amd64" ]; then \
+		$(CONTAINER_RUNTIME) push ${IMG}:${IMG_TAG}; \
+	fi
+
+## --------------------------------------
+## Docker — All ARCH
+## --------------------------------------
+
+.PHONY: docker-build-all
+docker-build-all: $(addprefix docker-build-,$(ALL_ARCH)) ## Build all the architecture docker images
+
+docker-build-%:
+	$(MAKE) ARCH=$* docker-build
 
 ## --------------------------------------
 ## CI Targets

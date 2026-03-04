@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -2514,12 +2515,12 @@ func TestGetPreprovImageNoFormats(t *testing.T) {
 	r := newTestReconciler(t, host)
 	i := makeReconcileInfo(host)
 
-	imgData, err := r.getPreprovImage(i, nil)
+	imgData, err := r.getPreprovImage(t.Context(), i, nil)
 
 	require.NoError(t, err)
 	assert.Nil(t, imgData)
 
-	imgData, err = r.getPreprovImage(i, []metal3api.ImageFormat{})
+	imgData, err = r.getPreprovImage(t.Context(), i, []metal3api.ImageFormat{})
 	require.EqualError(t, err, "no acceptable formats for preprovisioning image")
 	require.ErrorAs(t, err, &imageBuildError{})
 	assert.Nil(t, imgData)
@@ -2541,7 +2542,7 @@ func TestGetPreprovImageCreateUpdate(t *testing.T) {
 	r := newTestReconciler(t, host, newSecret(secretName, nil))
 	i := makeReconcileInfo(host)
 
-	imgData, err := r.getPreprovImage(i, []metal3api.ImageFormat{"iso"})
+	imgData, err := r.getPreprovImage(t.Context(), i, []metal3api.ImageFormat{"iso"})
 	require.NoError(t, err)
 	assert.Nil(t, imgData)
 
@@ -2559,7 +2560,7 @@ func TestGetPreprovImageCreateUpdate(t *testing.T) {
 	host.Spec.PreprovisioningNetworkDataName = newSecretName
 	host.Labels["cat.metal3.io"] = "meow"
 
-	imgData, err = r.getPreprovImage(i, []metal3api.ImageFormat{"iso"})
+	imgData, err = r.getPreprovImage(t.Context(), i, []metal3api.ImageFormat{"iso"})
 	require.NoError(t, err)
 	assert.Nil(t, imgData)
 
@@ -2606,7 +2607,7 @@ func TestGetPreprovImage(t *testing.T) {
 	r := newTestReconciler(t, host, image)
 	i := makeReconcileInfo(host)
 
-	imgData, err := r.getPreprovImage(i, acceptFormats)
+	imgData, err := r.getPreprovImage(t.Context(), i, acceptFormats)
 	require.NoError(t, err)
 	assert.NotNil(t, imgData)
 	assert.Equal(t, imageURL, imgData.ImageURL)
@@ -2644,7 +2645,7 @@ func TestGetPreprovImageNotCurrent(t *testing.T) {
 	r := newTestReconciler(t, host, image)
 	i := makeReconcileInfo(host)
 
-	imgData, err := r.getPreprovImage(i, []metal3api.ImageFormat{metal3api.ImageFormatISO})
+	imgData, err := r.getPreprovImage(t.Context(), i, []metal3api.ImageFormat{metal3api.ImageFormatISO})
 	require.NoError(t, err)
 	assert.Nil(t, imgData)
 }
@@ -2687,7 +2688,7 @@ func TestGetPreprovImageBeingDeleted(t *testing.T) {
 
 	// Even though the image is ready, it should be treated as unavailable
 	// because it has a DeletionTimestamp
-	imgData, err := r.getPreprovImage(i, acceptFormats)
+	imgData, err := r.getPreprovImage(t.Context(), i, acceptFormats)
 	require.NoError(t, err)
 	assert.Nil(t, imgData)
 }
@@ -2962,7 +2963,7 @@ func TestPreprovImageAvailable(t *testing.T) {
 				Spec:   tc.Spec,
 				Status: tc.Status,
 			}
-			available, err := r.preprovImageAvailable(makeReconcileInfo(host), &image)
+			available, err := r.preprovImageAvailable(t.Context(), makeReconcileInfo(host), &image)
 			if tc.BuildError {
 				require.EqualError(t, err, "oops")
 				require.ErrorAs(t, err, &imageBuildError{})
@@ -3042,7 +3043,7 @@ func TestHostFirmwareSettings(t *testing.T) {
 			err := r.Create(t.Context(), hfs)
 			require.NoError(t, err)
 
-			dirty, _, err := r.getHostFirmwareSettings(i)
+			dirty, _, err := r.getHostFirmwareSettings(t.Context(), i)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3165,4 +3166,97 @@ func TestHFSEmptyStatusSettings(t *testing.T) {
 			return host.Status.Provisioning.State == metal3api.StateAvailable
 		},
 	)
+}
+
+func bmhWithStatus(operStatus metal3api.OperationalStatus, provStatus metal3api.ProvisioningState) *metal3api.BareMetalHost {
+	return &metal3api.BareMetalHost{
+		Status: metal3api.BareMetalHostStatus{
+			OperationalStatus: operStatus,
+			Provisioning: metal3api.ProvisionStatus{
+				State: provStatus,
+			},
+		},
+	}
+}
+func TestComputeConditions(t *testing.T) {
+	testCases := []struct {
+		Scenario      string
+		BareMetalHost *metal3api.BareMetalHost
+		isManageable  bool
+		isAvailable   bool
+		isProvisioned bool
+		isProgressing bool
+		isReady       bool
+	}{
+		{
+			Scenario:      "before registration",
+			BareMetalHost: bmhWithStatus(metal3api.OperationalStatusOK, metal3api.StateNone),
+		},
+		{
+			Scenario:      "registering",
+			BareMetalHost: bmhWithStatus(metal3api.OperationalStatusOK, metal3api.StateRegistering),
+			isProgressing: true,
+		},
+		{
+			Scenario:      "available",
+			BareMetalHost: bmhWithStatus(metal3api.OperationalStatusOK, metal3api.StateAvailable),
+			isManageable:  true,
+			isAvailable:   true,
+		},
+		{
+			Scenario:      "inspecting",
+			BareMetalHost: bmhWithStatus(metal3api.OperationalStatusOK, metal3api.StateInspecting),
+			isManageable:  true,
+			isProgressing: true,
+		},
+		{
+			Scenario:      "provisioning",
+			BareMetalHost: bmhWithStatus(metal3api.OperationalStatusOK, metal3api.StateProvisioning),
+			isManageable:  true,
+			isProgressing: true,
+		},
+		{
+			Scenario:      "provisioned",
+			BareMetalHost: bmhWithStatus(metal3api.OperationalStatusOK, metal3api.StateProvisioned),
+			isManageable:  true,
+			isProvisioned: true,
+			isReady:       true,
+		},
+		{
+			Scenario:      "provisioned but not ready",
+			BareMetalHost: bmhWithStatus(metal3api.OperationalStatusError, metal3api.StateProvisioned),
+			isManageable:  true,
+			isProvisioned: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.Scenario, func(t *testing.T) {
+			computeConditions(t.Context(), tc.BareMetalHost, nil)
+			if tc.isManageable {
+				assert.True(t, conditions.IsTrue(tc.BareMetalHost, metal3api.ManageableCondition))
+			} else {
+				assert.True(t, conditions.IsFalse(tc.BareMetalHost, metal3api.ManageableCondition))
+			}
+			if tc.isAvailable {
+				assert.True(t, conditions.IsTrue(tc.BareMetalHost, metal3api.AvailableForProvisioningCondition))
+			} else {
+				assert.True(t, conditions.IsFalse(tc.BareMetalHost, metal3api.AvailableForProvisioningCondition))
+			}
+			if tc.isProvisioned {
+				assert.True(t, conditions.IsTrue(tc.BareMetalHost, metal3api.ProvisionedCondition))
+			} else {
+				assert.True(t, conditions.IsFalse(tc.BareMetalHost, metal3api.ProvisionedCondition))
+			}
+			if tc.isProgressing {
+				assert.True(t, conditions.IsTrue(tc.BareMetalHost, metal3api.ProgressingCondition))
+			} else {
+				assert.True(t, conditions.IsFalse(tc.BareMetalHost, metal3api.ProgressingCondition))
+			}
+			if tc.isReady {
+				assert.True(t, conditions.IsTrue(tc.BareMetalHost, metal3api.ReadyCondition))
+			} else {
+				assert.True(t, conditions.IsFalse(tc.BareMetalHost, metal3api.ReadyCondition))
+			}
+		})
+	}
 }

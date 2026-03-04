@@ -1,5 +1,5 @@
 # Support FROM override
-ARG BUILD_IMAGE=docker.io/golang:1.24.13@sha256:c29cdf32d47053ab0d914852d9c2ed2da12b3cf13079aaef1704ef21335e68a3
+ARG BUILD_IMAGE=docker.io/golang:1.25.7@sha256:85c0ab0b73087fda36bf8692efe2cf67c54a06d7ca3b49c489bbff98c9954d64
 ARG BASE_IMAGE=gcr.io/distroless/static:nonroot@sha256:9ecc53c269509f63c69a266168e4a687c7eb8c0cfd753bd8bfcaa4f58a90876f
 
 # Build the manager binary
@@ -17,7 +17,8 @@ RUN go mod download
 ARG LDFLAGS=-s -w -extldflags=-static
 
 COPY . .
-RUN CGO_ENABLED=0 GO111MODULE=on go build -a -ldflags "${LDFLAGS}" -o baremetal-operator main.go
+ARG ARCH=amd64
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} GO111MODULE=on go build -a -ldflags "${LDFLAGS}" -o baremetal-operator main.go
 
 # Copy the controller-manager into a thin image
 # BMO has a dependency preventing us to use the static one,
