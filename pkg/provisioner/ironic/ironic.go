@@ -100,8 +100,6 @@ type ironicProvisioner struct {
 	publisher provisioner.EventPublisher
 	// available API features
 	availableFeatures clients.AvailableFeatures
-	// request context
-	ctx context.Context
 }
 
 // FIXME(hroyrh) : move this to gophercloud when implementing
@@ -121,11 +119,11 @@ func (p *ironicProvisioner) bmcAccess() (bmc.AccessDetails, error) {
 	return bmcAccess, nil
 }
 
-func (p *ironicProvisioner) validateNode(ironicNode *nodes.Node) (errorMessage string, err error) {
+func (p *ironicProvisioner) validateNode(ctx context.Context, ironicNode *nodes.Node) (errorMessage string, err error) {
 	var validationErrors []string
 
 	p.log.Info("validating node settings in ironic")
-	validateResult, err := nodes.Validate(p.ctx, p.client, ironicNode.UUID).Extract()
+	validateResult, err := nodes.Validate(ctx, p.client, ironicNode.UUID).Extract()
 	if err != nil {
 		return "", err // do not wrap error so we can check type in caller
 	}
@@ -145,7 +143,7 @@ func (p *ironicProvisioner) validateNode(ironicNode *nodes.Node) (errorMessage s
 	return "", nil
 }
 
-func (p *ironicProvisioner) listAllPorts(address string) ([]ports.Port, error) {
+func (p *ironicProvisioner) listAllPorts(ctx context.Context, address string) ([]ports.Port, error) {
 	var allPorts []ports.Port
 
 	opts := ports.ListOpts{
@@ -158,7 +156,7 @@ func (p *ironicProvisioner) listAllPorts(address string) ([]ports.Port, error) {
 
 	pager := ports.List(p.client, opts)
 
-	allPages, err := pager.AllPages(p.ctx)
+	allPages, err := pager.AllPages(ctx)
 
 	if err != nil {
 		return allPorts, err
@@ -167,12 +165,12 @@ func (p *ironicProvisioner) listAllPorts(address string) ([]ports.Port, error) {
 	return ports.ExtractPorts(allPages)
 }
 
-func (p *ironicProvisioner) getNode() (*nodes.Node, error) {
+func (p *ironicProvisioner) getNode(ctx context.Context) (*nodes.Node, error) {
 	if p.nodeID == "" {
 		return nil, provisioner.ErrNeedsRegistration
 	}
 
-	ironicNode, err := nodes.Get(p.ctx, p.client, p.nodeID).Extract()
+	ironicNode, err := nodes.Get(ctx, p.client, p.nodeID).Extract()
 	if err == nil {
 		p.debugLog.Info("found existing node by ID")
 		return ironicNode, nil
@@ -188,7 +186,7 @@ func (p *ironicProvisioner) getNode() (*nodes.Node, error) {
 }
 
 // Verifies that node has port assigned by Ironic.
-func (p *ironicProvisioner) nodeHasAssignedPort(ironicNode *nodes.Node) (bool, error) {
+func (p *ironicProvisioner) nodeHasAssignedPort(ctx context.Context, ironicNode *nodes.Node) (bool, error) {
 	opts := ports.ListOpts{
 		Fields:   []string{"node_uuid"},
 		NodeUUID: ironicNode.UUID,
@@ -196,7 +194,7 @@ func (p *ironicProvisioner) nodeHasAssignedPort(ironicNode *nodes.Node) (bool, e
 
 	pager := ports.List(p.client, opts)
 
-	allPages, err := pager.AllPages(p.ctx)
+	allPages, err := pager.AllPages(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to page over list of ports: %w", err)
 	}
@@ -216,8 +214,8 @@ func (p *ironicProvisioner) nodeHasAssignedPort(ironicNode *nodes.Node) (bool, e
 }
 
 // Verify that MAC is already allocated to some node port.
-func (p *ironicProvisioner) isAddressAllocatedToPort(address string) (bool, error) {
-	allPorts, err := p.listAllPorts(address)
+func (p *ironicProvisioner) isAddressAllocatedToPort(ctx context.Context, address string) (bool, error) {
+	allPorts, err := p.listAllPorts(ctx, address)
 	if err != nil {
 		return false, fmt.Errorf("failed to list ports for %s: %w", address, err)
 	}
@@ -233,9 +231,9 @@ func (p *ironicProvisioner) isAddressAllocatedToPort(address string) (bool, erro
 
 // Look for an existing registration for the host in Ironic.
 // Returns nil, nil if no host exists with MAC.
-func (p *ironicProvisioner) findExistingHost(bootMACAddress string) (ironicNode *nodes.Node, err error) {
+func (p *ironicProvisioner) findExistingHost(ctx context.Context, bootMACAddress string) (ironicNode *nodes.Node, err error) {
 	// Try to load the node by UUID
-	ironicNode, err = p.getNode()
+	ironicNode, err = p.getNode(ctx)
 	if !errors.Is(err, provisioner.ErrNeedsRegistration) {
 		return ironicNode, err
 	}
@@ -248,7 +246,7 @@ func (p *ironicProvisioner) findExistingHost(bootMACAddress string) (ironicNode 
 
 	for _, nodeName := range nodeSearchList {
 		p.debugLog.Info("looking for existing node by name", "name", nodeName)
-		ironicNode, err = nodes.Get(p.ctx, p.client, nodeName).Extract()
+		ironicNode, err = nodes.Get(ctx, p.client, nodeName).Extract()
 		if err == nil {
 			p.debugLog.Info("found existing node by name", "name", nodeName, "node", ironicNode.UUID)
 			return ironicNode, nil
@@ -265,7 +263,7 @@ func (p *ironicProvisioner) findExistingHost(bootMACAddress string) (ironicNode 
 	// Skip MAC-based lookup if bootMACAddress is empty to avoid false conflicts
 	if bootMACAddress != "" {
 		p.log.Info("looking for existing node by MAC", "MAC", bootMACAddress)
-		allPorts, err := p.listAllPorts(bootMACAddress)
+		allPorts, err := p.listAllPorts(ctx, bootMACAddress)
 
 		if err != nil {
 			p.log.Info("failed to find an existing port with address", "MAC", bootMACAddress)
@@ -274,7 +272,7 @@ func (p *ironicProvisioner) findExistingHost(bootMACAddress string) (ironicNode 
 
 		if len(allPorts) > 0 {
 			nodeUUID := allPorts[0].NodeUUID
-			ironicNode, err = nodes.Get(p.ctx, p.client, nodeUUID).Extract()
+			ironicNode, err = nodes.Get(ctx, p.client, nodeUUID).Extract()
 			if err == nil {
 				p.debugLog.Info("found existing node by MAC", "MAC", bootMACAddress, "node", ironicNode.UUID, "name", ironicNode.Name)
 
@@ -298,13 +296,13 @@ func (p *ironicProvisioner) findExistingHost(bootMACAddress string) (ironicNode 
 	return nil, nil //nolint:nilnil
 }
 
-func (p *ironicProvisioner) createPXEEnabledNodePort(uuid, macAddress string) error {
+func (p *ironicProvisioner) createPXEEnabledNodePort(ctx context.Context, uuid, macAddress string) error {
 	p.log.Info("creating PXE enabled ironic port for node", "NodeUUID", uuid, "MAC", macAddress)
 
 	enable := true
 
 	_, err := ports.Create(
-		p.ctx,
+		ctx,
 		p.client,
 		ports.CreateOpts{
 			NodeUUID:   uuid,
@@ -322,7 +320,7 @@ func (p *ironicProvisioner) createPXEEnabledNodePort(uuid, macAddress string) er
 // It populates the AutomatedClean field, as well as capabilities and architecture in Properties.
 // It also calls setDeployImage to populate IPA parameters in DriverInfo and
 // checks if the required PreprovisioningImage is provided and ready.
-func (p *ironicProvisioner) configureNode(data provisioner.ManagementAccessData, ironicNode *nodes.Node, bmcAccess bmc.AccessDetails) (result provisioner.Result, err error) {
+func (p *ironicProvisioner) configureNode(ctx context.Context, data provisioner.ManagementAccessData, ironicNode *nodes.Node, bmcAccess bmc.AccessDetails) (result provisioner.Result, err error) {
 	updater := clients.UpdateOptsBuilder(p.log)
 
 	deployImageInfo := setDeployImage(p.config, bmcAccess, data.PreprovisioningImage)
@@ -347,7 +345,7 @@ func (p *ironicProvisioner) configureNode(data provisioner.ManagementAccessData,
 	}
 	updater.SetPropertiesOpts(opts, ironicNode)
 
-	_, success, result, err := p.tryUpdateNode(ironicNode, updater)
+	_, success, result, err := p.tryUpdateNode(ctx, ironicNode, updater)
 	if !success {
 		return result, err
 	}
@@ -428,7 +426,7 @@ func setExternalURL(p *ironicProvisioner, driverInfo map[string]any) map[string]
 	ip := net.ParseIP(parsedURL.Hostname())
 	if ip == nil {
 		// Maybe it's a hostname?
-		ips, err := net.LookupIP(parsedURL.Hostname())
+		ips, err := net.DefaultResolver.LookupIPAddr(context.Background(), parsedURL.Hostname())
 		if err != nil {
 			p.log.Info("Failed to look up the IP address for BMC hostname", "hostname", p.bmcAddress)
 			return driverInfo
@@ -439,7 +437,7 @@ func setExternalURL(p *ironicProvisioner, driverInfo map[string]any) map[string]
 			return driverInfo
 		}
 
-		ip = ips[0]
+		ip = ips[0].IP
 	}
 
 	// In the case of IPv4, we don't have to do anything.
@@ -503,7 +501,7 @@ func setDeployImage(config ironicConfig, accessDetails bmc.AccessDetails, hostIm
 	return nil
 }
 
-func (p *ironicProvisioner) tryUpdateNode(ironicNode *nodes.Node, updater *clients.NodeUpdater) (updatedNode *nodes.Node, success bool, result provisioner.Result, err error) {
+func (p *ironicProvisioner) tryUpdateNode(ctx context.Context, ironicNode *nodes.Node, updater *clients.NodeUpdater) (updatedNode *nodes.Node, success bool, result provisioner.Result, err error) {
 	if len(updater.Updates) == 0 {
 		updatedNode = ironicNode
 		success = true
@@ -511,7 +509,7 @@ func (p *ironicProvisioner) tryUpdateNode(ironicNode *nodes.Node, updater *clien
 	}
 
 	p.log.Info("updating node settings in ironic", "updateCount", len(updater.Updates))
-	updatedNode, err = nodes.Update(p.ctx, p.client, ironicNode.UUID, updater.Updates).Extract()
+	updatedNode, err = nodes.Update(ctx, p.client, ironicNode.UUID, updater.Updates).Extract()
 	if err == nil {
 		success = true
 	} else if gophercloud.ResponseCodeIs(err, http.StatusConflict) {
@@ -524,7 +522,7 @@ func (p *ironicProvisioner) tryUpdateNode(ironicNode *nodes.Node, updater *clien
 	return
 }
 
-func (p *ironicProvisioner) tryChangeNodeProvisionState(ironicNode *nodes.Node, opts nodes.ProvisionStateOpts) (success bool, result provisioner.Result, err error) {
+func (p *ironicProvisioner) tryChangeNodeProvisionState(ctx context.Context, ironicNode *nodes.Node, opts nodes.ProvisionStateOpts) (success bool, result provisioner.Result, err error) {
 	p.log.Info("changing provisioning state",
 		"current", ironicNode.ProvisionState,
 		"existing target", ironicNode.TargetProvisionState,
@@ -539,11 +537,11 @@ func (p *ironicProvisioner) tryChangeNodeProvisionState(ironicNode *nodes.Node, 
 	}
 	if ironicNode.Maintenance {
 		p.log.Info("trying to change a provision state for a node in maintenance, removing maintenance first", "reason", ironicNode.MaintenanceReason)
-		result, err = p.setMaintenanceFlag(ironicNode, false, "")
+		result, err = p.setMaintenanceFlag(ctx, ironicNode, false, "")
 		return success, result, err
 	}
 
-	changeResult := nodes.ChangeProvisionState(p.ctx, p.client, ironicNode.UUID, opts)
+	changeResult := nodes.ChangeProvisionState(ctx, p.client, ironicNode.UUID, opts)
 	if changeResult.Err == nil {
 		success = true
 	} else if gophercloud.ResponseCodeIs(changeResult.Err, http.StatusConflict) {
@@ -559,8 +557,8 @@ func (p *ironicProvisioner) tryChangeNodeProvisionState(ironicNode *nodes.Node, 
 	return success, result, err
 }
 
-func (p *ironicProvisioner) changeNodeProvisionState(ironicNode *nodes.Node, opts nodes.ProvisionStateOpts) (result provisioner.Result, err error) {
-	_, result, err = p.tryChangeNodeProvisionState(ironicNode, opts)
+func (p *ironicProvisioner) changeNodeProvisionState(ctx context.Context, ironicNode *nodes.Node, opts nodes.ProvisionStateOpts) (result provisioner.Result, err error) {
+	_, result, err = p.tryChangeNodeProvisionState(ctx, ironicNode, opts)
 	return
 }
 
@@ -568,10 +566,10 @@ func (p *ironicProvisioner) changeNodeProvisionState(ironicNode *nodes.Node, opt
 // and updates the HardwareDetails field of the host with details. It
 // is expected to do this in the least expensive way possible, such as
 // reading from a cache.
-func (p *ironicProvisioner) UpdateHardwareState() (hwState provisioner.HardwareState, err error) {
+func (p *ironicProvisioner) UpdateHardwareState(ctx context.Context) (hwState provisioner.HardwareState, err error) {
 	p.debugLog.Info("updating hardware state")
 
-	ironicNode, err := p.getNode()
+	ironicNode, err := p.getNode(ctx)
 	if err != nil {
 		return
 	}
@@ -727,8 +725,8 @@ func (p *ironicProvisioner) getInstanceUpdateOpts(ironicNode *nodes.Node, data p
 }
 
 // GetFirmwareSettings gets the BIOS settings and optional schema from the host and returns maps.
-func (p *ironicProvisioner) GetFirmwareSettings(includeSchema bool) (settings metal3api.SettingsMap, schema map[string]metal3api.SettingSchema, err error) {
-	ironicNode, err := p.getNode()
+func (p *ironicProvisioner) GetFirmwareSettings(ctx context.Context, includeSchema bool) (settings metal3api.SettingsMap, schema map[string]metal3api.SettingSchema, err error) {
+	ironicNode, err := p.getNode(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not get node for BIOS settings: %w", err)
 	}
@@ -738,9 +736,9 @@ func (p *ironicProvisioner) GetFirmwareSettings(includeSchema bool) (settings me
 	var biosListErr error
 	if includeSchema {
 		opts := nodes.ListBIOSSettingsOpts{Detail: true}
-		settingsList, biosListErr = nodes.ListBIOSSettings(p.ctx, p.client, ironicNode.UUID, opts).Extract()
+		settingsList, biosListErr = nodes.ListBIOSSettings(ctx, p.client, ironicNode.UUID, opts).Extract()
 	} else {
-		settingsList, biosListErr = nodes.ListBIOSSettings(p.ctx, p.client, ironicNode.UUID, nil).Extract()
+		settingsList, biosListErr = nodes.ListBIOSSettings(ctx, p.client, ironicNode.UUID, nil).Extract()
 	}
 	if biosListErr != nil {
 		return nil, nil, fmt.Errorf("could not get BIOS settings for node %s: %w", ironicNode.UUID, biosListErr)
@@ -772,8 +770,8 @@ func (p *ironicProvisioner) GetFirmwareSettings(includeSchema bool) (settings me
 }
 
 // GetFirmwareComponents gets all available firmware components for a node and return a list.
-func (p *ironicProvisioner) GetFirmwareComponents() ([]metal3api.FirmwareComponentStatus, error) {
-	ironicNode, err := p.getNode()
+func (p *ironicProvisioner) GetFirmwareComponents(ctx context.Context) ([]metal3api.FirmwareComponentStatus, error) {
+	ironicNode, err := p.getNode(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get node to retrieve firmware components: %w", err)
 	}
@@ -785,7 +783,7 @@ func (p *ironicProvisioner) GetFirmwareComponents() ([]metal3api.FirmwareCompone
 		return componentsInfo, provisioner.ErrFirmwareUpdateUnsupported
 	}
 	// Get the components from Ironic via Gophercloud
-	componentList, componentListErr := nodes.ListFirmware(p.ctx, p.client, ironicNode.UUID).Extract()
+	componentList, componentListErr := nodes.ListFirmware(ctx, p.client, ironicNode.UUID).Extract()
 
 	if componentListErr != nil {
 		return nil, fmt.Errorf("could not get firmware components for node %s: %w", ironicNode.UUID, componentListErr)
@@ -810,22 +808,22 @@ func (p *ironicProvisioner) GetFirmwareComponents() ([]metal3api.FirmwareCompone
 			}
 		}
 		componentsInfo = append(componentsInfo, component)
-		p.log.Info("firmware component added for node", "component", fwc.Component, "node", ironicNode.UUID)
+		p.log.V(1).Info("firmware component found for node", "component", fwc.Component, "node", ironicNode.UUID)
 	}
 
 	return componentsInfo, componentListErr
 }
 
-func (p *ironicProvisioner) setUpForProvisioning(ironicNode *nodes.Node, data provisioner.ProvisionData) (result provisioner.Result, err error) {
+func (p *ironicProvisioner) setUpForProvisioning(ctx context.Context, ironicNode *nodes.Node, data provisioner.ProvisionData) (result provisioner.Result, err error) {
 	p.log.Info("starting provisioning", "node properties", ironicNode.Properties)
 
-	ironicNode, success, result, err := p.tryUpdateNode(ironicNode,
+	ironicNode, success, result, err := p.tryUpdateNode(ctx, ironicNode,
 		p.getInstanceUpdateOpts(ironicNode, data))
 	if !success {
 		return result, err
 	}
 
-	errorMessage, err := p.validateNode(ironicNode)
+	errorMessage, err := p.validateNode(ctx, ironicNode)
 	if gophercloud.ResponseCodeIs(err, http.StatusConflict) {
 		p.log.Info("could not validate host during registration, busy")
 		return retryAfterDelay(provisionRequeueDelay)
@@ -861,8 +859,8 @@ func (p *ironicProvisioner) deployInterface(data provisioner.ManagementAccessDat
 
 // Adopt notifies the provisioner that the state machine believes the host
 // to be currently provisioned, and that it should be managed as such.
-func (p *ironicProvisioner) Adopt(data provisioner.AdoptData, restartOnFailure bool) (result provisioner.Result, err error) {
-	ironicNode, err := p.getNode()
+func (p *ironicProvisioner) Adopt(ctx context.Context, data provisioner.AdoptData, restartOnFailure bool) (result provisioner.Result, err error) {
+	ironicNode, err := p.getNode(ctx)
 	if err != nil {
 		return transientError(err)
 	}
@@ -881,8 +879,7 @@ func (p *ironicProvisioner) Adopt(data provisioner.AdoptData, restartOnFailure b
 				"state", ironicNode.ProvisionState)
 			return operationComplete()
 		}
-		return p.changeNodeProvisionState(
-			ironicNode,
+		return p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{
 				Target: nodes.TargetAdopt,
 			},
@@ -891,8 +888,7 @@ func (p *ironicProvisioner) Adopt(data provisioner.AdoptData, restartOnFailure b
 		return operationContinuing(provisionRequeueDelay)
 	case nodes.AdoptFail:
 		if restartOnFailure {
-			return p.changeNodeProvisionState(
-				ironicNode,
+			return p.changeNodeProvisionState(ctx, ironicNode,
 				nodes.ProvisionStateOpts{
 					Target: nodes.TargetAdopt,
 				},
@@ -904,7 +900,7 @@ func (p *ironicProvisioner) Adopt(data provisioner.AdoptData, restartOnFailure b
 		// Empty Fault means that maintenance was set manually, not by Ironic
 		if ironicNode.Maintenance && ironicNode.Fault == "" && data.State != metal3api.StateDeleting {
 			p.log.Info("active node was found to be in maintenance, updating", "state", data.State)
-			return p.setMaintenanceFlag(ironicNode, false, "")
+			return p.setMaintenanceFlag(ctx, ironicNode, false, "")
 		}
 	default:
 	}
@@ -1067,9 +1063,9 @@ func buildFirmwareSettings(settings []map[string]any, name string, value intstr.
 	return settings
 }
 
-func (p *ironicProvisioner) startManualCleaning(bmcAccess bmc.AccessDetails, ironicNode *nodes.Node, data provisioner.PrepareData) (success bool, result provisioner.Result, err error) {
+func (p *ironicProvisioner) startManualCleaning(ctx context.Context, bmcAccess bmc.AccessDetails, ironicNode *nodes.Node, data provisioner.PrepareData) (success bool, result provisioner.Result, err error) {
 	// Set raid configuration
-	result, err = setTargetRAIDCfg(p, bmcAccess.RAIDInterface(), ironicNode, data)
+	result, err = setTargetRAIDCfg(ctx, p, bmcAccess.RAIDInterface(), ironicNode, data)
 	if result.Dirty || result.ErrorMessage != "" || err != nil {
 		return
 	}
@@ -1085,6 +1081,7 @@ func (p *ironicProvisioner) startManualCleaning(bmcAccess bmc.AccessDetails, iro
 	if len(cleanSteps) != 0 {
 		p.log.Info("remove existing configuration and set new configuration", "clean steps", cleanSteps)
 		return p.tryChangeNodeProvisionState(
+			ctx,
 			ironicNode,
 			nodes.ProvisionStateOpts{
 				Target:     nodes.TargetClean,
@@ -1098,14 +1095,14 @@ func (p *ironicProvisioner) startManualCleaning(bmcAccess bmc.AccessDetails, iro
 
 // Prepare remove existing configuration and set new configuration.
 // If `started` is true,  it means that we successfully executed `tryChangeNodeProvisionState`.
-func (p *ironicProvisioner) Prepare(data provisioner.PrepareData, unprepared bool, restartOnFailure bool) (result provisioner.Result, started bool, err error) {
+func (p *ironicProvisioner) Prepare(ctx context.Context, data provisioner.PrepareData, unprepared bool, restartOnFailure bool) (result provisioner.Result, started bool, err error) {
 	bmcAccess, err := p.bmcAccess()
 	if err != nil {
 		result, err = transientError(err)
 		return result, started, err
 	}
 
-	ironicNode, err := p.getNode()
+	ironicNode, err := p.getNode(ctx)
 	if err != nil {
 		result, err = transientError(err)
 		return result, started, err
@@ -1122,8 +1119,7 @@ func (p *ironicProvisioner) Prepare(data provisioner.PrepareData, unprepared boo
 			}
 			if len(cleanSteps) != 0 {
 				p.log.Info("the node needs to be reconfigured", "clean steps", cleanSteps)
-				result, err = p.changeNodeProvisionState(
-					ironicNode,
+				result, err = p.changeNodeProvisionState(ctx, ironicNode,
 					nodes.ProvisionStateOpts{Target: nodes.TargetManage},
 				)
 				return result, started, err
@@ -1137,7 +1133,7 @@ func (p *ironicProvisioner) Prepare(data provisioner.PrepareData, unprepared boo
 
 	case nodes.Manageable:
 		if unprepared {
-			started, result, err = p.startManualCleaning(bmcAccess, ironicNode, data)
+			started, result, err = p.startManualCleaning(ctx, bmcAccess, ironicNode, data)
 			if started || result.Dirty || result.ErrorMessage != "" || err != nil {
 				return result, started, err
 			}
@@ -1157,11 +1153,10 @@ func (p *ironicProvisioner) Prepare(data provisioner.PrepareData, unprepared boo
 		}
 		if ironicNode.Maintenance {
 			p.log.Info("clearing maintenance flag")
-			result, err = p.setMaintenanceFlag(ironicNode, false, "")
+			result, err = p.setMaintenanceFlag(ctx, ironicNode, false, "")
 			return result, started, err
 		}
-		result, err = p.changeNodeProvisionState(
-			ironicNode,
+		result, err = p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{Target: nodes.TargetManage},
 		)
 
@@ -1177,7 +1172,7 @@ func (p *ironicProvisioner) Prepare(data provisioner.PrepareData, unprepared boo
 	return result, started, err
 }
 
-func (p *ironicProvisioner) getConfigDrive(data provisioner.ProvisionData) (configDrive nodes.ConfigDrive, err error) {
+func (p *ironicProvisioner) getConfigDrive(ctx context.Context, data provisioner.ProvisionData) (configDrive nodes.ConfigDrive, err error) {
 	// In theory, Ironic can support configdrive with live ISO by attaching
 	// it to another virtual media slot. However, some hardware does not
 	// support two virtual media devices at the same time, so we shouldn't
@@ -1188,7 +1183,7 @@ func (p *ironicProvisioner) getConfigDrive(data provisioner.ProvisionData) (conf
 	}
 
 	// Retrieve instance specific user data (cloud-init, ignition, etc).
-	userData, err := data.HostConfig.UserData()
+	userData, err := data.HostConfig.UserData(ctx)
 	if err != nil {
 		return configDrive, fmt.Errorf("could not retrieve user data: %w", err)
 	}
@@ -1197,7 +1192,7 @@ func (p *ironicProvisioner) getConfigDrive(data provisioner.ProvisionData) (conf
 	}
 
 	// Retrieve OpenStack network_data. Default value is empty.
-	networkDataRaw, err := data.HostConfig.NetworkData()
+	networkDataRaw, err := data.HostConfig.NetworkData(ctx)
 	if err != nil {
 		return configDrive, fmt.Errorf("could not retrieve network data: %w", err)
 	}
@@ -1218,7 +1213,7 @@ func (p *ironicProvisioner) getConfigDrive(data provisioner.ProvisionData) (conf
 		"local_hostname":   p.objectMeta.Name,
 		"name":             p.objectMeta.Name,
 	}
-	metaDataRaw, err := data.HostConfig.MetaData()
+	metaDataRaw, err := data.HostConfig.MetaData(ctx)
 	if err != nil {
 		return configDrive, fmt.Errorf("could not retrieve metadata: %w", err)
 	}
@@ -1247,8 +1242,8 @@ func (p *ironicProvisioner) getCustomDeploySteps(customDeploy *metal3api.CustomD
 // Provision writes the image from the host spec to the host. It may
 // be called multiple times, and should return true for its dirty flag
 // until the provisioning operation is completed.
-func (p *ironicProvisioner) Provision(data provisioner.ProvisionData, forceReboot bool) (result provisioner.Result, err error) {
-	ironicNode, err := p.getNode()
+func (p *ironicProvisioner) Provision(ctx context.Context, data provisioner.ProvisionData, forceReboot bool) (result provisioner.Result, err error) {
+	ironicNode, err := p.getNode(ctx)
 	if err != nil {
 		return transientError(err)
 	}
@@ -1283,17 +1278,16 @@ func (p *ironicProvisioner) Provision(data provisioner.ProvisionData, forceReboo
 			return operationFailed("Image provisioning failed: " + ironicNode.LastError)
 		}
 		p.log.Info("recovering from previous failure")
-		if provResult, err = p.setUpForProvisioning(ironicNode, data); err != nil || provResult.Dirty || provResult.ErrorMessage != "" {
+		if provResult, err = p.setUpForProvisioning(ctx, ironicNode, data); err != nil || provResult.Dirty || provResult.ErrorMessage != "" {
 			return provResult, err
 		}
 
-		configDrive, err = p.getConfigDrive(data)
+		configDrive, err = p.getConfigDrive(ctx, data)
 		if err != nil {
 			return transientError(err)
 		}
 
-		return p.changeNodeProvisionState(
-			ironicNode,
+		return p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{
 				Target:      nodes.TargetActive,
 				ConfigDrive: configDrive,
@@ -1302,16 +1296,15 @@ func (p *ironicProvisioner) Provision(data provisioner.ProvisionData, forceReboo
 		)
 
 	case nodes.Manageable:
-		return p.changeNodeProvisionState(ironicNode,
+		return p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{Target: nodes.TargetProvide})
 
 	case nodes.CleanFail:
 		if ironicNode.Maintenance {
 			p.log.Info("clearing maintenance flag")
-			return p.setMaintenanceFlag(ironicNode, false, "")
+			return p.setMaintenanceFlag(ctx, ironicNode, false, "")
 		}
-		return p.changeNodeProvisionState(
-			ironicNode,
+		return p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{Target: nodes.TargetManage},
 		)
 
@@ -1319,20 +1312,19 @@ func (p *ironicProvisioner) Provision(data provisioner.ProvisionData, forceReboo
 		var provResult provisioner.Result
 		var configDrive nodes.ConfigDrive
 
-		if provResult, err = p.setUpForProvisioning(ironicNode, data); err != nil || provResult.Dirty || provResult.ErrorMessage != "" {
+		if provResult, err = p.setUpForProvisioning(ctx, ironicNode, data); err != nil || provResult.Dirty || provResult.ErrorMessage != "" {
 			return provResult, err
 		}
 
 		// After it is available, we need to start provisioning by
 		// setting the state to "active".
 
-		configDrive, err = p.getConfigDrive(data)
+		configDrive, err = p.getConfigDrive(ctx, data)
 		if err != nil {
 			return transientError(err)
 		}
 
-		return p.changeNodeProvisionState(
-			ironicNode,
+		return p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{
 				Target:      nodes.TargetActive,
 				ConfigDrive: configDrive,
@@ -1350,8 +1342,7 @@ func (p *ironicProvisioner) Provision(data provisioner.ProvisionData, forceReboo
 	case nodes.DeployWait:
 		if forceReboot {
 			p.log.Info("aborting provisioning to force reboot of preprovisioning image")
-			_, result, err = p.tryChangeNodeProvisionState(
-				ironicNode,
+			_, result, err = p.tryChangeNodeProvisionState(ctx, ironicNode,
 				nodes.ProvisionStateOpts{Target: nodes.TargetDeleted},
 			)
 			return result, err
@@ -1368,12 +1359,12 @@ func (p *ironicProvisioner) Provision(data provisioner.ProvisionData, forceReboo
 	}
 }
 
-func (p *ironicProvisioner) setMaintenanceFlag(ironicNode *nodes.Node, value bool, reason string) (result provisioner.Result, err error) {
+func (p *ironicProvisioner) setMaintenanceFlag(ctx context.Context, ironicNode *nodes.Node, value bool, reason string) (result provisioner.Result, err error) {
 	p.log.Info("updating maintenance in ironic", "newValue", value, "reason", reason)
 	if value {
-		err = nodes.SetMaintenance(p.ctx, p.client, ironicNode.UUID, nodes.MaintenanceOpts{Reason: reason}).ExtractErr()
+		err = nodes.SetMaintenance(ctx, p.client, ironicNode.UUID, nodes.MaintenanceOpts{Reason: reason}).ExtractErr()
 	} else {
-		err = nodes.UnsetMaintenance(p.ctx, p.client, ironicNode.UUID).ExtractErr()
+		err = nodes.UnsetMaintenance(ctx, p.client, ironicNode.UUID).ExtractErr()
 	}
 
 	if err == nil {
@@ -1390,7 +1381,7 @@ func (p *ironicProvisioner) setMaintenanceFlag(ironicNode *nodes.Node, value boo
 
 // syncAutomatedClean updates the Ironic node's automated_clean field if it doesn't match the desired state.
 // Returns true if an update was needed and applied.
-func (p *ironicProvisioner) syncAutomatedClean(ironicNode *nodes.Node, automatedCleaningMode metal3api.AutomatedCleaningMode) (updated bool, err error) {
+func (p *ironicProvisioner) syncAutomatedClean(ctx context.Context, ironicNode *nodes.Node, automatedCleaningMode metal3api.AutomatedCleaningMode) (updated bool, err error) {
 	desiredAutomatedClean := automatedCleaningMode != metal3api.CleaningModeDisabled
 
 	// Check if update is needed
@@ -1405,7 +1396,7 @@ func (p *ironicProvisioner) syncAutomatedClean(ironicNode *nodes.Node, automated
 	updater := clients.UpdateOptsBuilder(p.log)
 	updater.SetTopLevelOpt("automated_clean", desiredAutomatedClean, ironicNode.AutomatedClean)
 
-	_, err = nodes.Update(p.ctx, p.client, ironicNode.UUID, updater.Updates).Extract()
+	_, err = nodes.Update(ctx, p.client, ironicNode.UUID, updater.Updates).Extract()
 	if err != nil {
 		return false, fmt.Errorf("failed to update automatedClean: %w", err)
 	}
@@ -1416,10 +1407,10 @@ func (p *ironicProvisioner) syncAutomatedClean(ironicNode *nodes.Node, automated
 // Deprovision removes the host from the image. It may be called
 // multiple times, and should return true for its dirty flag until the
 // deprovisioning operation is completed.
-func (p *ironicProvisioner) Deprovision(restartOnFailure bool, automatedCleaningMode metal3api.AutomatedCleaningMode) (result provisioner.Result, err error) {
+func (p *ironicProvisioner) Deprovision(ctx context.Context, restartOnFailure bool, automatedCleaningMode metal3api.AutomatedCleaningMode) (result provisioner.Result, err error) {
 	p.log.Info("deprovisioning")
 
-	ironicNode, err := p.getNode()
+	ironicNode, err := p.getNode(ctx)
 	if err != nil {
 		return transientError(err)
 	}
@@ -1446,8 +1437,7 @@ func (p *ironicProvisioner) Deprovision(restartOnFailure bool, automatedCleaning
 		}
 		p.log.Info("retrying deprovisioning")
 		p.publisher("DeprovisioningStarted", "Image deprovisioning restarted")
-		return p.changeNodeProvisionState(
-			ironicNode,
+		return p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{Target: nodes.TargetDeleted},
 		)
 
@@ -1459,11 +1449,10 @@ func (p *ironicProvisioner) Deprovision(restartOnFailure bool, automatedCleaning
 		p.log.Info("retrying cleaning")
 		if ironicNode.Maintenance {
 			p.log.Info("clearing maintenance flag", "maintenanceReason", ironicNode.MaintenanceReason)
-			return p.setMaintenanceFlag(ironicNode, false, "")
+			return p.setMaintenanceFlag(ctx, ironicNode, false, "")
 		}
 		// Move to manageable for retrying.
-		return p.changeNodeProvisionState(
-			ironicNode,
+		return p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{Target: nodes.TargetManage},
 		)
 
@@ -1474,8 +1463,7 @@ func (p *ironicProvisioner) Deprovision(restartOnFailure bool, automatedCleaning
 		// We also end up here if the node has to be re-registered, because we
 		// don't attempt to adopt once deprovisioning has started.
 		p.log.Info("deprovisioning node is in manageable state", "automatedClean", ironicNode.AutomatedClean)
-		return p.changeNodeProvisionState(
-			ironicNode,
+		return p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{Target: nodes.TargetProvide},
 		)
 
@@ -1506,7 +1494,7 @@ func (p *ironicProvisioner) Deprovision(restartOnFailure bool, automatedCleaning
 		// Before starting deprovisioning, ensure Ironic's automated_clean matches the BMH spec.
 		// This prevents the PPI deletion race where the spec is changed right before deletion
 		// but Ironic hasn't been updated yet.
-		updated, err := p.syncAutomatedClean(ironicNode, automatedCleaningMode)
+		updated, err := p.syncAutomatedClean(ctx, ironicNode, automatedCleaningMode)
 		if err != nil {
 			return transientError(err)
 		}
@@ -1516,8 +1504,7 @@ func (p *ironicProvisioner) Deprovision(restartOnFailure bool, automatedCleaning
 
 		p.log.Info("starting deprovisioning", "automatedClean", ironicNode.AutomatedClean)
 		p.publisher("DeprovisioningStarted", "Image deprovisioning started")
-		return p.changeNodeProvisionState(
-			ironicNode,
+		return p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{Target: nodes.TargetDeleted},
 		)
 
@@ -1530,8 +1517,8 @@ func (p *ironicProvisioner) Deprovision(restartOnFailure bool, automatedCleaning
 // Delete removes the host from the provisioning system. It may be
 // called multiple times, and should return true for its dirty flag
 // until the deprovisioning operation is completed.
-func (p *ironicProvisioner) Delete() (result provisioner.Result, err error) {
-	ironicNode, err := p.getNode()
+func (p *ironicProvisioner) Delete(ctx context.Context) (result provisioner.Result, err error) {
+	ironicNode, err := p.getNode(ctx)
 	if err != nil {
 		if errors.Is(err, provisioner.ErrNeedsRegistration) {
 			p.log.Info("no node found, already deleted")
@@ -1570,7 +1557,7 @@ func (p *ironicProvisioner) Delete() (result provisioner.Result, err error) {
 			p.log.Info("removing stale instance UUID before deletion", "instanceUUID", ironicNode.InstanceUUID)
 			updater := clients.UpdateOptsBuilder(p.log)
 			updater.SetTopLevelOpt("instance_uuid", nil, ironicNode.InstanceUUID)
-			_, success, result, err = p.tryUpdateNode(ironicNode, updater)
+			_, success, result, err = p.tryUpdateNode(ctx, ironicNode, updater)
 			if !success {
 				return result, err
 			}
@@ -1588,11 +1575,11 @@ func (p *ironicProvisioner) Delete() (result provisioner.Result, err error) {
 		// delete while bypassing Ironic's internal checks related to
 		// Nova.
 		p.log.Info("setting host maintenance flag to force image delete")
-		return p.setMaintenanceFlag(ironicNode, true, "forcing deletion in baremetal-operator")
+		return p.setMaintenanceFlag(ctx, ironicNode, true, "forcing deletion in baremetal-operator")
 	}
 
 	p.log.Info("host ready to be removed")
-	err = nodes.Delete(p.ctx, p.client, ironicNode.UUID).ExtractErr()
+	err = nodes.Delete(ctx, p.client, ironicNode.UUID).ExtractErr()
 	if err == nil {
 		p.log.Info("removed")
 	} else if gophercloud.ResponseCodeIs(err, http.StatusConflict) {
@@ -1612,10 +1599,10 @@ func (p *ironicProvisioner) Delete() (result provisioner.Result, err error) {
 // for the target system.  It may be called multiple times,
 // and should return true for its dirty  flag until the
 // deletion operation is completed.
-func (p *ironicProvisioner) Detach() (result provisioner.Result, err error) {
+func (p *ironicProvisioner) Detach(ctx context.Context) (result provisioner.Result, err error) {
 	// Currently the same behavior as Delete()
 	p.log.Info("removing the node for detachment", "node", p.nodeID)
-	return p.Delete()
+	return p.Delete(ctx)
 }
 
 // softPowerOffUnsupportedError is returned when the BMC does not
@@ -1632,7 +1619,7 @@ func (e softPowerOffUnsupportedError) Error() string {
 	return "soft power off is unsupported on BMC"
 }
 
-func (p *ironicProvisioner) changePower(ironicNode *nodes.Node, target nodes.TargetPowerState) (result provisioner.Result, err error) {
+func (p *ironicProvisioner) changePower(ctx context.Context, ironicNode *nodes.Node, target nodes.TargetPowerState) (result provisioner.Result, err error) {
 	p.log.Info("changing power state")
 
 	if ironicNode.TargetProvisionState != "" {
@@ -1651,7 +1638,7 @@ func (p *ironicProvisioner) changePower(ironicNode *nodes.Node, target nodes.Tar
 	}
 
 	changeResult := nodes.ChangePowerState(
-		p.ctx,
+		ctx,
 		p.client,
 		ironicNode.UUID,
 		powerStateOpts)
@@ -1680,10 +1667,10 @@ func (p *ironicProvisioner) changePower(ironicNode *nodes.Node, target nodes.Tar
 
 // PowerOn ensures the server is powered on independently of any image
 // provisioning operation.
-func (p *ironicProvisioner) PowerOn(force bool) (result provisioner.Result, err error) {
+func (p *ironicProvisioner) PowerOn(ctx context.Context, force bool) (result provisioner.Result, err error) {
 	p.log.Info("ensuring host is powered on")
 
-	ironicNode, err := p.getNode()
+	ironicNode, err := p.getNode(ctx)
 	if err != nil {
 		return transientError(err)
 	}
@@ -1701,7 +1688,7 @@ func (p *ironicProvisioner) PowerOn(force bool) (result provisioner.Result, err 
 			return operationFailed("PowerOn operation failed: " +
 				ironicNode.LastError)
 		}
-		return p.changePower(ironicNode, nodes.PowerOn)
+		return p.changePower(ctx, ironicNode, nodes.PowerOn)
 	}
 	return result, nil
 }
@@ -1710,14 +1697,13 @@ func (p *ironicProvisioner) PowerOn(force bool) (result provisioner.Result, err 
 // This is necessary to allow power changes when the node is being deleted.
 // Abort only works in *Wait states; for *ing states we return Dirty to retry later.
 // For cleaning, we abort manual cleaning or automated cleaning if it's been disabled.
-func (p *ironicProvisioner) abortInspectionOrCleaning(ironicNode *nodes.Node, automatedCleaningMode metal3api.AutomatedCleaningMode) (result provisioner.Result, err error) {
+func (p *ironicProvisioner) abortInspectionOrCleaning(ctx context.Context, ironicNode *nodes.Node, automatedCleaningMode metal3api.AutomatedCleaningMode) (result provisioner.Result, err error) {
 	provState := nodes.ProvisionState(ironicNode.ProvisionState)
 
 	switch provState {
 	case nodes.InspectWait:
 		p.log.Info("aborting inspection to allow power off during deletion")
-		return p.changeNodeProvisionState(
-			ironicNode,
+		return p.changeNodeProvisionState(ctx, ironicNode,
 			nodes.ProvisionStateOpts{Target: nodes.TargetAbort},
 		)
 	case nodes.Inspecting:
@@ -1730,8 +1716,7 @@ func (p *ironicProvisioner) abortInspectionOrCleaning(ironicNode *nodes.Node, au
 		if ironicNode.TargetProvisionState != "" {
 			p.log.Info("transitioning from inspect failed to manageable to allow power off",
 				"targetState", ironicNode.TargetProvisionState)
-			return p.changeNodeProvisionState(
-				ironicNode,
+			return p.changeNodeProvisionState(ctx, ironicNode,
 				nodes.ProvisionStateOpts{Target: nodes.TargetManage},
 			)
 		}
@@ -1748,8 +1733,7 @@ func (p *ironicProvisioner) abortInspectionOrCleaning(ironicNode *nodes.Node, au
 			} else {
 				p.log.Info("aborting automated cleaning (disabled) to allow power off during deletion")
 			}
-			return p.changeNodeProvisionState(
-				ironicNode,
+			return p.changeNodeProvisionState(ctx, ironicNode,
 				nodes.ProvisionStateOpts{Target: nodes.TargetAbort},
 			)
 		}
@@ -1773,10 +1757,10 @@ func (p *ironicProvisioner) abortInspectionOrCleaning(ironicNode *nodes.Node, au
 
 // PowerOff ensures the server is powered off independently of any image
 // provisioning operation.
-func (p *ironicProvisioner) PowerOff(rebootMode metal3api.RebootMode, force bool, automatedCleaningMode metal3api.AutomatedCleaningMode) (result provisioner.Result, err error) {
+func (p *ironicProvisioner) PowerOff(ctx context.Context, rebootMode metal3api.RebootMode, force bool, automatedCleaningMode metal3api.AutomatedCleaningMode) (result provisioner.Result, err error) {
 	p.log.Info(fmt.Sprintf("ensuring host is powered off (mode: %s)", rebootMode))
 
-	ironicNode, err := p.getNode()
+	ironicNode, err := p.getNode(ctx)
 	if err != nil {
 		return transientError(err)
 	}
@@ -1784,7 +1768,7 @@ func (p *ironicProvisioner) PowerOff(rebootMode metal3api.RebootMode, force bool
 	// If the node is in inspection or cleaning, we need to handle it before we can power off.
 	// For *Wait states, we can abort. For *ing states, we wait for them to transition to *Wait.
 	// This is especially important during deletion to avoid getting stuck waiting for inspection/cleaning to complete.
-	result, err = p.abortInspectionOrCleaning(ironicNode, automatedCleaningMode)
+	result, err = p.abortInspectionOrCleaning(ctx, ironicNode, automatedCleaningMode)
 	if err != nil || result.Dirty {
 		return result, err
 	}
@@ -1814,7 +1798,7 @@ func (p *ironicProvisioner) PowerOff(rebootMode metal3api.RebootMode, force bool
 			if ironicNode.DisablePowerOff {
 				powerTarget = nodes.SoftRebooting
 			}
-			result, err = p.changePower(ironicNode, powerTarget)
+			result, err = p.changePower(ctx, ironicNode, powerTarget)
 			if !errors.As(err, &softPowerOffUnsupportedError{}) {
 				return result, err
 			}
@@ -1824,7 +1808,7 @@ func (p *ironicProvisioner) PowerOff(rebootMode metal3api.RebootMode, force bool
 		if ironicNode.DisablePowerOff {
 			powerTarget = nodes.Rebooting
 		}
-		return p.changePower(ironicNode, powerTarget)
+		return p.changePower(ctx, ironicNode, powerTarget)
 	}
 
 	return result, nil
@@ -1834,7 +1818,7 @@ func ironicNodeName(objMeta metav1.ObjectMeta) string {
 	return objMeta.Namespace + nameSeparator + objMeta.Name
 }
 
-func (p *ironicProvisioner) HasCapacity() (result bool, err error) {
+func (p *ironicProvisioner) HasCapacity(ctx context.Context) (result bool, err error) {
 	bmcAccess, err := p.bmcAccess()
 	if err != nil {
 		return false, err // shouldn't actually happen so late in the process
@@ -1846,7 +1830,7 @@ func (p *ironicProvisioner) HasCapacity() (result bool, err error) {
 		return true, nil
 	}
 
-	hosts, err := p.loadBusyHosts()
+	hosts, err := p.loadBusyHosts(ctx)
 	if err != nil {
 		p.log.Error(err, "Unable to get hosts for determining current provisioner capacity")
 		return false, err
@@ -1860,13 +1844,13 @@ func (p *ironicProvisioner) HasCapacity() (result bool, err error) {
 	return len(hosts) < p.config.maxBusyHosts, nil
 }
 
-func (p *ironicProvisioner) loadBusyHosts() (hosts map[string]struct{}, err error) {
+func (p *ironicProvisioner) loadBusyHosts(ctx context.Context) (hosts map[string]struct{}, err error) {
 	hosts = make(map[string]struct{})
 	pager := nodes.List(p.client, nodes.ListOpts{
 		Fields: []string{"uuid,name,provision_state,boot_interface"},
 	})
 
-	page, err := pager.AllPages(p.ctx)
+	page, err := pager.AllPages(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1894,9 +1878,9 @@ func (p *ironicProvisioner) loadBusyHosts() (hosts map[string]struct{}, err erro
 	return hosts, nil
 }
 
-func (p *ironicProvisioner) AddBMCEventSubscriptionForNode(subscription *metal3api.BMCEventSubscription, httpHeaders provisioner.HTTPHeaders) (result provisioner.Result, err error) {
+func (p *ironicProvisioner) AddBMCEventSubscriptionForNode(ctx context.Context, subscription *metal3api.BMCEventSubscription, httpHeaders provisioner.HTTPHeaders) (result provisioner.Result, err error) {
 	newSubscription, err := nodes.CreateSubscription(
-		p.ctx,
+		ctx,
 		p.client,
 		p.nodeID,
 		nodes.CallVendorPassthruOpts{
@@ -1915,14 +1899,14 @@ func (p *ironicProvisioner) AddBMCEventSubscriptionForNode(subscription *metal3a
 	return operationComplete()
 }
 
-func (p *ironicProvisioner) RemoveBMCEventSubscriptionForNode(subscription metal3api.BMCEventSubscription) (result provisioner.Result, err error) {
+func (p *ironicProvisioner) RemoveBMCEventSubscriptionForNode(ctx context.Context, subscription metal3api.BMCEventSubscription) (result provisioner.Result, err error) {
 	method := nodes.CallVendorPassthruOpts{
 		Method: "delete_subscription",
 	}
 	opts := nodes.DeleteSubscriptionOpts{
 		Id: subscription.Status.SubscriptionID,
 	}
-	err = nodes.DeleteSubscription(p.ctx, p.client, p.nodeID, method, opts).ExtractErr()
+	err = nodes.DeleteSubscription(ctx, p.client, p.nodeID, method, opts).ExtractErr()
 
 	if err != nil {
 		return provisioner.Result{RequeueAfter: subscriptionRequeueDelay}, err
@@ -1935,14 +1919,14 @@ func (p *ironicProvisioner) RemoveBMCEventSubscriptionForNode(subscription metal
 // We return only the bool isImageAttached because the url in the response
 // body is always the same - based on the node uuid, so it is not useful
 // for any comparison purpose.
-func (p *ironicProvisioner) GetDataImageStatus() (isImageAttached bool, err error) {
+func (p *ironicProvisioner) GetDataImageStatus(ctx context.Context) (isImageAttached bool, err error) {
 	// Check if Ironic API version supports Virtual Media Get API
 	// Needs version >= 1.93
 	if !p.availableFeatures.HasVirtualMediaGetAPI() {
 		return false, fmt.Errorf("ironic version=%d doesn't support Virtual Media Get API, needs version>=1.93", p.availableFeatures.MaxVersion)
 	}
 
-	node, err := p.getNode()
+	node, err := p.getNode(ctx)
 	if err != nil {
 		return true, err
 	}
@@ -1956,7 +1940,7 @@ func (p *ironicProvisioner) GetDataImageStatus() (isImageAttached bool, err erro
 		return false, provisioner.ErrNodeIsBusy
 	}
 
-	result := nodes.GetVirtualMedia(p.ctx, p.client, p.nodeID)
+	result := nodes.GetVirtualMedia(ctx, p.client, p.nodeID)
 	err = result.Err
 	if err != nil {
 		return false, err
@@ -1982,8 +1966,8 @@ func (p *ironicProvisioner) GetDataImageStatus() (isImageAttached bool, err erro
 	return false, nil
 }
 
-func (p *ironicProvisioner) AttachDataImage(url string) (err error) {
-	err = nodes.AttachVirtualMedia(p.ctx, p.client, p.nodeID, nodes.AttachVirtualMediaOpts{
+func (p *ironicProvisioner) AttachDataImage(ctx context.Context, url string) (err error) {
+	err = nodes.AttachVirtualMedia(ctx, p.client, p.nodeID, nodes.AttachVirtualMediaOpts{
 		DeviceType: nodes.VirtualMediaCD,
 		ImageURL:   url,
 	}).ExtractErr()
@@ -1994,8 +1978,8 @@ func (p *ironicProvisioner) AttachDataImage(url string) (err error) {
 	return nil
 }
 
-func (p *ironicProvisioner) DetachDataImage() (err error) {
-	err = nodes.DetachVirtualMedia(p.ctx, p.client, p.nodeID, nodes.DetachVirtualMediaOpts{
+func (p *ironicProvisioner) DetachDataImage(ctx context.Context) (err error) {
+	err = nodes.DetachVirtualMedia(ctx, p.client, p.nodeID, nodes.DetachVirtualMediaOpts{
 		DeviceTypes: []nodes.VirtualMediaDeviceType{nodes.VirtualMediaCD},
 	}).ExtractErr()
 	if err != nil {
@@ -2003,4 +1987,13 @@ func (p *ironicProvisioner) DetachDataImage() (err error) {
 	}
 
 	return nil
+}
+
+func (p *ironicProvisioner) HasPowerFailure(ctx context.Context) bool {
+	node, err := p.getNode(ctx)
+	if err != nil {
+		p.log.Error(err, "Ignored error while checking for Power Failure")
+		return false
+	}
+	return node.Fault == "power failure"
 }

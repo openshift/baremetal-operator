@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	metal3api "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	irsov1alpha1 "github.com/metal3-io/ironic-standalone-operator/api/v1alpha1"
@@ -50,8 +51,83 @@ const (
 	PoweredOff PowerState = "off"
 
 	filePerm600 = 0600
+	filePerm644 = 0644
 	filePerm750 = 0750
+	filePerm755 = 0755
 )
+
+// vmLogPositions tracks the last read position for each VM's serial log.
+// This enables incremental log collection per test.
+var vmLogPositions = make(map[string]int64)
+var vmLogPositionsMu sync.Mutex
+
+// CollectSerialLogs copies incremental VM serial log content for the current test.
+// It appends to the log file so that multiple It blocks within the same specName
+// accumulate their logs in one place. The logs are written to destFolder.
+func CollectSerialLogs(vmName, destFolder string) {
+	if vmName == "" {
+		return
+	}
+	err := CopyIncrementalVMLog(vmName, destFolder)
+	if err != nil {
+		Logf("Warning: Failed to copy VM serial log for %s: %v", vmName, err)
+	}
+}
+
+// CopyIncrementalVMLog copies new content from a VM's serial log since last collection.
+// It tracks the read position per VM to enable per-test log separation.
+// New content is appended to the destination file so that sequential It blocks
+// within the same test accumulate their logs.
+func CopyIncrementalVMLog(vmName, destFolder string) error {
+	vmLogPositionsMu.Lock()
+	defer vmLogPositionsMu.Unlock()
+
+	sourcePath := fmt.Sprintf("/var/log/libvirt/qemu/%s-serial0.log", vmName)
+	destPath := filepath.Join(destFolder, vmName+"-serial0.log")
+
+	// Create destination folder
+	if err := os.MkdirAll(destFolder, filePerm755); err != nil {
+		return fmt.Errorf("mkdir: %w", err)
+	}
+
+	// Read source file using sudo (VM logs are owned by libvirt-qemu)
+	cmd := testexec.NewCommand(
+		testexec.WithCommand("sudo"),
+		testexec.WithArgs("cat", sourcePath),
+	)
+	stdout, stderr, err := cmd.Run(context.Background())
+	if err != nil {
+		return fmt.Errorf("read source %s (stderr: %s): %w", sourcePath, string(stderr), err)
+	}
+	sourceBytes := stdout
+
+	// Get last position
+	lastPos := vmLogPositions[vmName]
+	currentSize := int64(len(sourceBytes))
+
+	// Extract incremental content
+	var incrementalContent []byte
+	if lastPos < currentSize {
+		incrementalContent = sourceBytes[lastPos:]
+	}
+
+	// Append to destination
+	if len(incrementalContent) > 0 {
+		f, err := os.OpenFile(destPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerm644)
+		if err != nil {
+			return fmt.Errorf("open dest: %w", err)
+		}
+		defer f.Close()
+		if _, err := f.Write(incrementalContent); err != nil {
+			return fmt.Errorf("write dest: %w", err)
+		}
+	}
+
+	// Update position
+	vmLogPositions[vmName] = currentSize
+
+	return nil
+}
 
 func isUndesiredState(currentState metal3api.ProvisioningState, undesiredStates []metal3api.ProvisioningState) bool {
 	if undesiredStates == nil {
@@ -259,22 +335,6 @@ func WaitForNamespaceDeleted(ctx context.Context, input WaitForNamespaceDeletedI
 		}
 		return k8serrors.IsNotFound(input.Getter.Get(ctx, key, namespace))
 	}, intervals...).Should(BeTrue())
-}
-
-func cleanup(ctx context.Context, clusterProxy framework.ClusterProxy, namespace *corev1.Namespace, cancelWatches context.CancelFunc, intervals ...interface{}) {
-	// Trigger deletion of BMHs before deleting the namespace.
-	// This way there should be no risk of BMO getting stuck trying to progress
-	// and create HardwareDetails or similar, while the namespace is terminating.
-	DeleteBmhsInNamespace(ctx, clusterProxy.GetClient(), namespace.Name)
-	framework.DeleteNamespace(ctx, framework.DeleteNamespaceInput{
-		Deleter: clusterProxy.GetClient(),
-		Name:    namespace.Name,
-	})
-	WaitForNamespaceDeleted(ctx, WaitForNamespaceDeletedInput{
-		Getter:    clusterProxy.GetClient(),
-		Namespace: *namespace,
-	}, intervals...)
-	cancelWatches()
 }
 
 func Cleanup(ctx context.Context, clusterProxy framework.ClusterProxy, namespace *corev1.Namespace, cancelWatches context.CancelFunc, isNamespaced bool, intervals ...interface{}) {
@@ -788,14 +848,18 @@ func dumpCRDS(ctx context.Context, cli client.Client, artifactFolder string) {
 }
 
 // DumpResources dumps resources related to BMO e2e tests as YAML.
-func DumpResources(ctx context.Context, e2eConfig *Config, clusterProxy framework.ClusterProxy, artifactFolder string) {
+func DumpResources(ctx context.Context, e2eConfig *Config, clusterProxy framework.ClusterProxy, artifactFolder string, ironicIP ...string) {
 	cli := clusterProxy.GetClient()
 	kubeconfigPath := clusterProxy.GetKubeconfigPath()
 
 	// Dump all CRDs and their instances (includes BMH, Ironic, etc.)
 	dumpCRDS(ctx, cli, filepath.Join(artifactFolder, "crd"))
 	if e2eConfig.GetBoolVariable("FETCH_IRONIC_NODES") {
-		dumpIronicNodes(ctx, e2eConfig, artifactFolder)
+		ip := e2eConfig.GetVariable("IRONIC_PROVISIONING_IP")
+		if len(ironicIP) > 0 && ironicIP[0] != "" {
+			ip = ironicIP[0]
+		}
+		dumpIronicNodes(ctx, e2eConfig, artifactFolder, ip)
 	}
 
 	// Dump pod and deployment descriptions for key namespaces using kubectl describe
@@ -807,8 +871,7 @@ func DumpResources(ctx context.Context, e2eConfig *Config, clusterProxy framewor
 }
 
 // dumpIronicNodes dumps the nodes in ironic's view into json file inside the provided artifactFolder.
-func dumpIronicNodes(ctx context.Context, e2eConfig *Config, artifactFolder string) {
-	ironicProvisioningIP := e2eConfig.GetVariable("IRONIC_PROVISIONING_IP")
+func dumpIronicNodes(ctx context.Context, e2eConfig *Config, artifactFolder string, ironicProvisioningIP string) {
 	ironicProvisioningPort := e2eConfig.GetVariable("IRONIC_PROVISIONING_PORT")
 	ironicURL := fmt.Sprintf("https://%s/v1/nodes", net.JoinHostPort(ironicProvisioningIP, ironicProvisioningPort))
 	username := e2eConfig.GetVariable("IRONIC_USERNAME")
