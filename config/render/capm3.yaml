@@ -227,7 +227,8 @@ spec:
                 description: |-
                   Firmware (BIOS) configuration for bare metal server. If set, the
                   requested settings will be applied before the host is provisioned.
-                  Only some vendor drivers support this field. An alternative is to
+
+                  Deprecated: no longer supported by any driver. An alternative is to
                   use HostFirmwareSettings resources that allow changing arbitrary
                   values and support the generic Redfish-based drivers.
                 properties:
@@ -811,6 +812,9 @@ spec:
                           type: string
                         name:
                           description: The name of the network interface, e.g. "en0"
+                          type: string
+                        pciAddress:
+                          description: The NIC PCI address
                           type: string
                         pxe:
                           description: Whether the NIC is PXE Bootable
@@ -1756,6 +1760,9 @@ spec:
                           type: string
                         name:
                           description: The name of the network interface, e.g. "en0"
+                          type: string
+                        pciAddress:
+                          description: The NIC PCI address
                           type: string
                         pxe:
                           description: Whether the NIC is PXE Bootable
