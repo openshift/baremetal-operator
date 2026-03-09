@@ -28,9 +28,9 @@ type EnvFixture struct {
 func (f *EnvFixture) TearDown() {
 	for e, v := range f.origEnv {
 		if v == "" {
-			os.Unsetenv(e)
+			_ = os.Unsetenv(e)
 		} else {
-			os.Setenv(e, v)
+			_ = os.Setenv(e, v)
 		}
 	}
 }
@@ -38,9 +38,9 @@ func (f *EnvFixture) TearDown() {
 func (f *EnvFixture) replace(env, value string) {
 	f.origEnv[env] = os.Getenv(env)
 	if value == "" {
-		os.Unsetenv(env)
+		_ = os.Unsetenv(env)
 	} else {
-		os.Setenv(env, value)
+		_ = os.Setenv(env, value)
 	}
 }
 

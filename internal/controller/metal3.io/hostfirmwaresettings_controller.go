@@ -468,7 +468,7 @@ func GetSchemaName(schema map[string]metal3api.SettingSchema) string {
 	sort.Strings(hashkeys)
 
 	h := sha256.New()
-	fmt.Fprintf(h, "%v", hashkeys)
+	_, _ = fmt.Fprintf(h, "%v", hashkeys)
 	hash := hex.EncodeToString(h.Sum(nil))[:8]
 
 	return "schema-" + hash

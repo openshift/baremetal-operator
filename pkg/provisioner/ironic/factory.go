@@ -373,7 +373,7 @@ func writeTempFile(prefix string, data []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer tmpFile.Close()
+	defer func() { _ = tmpFile.Close() }()
 
 	_, err = tmpFile.Write(data)
 	if err != nil {

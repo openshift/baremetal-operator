@@ -250,7 +250,7 @@ func (m *MockServer) sendData(w http.ResponseWriter, r *http.Request, code int, 
 	m.logRequest(r, payload)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	fmt.Fprint(w, payload)
+	_, _ = fmt.Fprint(w, payload)
 }
 
 // SendJSONResponse marshalls the payload to a JSON object and sends
