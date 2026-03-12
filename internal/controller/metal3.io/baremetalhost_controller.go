@@ -1024,7 +1024,8 @@ func (r *BareMetalHostReconciler) actionInspecting(ctx context.Context, prov pro
 	provResult, started, details, err := prov.InspectHardware(
 		ctx,
 		provisioner.InspectData{
-			BootMode: info.host.Status.Provisioning.BootMode,
+			BootMode:        info.host.Status.Provisioning.BootMode,
+			CPUArchitecture: getHostArchitecture(info.host),
 		},
 		info.host.Status.ErrorType == metal3api.InspectionError,
 		refresh,
@@ -1465,6 +1466,8 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 			servicingData.FirmwareConfig = info.host.Spec.Firmware
 			fwDirty = true
 		}
+		servicingData.HasFirmwareSpec = fwDirty && info.host.Spec.Firmware != nil
+
 		// handling HFS based FirmwareSettings here
 		var hfs *metal3api.HostFirmwareSettings
 		var err error
@@ -1476,6 +1479,8 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 			servicingData.ActualFirmwareSettings = hfs.Status.Settings
 			servicingData.TargetFirmwareSettings = hfs.Spec.Settings
 		}
+
+		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfs != nil && len(hfs.Spec.Settings) > 0)
 	}
 
 	if liveFirmwareUpdatesAllowed {
@@ -1492,6 +1497,8 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 				servicingData.TargetFirmwareComponents = hfc.Spec.Updates
 			}
 		}
+
+		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfc != nil && len(hfc.Spec.Updates) > 0)
 	}
 
 	hasChanges := fwDirty || hfsDirty || hfcDirty
@@ -2141,7 +2148,8 @@ func hostObjectHasChanges(conditions []metav1.Condition, changedCondition, valid
 	return false, true, nil
 }
 
-// Get the stored firmware settings if there are valid changes.
+// Get the stored firmware settings. Returns dirty=true if there are valid pending changes.
+// The hfs object is returned when available regardless of validity, so callers can inspect spec contents.
 func (r *BareMetalHostReconciler) getHostFirmwareSettings(ctx context.Context, info *reconcileInfo) (dirty bool, hfs *metal3api.HostFirmwareSettings, err error) {
 	hfs = &metal3api.HostFirmwareSettings{}
 	if err = r.Get(ctx, info.request.NamespacedName, hfs); err != nil {
@@ -2161,7 +2169,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareSettings(ctx context.Context, i
 	}
 	if !valid {
 		info.log.Info("hostFirmwareSettings not valid", "namespacename", info.request.NamespacedName)
-		return false, nil, nil
+		return false, hfs, nil
 	}
 
 	if changed {
@@ -2175,11 +2183,11 @@ func (r *BareMetalHostReconciler) getHostFirmwareSettings(ctx context.Context, i
 	}
 
 	info.log.Info("hostFirmwareSettings no updates", "namespacename", info.request.NamespacedName)
-	return false, nil, nil
+	return false, hfs, nil
 }
 
-// Get the stored firmware settings if there are valid changes.
-
+// Get the stored firmware components. Returns dirty=true if there are valid pending changes.
+// The hfc object is returned when available regardless of validity, so callers can inspect spec contents.
 func (r *BareMetalHostReconciler) getHostFirmwareComponents(ctx context.Context, info *reconcileInfo) (dirty bool, hfc *metal3api.HostFirmwareComponents, err error) {
 	hfc = &metal3api.HostFirmwareComponents{}
 	if err = r.Get(ctx, info.request.NamespacedName, hfc); err != nil {
@@ -2199,7 +2207,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareComponents(ctx context.Context,
 	}
 	if !valid {
 		info.log.Info("hostFirmwareComponents not valid", "namespacename", info.request.NamespacedName)
-		return false, nil, nil
+		return false, hfc, nil
 	}
 	if changed {
 		info.log.Info("hostFirmwareComponents indicating ChangeDetected", "namespacename", info.request.NamespacedName)
@@ -2207,7 +2215,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareComponents(ctx context.Context,
 	}
 
 	info.log.Info("hostFirmwareComponents no updates", "namespacename", info.request.NamespacedName)
-	return false, nil, nil
+	return false, hfc, nil
 }
 
 func setConditionTrue(host *metal3api.BareMetalHost, typ, reason string) {
@@ -2216,6 +2224,10 @@ func setConditionTrue(host *metal3api.BareMetalHost, typ, reason string) {
 
 func setConditionFalse(host *metal3api.BareMetalHost, typ, reason string) {
 	conditions.Set(host, metav1.Condition{Type: typ, Status: metav1.ConditionFalse, Reason: reason})
+}
+
+func setConditionUnknown(host *metal3api.BareMetalHost, typ, reason string) {
+	conditions.Set(host, metav1.Condition{Type: typ, Status: metav1.ConditionUnknown, Reason: reason})
 }
 
 func setConditionsProgressing(host *metal3api.BareMetalHost, progressingReason string) {
@@ -2227,6 +2239,7 @@ func setConditionsProgressing(host *metal3api.BareMetalHost, progressingReason s
 }
 
 func computeConditions(ctx context.Context, host *metal3api.BareMetalHost, prov provisioner.Provisioner) {
+	var powerFailureCheck = true
 	switch host.Status.Provisioning.State {
 	case metal3api.StateNone, metal3api.StateUnmanaged:
 		setConditionFalse(host, metal3api.ManageableCondition, metal3api.NotManagedReason)
@@ -2234,6 +2247,7 @@ func computeConditions(ctx context.Context, host *metal3api.BareMetalHost, prov 
 		setConditionFalse(host, metal3api.ProvisionedCondition, metal3api.NotProvisionedReason)
 		setConditionFalse(host, metal3api.ReadyCondition, metal3api.NotProvisionedReason)
 		setConditionFalse(host, metal3api.ProgressingCondition, metal3api.NotProgressingReason)
+		powerFailureCheck = false
 	case metal3api.StateRegistering:
 		if host.Status.OperationalStatus == metal3api.OperationalStatusError {
 			setConditionFalse(host, metal3api.ManageableCondition, metal3api.RegistrationFailedReason)
@@ -2244,6 +2258,7 @@ func computeConditions(ctx context.Context, host *metal3api.BareMetalHost, prov 
 		setConditionFalse(host, metal3api.ProvisionedCondition, metal3api.NotProvisionedReason)
 		setConditionFalse(host, metal3api.ReadyCondition, metal3api.NotProvisionedReason)
 		setConditionTrue(host, metal3api.ProgressingCondition, metal3api.RegisteringReason)
+		powerFailureCheck = false
 	case metal3api.StatePreparing:
 		setConditionsProgressing(host, metal3api.PreparingReason)
 	case metal3api.StateReady, metal3api.StateAvailable:
@@ -2268,6 +2283,7 @@ func computeConditions(ctx context.Context, host *metal3api.BareMetalHost, prov 
 	case metal3api.StatePoweringOffBeforeDelete:
 		setConditionsProgressing(host, metal3api.PoweringOffBeforeDeleteReason)
 	case metal3api.StateDeleting:
+		powerFailureCheck = false
 		setConditionsProgressing(host, metal3api.DeletingReason)
 	}
 	switch host.Status.OperationalStatus {
@@ -2276,12 +2292,27 @@ func computeConditions(ctx context.Context, host *metal3api.BareMetalHost, prov 
 	case metal3api.OperationalStatusServicing:
 		setConditionFalse(host, metal3api.ReadyCondition, metal3api.ServicingReason)
 	case metal3api.OperationalStatusDetached:
+		powerFailureCheck = false
 		setConditionFalse(host, metal3api.ReadyCondition, metal3api.DetachedReason)
 		setConditionFalse(host, metal3api.ProgressingCondition, metal3api.DetachedReason)
 	default:
 	}
-	if prov != nil && prov.HasPowerFailure(ctx) {
+	if powerFailureCheck && prov != nil && prov.HasPowerFailure(ctx) {
 		setConditionFalse(host, metal3api.ManageableCondition, metal3api.PowerFailureReason)
+	}
+	if prov == nil {
+		setConditionUnknown(host, metal3api.HealthyCondition, metal3api.UnknownHealthReason)
+		return
+	}
+	switch prov.GetHealth(ctx) {
+	case provisioner.HealthOK:
+		setConditionTrue(host, metal3api.HealthyCondition, metal3api.HealthyReason)
+	case provisioner.HealthWarning:
+		setConditionFalse(host, metal3api.HealthyCondition, metal3api.WarningHealthReason)
+	case provisioner.HealthCritical:
+		setConditionFalse(host, metal3api.HealthyCondition, metal3api.CriticalHealthReason)
+	default:
+		setConditionUnknown(host, metal3api.HealthyCondition, metal3api.UnknownHealthReason)
 	}
 }
 
