@@ -23,7 +23,7 @@ func TestIronicDatabaseClearing(t *testing.T) {
 		t.Error(err)
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fail()
@@ -37,7 +37,7 @@ func TestIronicDatabaseClearing(t *testing.T) {
 		t.Error(err)
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fail()
@@ -50,7 +50,7 @@ func TestIronicDatabaseClearing(t *testing.T) {
 		t.Error(err)
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		t.Fail()
@@ -75,7 +75,7 @@ func TestIronicDatabaseClearingNode(t *testing.T) {
 		t.Error(err)
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fail()
@@ -89,7 +89,7 @@ func TestIronicDatabaseClearingNode(t *testing.T) {
 		t.Error(err)
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fail()
@@ -102,7 +102,7 @@ func TestIronicDatabaseClearingNode(t *testing.T) {
 		t.Error(err)
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		t.Fail()

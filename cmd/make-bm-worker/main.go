@@ -104,5 +104,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Fprint(os.Stdout, result)
+	_, _ = fmt.Fprint(os.Stdout, result)
 }
