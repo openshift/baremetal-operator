@@ -103,22 +103,18 @@ func (p *ironicProvisioner) Service(ctx context.Context, data provisioner.Servic
 
 	switch nodes.ProvisionState(ironicNode.ProvisionState) {
 	case nodes.ServiceFail:
-		// When servicing failed and user removed all firmware specs,
-		// abort the servicing operation to back out
+		if ironicNode.Maintenance {
+			p.log.Info("clearing maintenance flag after a servicing failure")
+			result, err = p.setMaintenanceFlag(ctx, ironicNode, false, "")
+			return result, started, err
+		}
+
 		if !data.HasFirmwareSpec {
 			return p.abortServicing(ctx, ironicNode)
 		}
 
-		// When servicing failed and there are pending updates, we need to clean host provisioning settings
-		// If restartOnFailure is false, it means the settings aren't cleared.
 		if !restartOnFailure {
 			result, err = operationFailed(ironicNode.LastError)
-			return result, started, err
-		}
-
-		if ironicNode.Maintenance {
-			p.log.Info("clearing maintenance flag after a servicing failure")
-			result, err = p.setMaintenanceFlag(ctx, ironicNode, false, "")
 			return result, started, err
 		}
 
