@@ -1995,9 +1995,14 @@ func (p *ironicProvisioner) HasPowerFailure(ctx context.Context) bool {
 // request to Ironic on every reconcile. Consider passing the node object through
 // computeConditions or caching it per reconcile cycle to avoid redundant calls.
 func (p *ironicProvisioner) GetHealth(ctx context.Context) string {
+	if !p.availableFeatures.HasHealthAPI() {
+		return ""
+	}
 	node, err := p.getNode(ctx)
 	if err != nil {
-		p.log.Error(err, "ignored error while checking health status")
+		if !errors.Is(err, provisioner.ErrNeedsRegistration) {
+			p.log.Error(err, "ignored error while checking health status")
+		}
 		return ""
 	}
 	return node.Health

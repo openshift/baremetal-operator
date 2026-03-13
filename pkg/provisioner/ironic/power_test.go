@@ -519,6 +519,7 @@ func TestGetHealth(t *testing.T) {
 			auth := clients.AuthConfig{Type: clients.NoAuth}
 			prov, err := newProvisionerWithSettings(host, bmc.Credentials{}, nullEventPublisher, tc.ironic.Endpoint(), auth)
 			require.NoError(t, err)
+			prov.availableFeatures = clients.AvailableFeatures{MaxVersion: 109}
 
 			health := prov.GetHealth(t.Context())
 			assert.Equal(t, tc.expectedHealth, health)
