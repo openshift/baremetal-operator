@@ -1476,7 +1476,7 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 			servicingData.TargetFirmwareSettings = hfs.Spec.Settings
 		}
 
-		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfs != nil && len(hfs.Spec.Settings) > 0)
+		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfsDirty && len(hfs.Spec.Settings) > 0)
 	}
 
 	if liveFirmwareUpdatesAllowed {
@@ -1494,7 +1494,7 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 			}
 		}
 
-		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfc != nil && len(hfc.Spec.Updates) > 0)
+		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfcDirty && len(hfc.Spec.Updates) > 0)
 	}
 
 	hasChanges := fwDirty || hfsDirty || hfcDirty
