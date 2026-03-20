@@ -1460,6 +1460,45 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 		liveFirmwareUpdatesAllowed = (hup.Spec.FirmwareUpdates == metal3api.HostUpdatePolicyOnReboot)
 	}
 
+	// Fast-path: when recovering from a servicing error, check if specs are
+	// cleared before calling getHostFirmwareSettings/Components. Those
+	// functions fail on generation mismatch (sub-controller hasn't reconciled
+	// yet), which would block the abort/recovery path indefinitely.
+	if info.host.Status.ErrorType == metal3api.ServicingError {
+		specsExist := false
+		if liveFirmwareSettingsAllowed {
+			hfsCheck := &metal3api.HostFirmwareSettings{}
+			if err := r.Get(ctx, info.request.NamespacedName, hfsCheck); err == nil && len(hfsCheck.Spec.Settings) > 0 {
+				specsExist = true
+			}
+		}
+		if liveFirmwareUpdatesAllowed && !specsExist {
+			hfcCheck := &metal3api.HostFirmwareComponents{}
+			if err := r.Get(ctx, info.request.NamespacedName, hfcCheck); err == nil && len(hfcCheck.Spec.Updates) > 0 {
+				specsExist = true
+			}
+		}
+		if !specsExist {
+			info.log.Info("specs cleared while in servicing error state, attempting abort")
+			provResult, _, err := prov.Service(ctx, servicingData, false, false)
+			if err != nil {
+				return actionError{fmt.Errorf("failed to abort servicing: %w", err)}
+			}
+			if provResult.ErrorMessage != "" {
+				return actionError{fmt.Errorf("failed to abort servicing: %s", provResult.ErrorMessage)}
+			}
+			if provResult.Dirty {
+				info.log.Info("abort operation in progress, checking back later")
+				return actionContinue{provResult.RequeueAfter}
+			}
+			info.log.Info("successfully recovered from servicing error")
+			info.host.Status.ErrorType = ""
+			info.host.Status.ErrorMessage = ""
+			info.host.Status.OperationalStatus = metal3api.OperationalStatusOK
+			return actionComplete{}
+		}
+	}
+
 	if liveFirmwareSettingsAllowed {
 		// handling pre-HFS FirmwareSettings here
 		if !reflect.DeepEqual(info.host.Status.Provisioning.Firmware, info.host.Spec.Firmware) {
@@ -1509,40 +1548,10 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 
 	hasChanges := fwDirty || hfsDirty || hfcDirty
 
-	info.log.Info("janders_debug: servicing data flags",
-		"hasSettingsSpec", servicingData.HasFirmwareSettingsSpec,
-		"hasComponentsSpec", servicingData.HasFirmwareComponentsSpec,
-		"fwDirty", fwDirty, "hfsDirty", hfsDirty, "hfcDirty", hfcDirty,
-		"hasChanges", hasChanges, "note", "hasSpec flags check if spec.settings/spec.updates have content")
-
 	// Even if settings are clean, we need to check the result of the current servicing.
 	if !hasChanges && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing && info.host.Status.ErrorType != metal3api.ServicingError {
 		// If nothing is going on, return control to the power management.
 		return nil
-	}
-
-	// If we're in a servicing error state and updates were removed from spec,
-	// let the provisioner handle the transition back to active
-	if info.host.Status.ErrorType == metal3api.ServicingError && !hasChanges {
-		info.log.Info("updates removed from spec while in servicing error state, attempting recovery")
-		provResult, _, err := prov.Service(ctx, servicingData, false, false)
-		if err != nil {
-			return actionError{fmt.Errorf("failed to recover from servicing error: %w", err)}
-		}
-		if provResult.ErrorMessage != "" {
-			info.log.Info("failed to recover from servicing error", "error", provResult.ErrorMessage)
-			return actionError{fmt.Errorf("failed to recover from servicing error: %s", provResult.ErrorMessage)}
-		}
-		if provResult.Dirty {
-			info.log.Info("abort operation in progress, checking back later")
-			return actionContinue{provResult.RequeueAfter}
-		}
-		// If abort completed and no error, we've successfully recovered
-		info.log.Info("successfully recovered from servicing error")
-		info.host.Status.ErrorType = ""
-		info.host.Status.ErrorMessage = ""
-		info.host.Status.OperationalStatus = metal3api.OperationalStatusOK
-		return actionComplete{}
 	}
 
 	// FIXME(janders/dtantsur): this implementation may lead to a scenario where if we never actually
