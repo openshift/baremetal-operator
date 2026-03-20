@@ -1481,7 +1481,7 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 		// Track if HFS spec has actual settings - check independently since getHostFirmwareSettings
 		// returns nil when no changes even if object exists
 		hfsExists := &metal3api.HostFirmwareSettings{}
-		hfsExistsErr := r.Get(info.ctx, info.request.NamespacedName, hfsExists)
+		hfsExistsErr := r.Get(ctx, info.request.NamespacedName, hfsExists)
 		servicingData.HasFirmwareSettingsSpec = (hfsExistsErr == nil && len(hfsExists.Spec.Settings) > 0)
 	}
 
@@ -1503,7 +1503,7 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 		// Track if HFC spec has actual updates - check independently since getHostFirmwareComponents
 		// returns nil when no changes even if object exists
 		hfcExists := &metal3api.HostFirmwareComponents{}
-		hfcExistsErr := r.Get(info.ctx, info.request.NamespacedName, hfcExists)
+		hfcExistsErr := r.Get(ctx, info.request.NamespacedName, hfcExists)
 		servicingData.HasFirmwareComponentsSpec = (hfcExistsErr == nil && len(hfcExists.Spec.Updates) > 0)
 	}
 
@@ -1525,7 +1525,7 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 	// let the provisioner handle the transition back to active
 	if info.host.Status.ErrorType == metal3api.ServicingError && !hasChanges {
 		info.log.Info("updates removed from spec while in servicing error state, attempting recovery")
-		provResult, _, err := prov.Service(servicingData, false, false)
+		provResult, _, err := prov.Service(ctx, servicingData, false, false)
 		if err != nil {
 			return actionError{fmt.Errorf("failed to recover from servicing error: %w", err)}
 		}
