@@ -87,17 +87,6 @@ func TestService(t *testing.T) {
 			expectedDirty:        false,
 		},
 		{
-			name: "serviceFail state(abort - no firmware spec)",
-			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
-				ProvisionState: string(nodes.ServiceFail),
-				UUID:           nodeUUID,
-			}),
-			skipConfig:           true,
-			expectedStarted:      true,
-			expectedRequestAfter: 10,
-			expectedDirty:        true,
-		},
-		{
 			name: "serviceFail state(retry)",
 			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
 				ProvisionState: string(nodes.ServiceFail),
@@ -142,17 +131,6 @@ func TestService(t *testing.T) {
 			expectedDirty:        true,
 		},
 		{
-			name: "serviceWait state(abort - no firmware spec)",
-			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
-				ProvisionState: string(nodes.ServiceWait),
-				UUID:           nodeUUID,
-			}),
-			skipConfig:           true,
-			expectedStarted:      true,
-			expectedRequestAfter: 10,
-			expectedDirty:        true,
-		},
-		{
 			name: "active state(servicing finished)",
 			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
 				ProvisionState: string(nodes.Active),
@@ -186,14 +164,13 @@ func TestService(t *testing.T) {
 			host.Status.Provisioning.ID = nodeUUID
 			prepData := provisioner.ServicingData{}
 			if !tc.skipConfig {
-				host.Spec.BMC.Address = "bios-test://test.bmc/"
+				host.Spec.BMC.Address = "raid-test://test.bmc/"
 				prepData.ActualFirmwareSettings = metal3api.SettingsMap{
 					"Answer": "unknown",
 				}
 				prepData.TargetFirmwareSettings = metal3api.DesiredSettingsMap{
 					"Answer": intstr.FromInt(42),
 				}
-				prepData.HasFirmwareSpec = true
 			}
 
 			publisher := func(reason, message string) {}
