@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
@@ -2544,6 +2545,22 @@ func (r *BareMetalHostReconciler) SetupWithManager(mgr ctrl.Manager, preprovImgE
 		// need to pass MatchEveryOwner
 		controller.Owns(&metal3api.PreprovisioningImage{})
 	}
+
+	// Watch HFC/HFS for spec changes (generation bumps) so that the BMH
+	// controller reconciles promptly when a user clears firmware specs,
+	// rather than waiting for the error-state exponential backoff to expire.
+	firmwareEventHandler := handler.EnqueueRequestsFromMapFunc(
+		func(_ context.Context, obj client.Object) []ctrl.Request {
+			return []ctrl.Request{{NamespacedName: client.ObjectKey{
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
+			}}}
+		},
+	)
+	controller.Watches(&metal3api.HostFirmwareSettings{}, firmwareEventHandler,
+		builder.WithPredicates(predicate.GenerationChangedPredicate{}))
+	controller.Watches(&metal3api.HostFirmwareComponents{}, firmwareEventHandler,
+		builder.WithPredicates(predicate.GenerationChangedPredicate{}))
 
 	return controller.Complete(r)
 }
