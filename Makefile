@@ -236,6 +236,10 @@ build-e2e:
 build-vbmctl:
 	cd test; go build --tags=e2e,vbmctl -ldflags $(LDFLAGS) -o $(abspath $(BIN_DIR)/vbmctl) ./vbmctl/cmd/vbmctl
 
+.PHONY: unit-vbmctl
+unit-vbmctl: ## Run vbmctl unit tests
+	cd test && go test --tags=e2e,vbmctl $(GO_TEST_FLAGS) ./vbmctl/...
+
 .PHONY: build-legacy-vbmctl
 build-legacy-vbmctl:
 	cd test; go build --tags=e2e,vbmctl -ldflags $(LDFLAGS) -o $(abspath $(BIN_DIR)/vbmctl) ./vbmctl/main.go
@@ -312,15 +316,6 @@ docker-debug: generate manifests ## Build the docker image with debug info
 	--build-arg https_proxy=$(https_proxy) \
 	--build-arg LDFLAGS="-extldflags=-static" \
 	. -t ${IMG}-$(ARCH):${IMG_TAG}
-
-# Push the docker image
-.PHONY: docker-push
-docker-push:
-	$(CONTAINER_RUNTIME) push ${IMG}-$(ARCH):${IMG_TAG}
-	@# Push base image tag for backward compatibility (amd64 is the default)
-	@if [ "$(ARCH)" = "amd64" ]; then \
-		$(CONTAINER_RUNTIME) push ${IMG}:${IMG_TAG}; \
-	fi
 
 ## --------------------------------------
 ## Docker — All ARCH
