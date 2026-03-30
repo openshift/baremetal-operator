@@ -30,9 +30,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
@@ -107,16 +109,9 @@ func (r *HostFirmwareComponentsReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{Requeue: true, RequeueAfter: resourceNotAvailableRetryDelay}, err
 	}
 
-	if hasDetachedAnnotation(bmh) {
-		reqLogger.Info("the host is detached, not running hostfirmwarecomponents reconciler")
+	if skipReconcileSubresource(bmh, reqLogger) {
+		// We'll get notified on BMH changes, no need to reconcile soon
 		return ctrl.Result{Requeue: true, RequeueAfter: unmanagedRetryDelay}, nil
-	}
-	// If the reconciliation is paused, requeue
-	annotations := bmh.GetAnnotations()
-
-	if _, ok := annotations[metal3api.PausedAnnotation]; ok {
-		reqLogger.Info("host is paused, no work to do")
-		return ctrl.Result{Requeue: true, RequeueAfter: subResourceNotReadyRetryDelay}, nil
 	}
 
 	// Fetch the HostFirmwareComponents
@@ -125,7 +120,7 @@ func (r *HostFirmwareComponentsReconciler) Reconcile(ctx context.Context, req ct
 		// The HFC resource may have been deleted
 		if k8serrors.IsNotFound(err) {
 			reqLogger.Info("HostFirmwareComponents not found")
-			return ctrl.Result{Requeue: false}, err
+			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
 		return ctrl.Result{}, fmt.Errorf("could not load hostFirmwareComponents: %w", err)
@@ -156,10 +151,10 @@ func (r *HostFirmwareComponentsReconciler) Reconcile(ctx context.Context, req ct
 
 	if err != nil {
 		if errors.Is(err, provisioner.ErrFirmwareUpdateUnsupported) {
-			return ctrl.Result{Requeue: false}, err
+			return ctrl.Result{}, nil
 		}
 		reqLogger.Info("provisioner returns error", "Error", err.Error(), "RequeueAfter", provisionerRetryDelay)
-		return ctrl.Result{Requeue: true, RequeueAfter: provisionerRetryDelay}, err
+		return ctrl.Result{Requeue: true, RequeueAfter: provisionerRetryDelay}, nil
 	}
 
 	if err = r.updateHostFirmware(ctx, info, components); err != nil {
@@ -247,6 +242,7 @@ func (r *HostFirmwareComponentsReconciler) SetupWithManager(mgr ctrl.Manager, ma
 			predicate.Funcs{
 				UpdateFunc: r.updateEventHandler,
 			}).
+		Watches(&metal3api.BareMetalHost{}, &handler.EnqueueRequestForObject{}, builder.Predicates{}).
 		Complete(r)
 }
 
