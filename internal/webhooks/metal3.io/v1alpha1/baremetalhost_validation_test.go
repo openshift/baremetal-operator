@@ -309,15 +309,20 @@ func TestValidateCreate(t *testing.T) {
 		{
 			name: "BootMACAddressProvidedForVirtualMediaWithInspectionDisabled",
 			newBMH: &metal3api.BareMetalHost{
-				TypeMeta:   tm,
-				ObjectMeta: om,
+				TypeMeta: tm,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test-namespace",
+					Annotations: map[string]string{
+						metal3api.InspectAnnotationPrefix: "disabled",
+					},
+				},
 				Spec: metal3api.BareMetalHostSpec{
 					BMC: metal3api.BMCDetails{
 						Address:         "idrac-virtualmedia+https://192.168.1.1/redfish/v1/Systems/System.Embedded.1",
 						CredentialsName: "test1",
 					},
 					BootMACAddress: "00:00:00:00:00:00",
-					InspectionMode: metal3api.InspectionModeDisabled,
 				}},
 			oldBMH:    nil,
 			wantedErr: "",
@@ -332,7 +337,6 @@ func TestValidateCreate(t *testing.T) {
 						Address:         "redfish-virtualmedia+https://192.168.1.1/redfish/v1/Systems/1",
 						CredentialsName: "test1",
 					},
-					InspectionMode: metal3api.InspectionModeAgent,
 				}},
 			oldBMH:    nil,
 			wantedErr: "",

@@ -982,6 +982,13 @@ func (host *BareMetalHost) CredentialsKey() types.NamespacedName {
 	}
 }
 
+// InspectionDisabled returns true if inspection is disabled via the
+// inspect.metal3.io annotation.
+func (host *BareMetalHost) InspectionDisabled() bool {
+	annotations := host.GetAnnotations()
+	return annotations[InspectAnnotationPrefix] == InspectAnnotationValueDisabled
+}
+
 // NeedsHardwareInspection looks at the state of the host to determine
 // if hardware inspection should be run.
 func (host *BareMetalHost) NeedsHardwareInspection() bool {
