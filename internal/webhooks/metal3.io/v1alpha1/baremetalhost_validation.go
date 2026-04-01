@@ -58,7 +58,7 @@ func (webhook *BareMetalHost) validateHost(host *metal3api.BareMetalHost) []erro
 		errs = append(errs, raidErrors...)
 	}
 
-	errs = append(errs, validateBMCAccess(host.Spec, bmcAccess)...)
+	errs = append(errs, validateBMCAccess(host, bmcAccess)...)
 
 	if err := validateBMHName(host.Name); err != nil {
 		errs = append(errs, err)
@@ -105,19 +105,29 @@ func (webhook *BareMetalHost) validateChanges(oldObj *metal3api.BareMetalHost, n
 		errs = append(errs, errors.New("BMC address can not be changed if the BMH is not in the Registering state, or if the BMH is not detached"))
 	}
 
-	if oldObj.Spec.BootMACAddress != "" && newObj.Spec.BootMACAddress != oldObj.Spec.BootMACAddress {
+	if oldObj.Spec.BootMACAddress != "" && !strings.EqualFold(newObj.Spec.BootMACAddress, oldObj.Spec.BootMACAddress) {
 		errs = append(errs, errors.New("bootMACAddress can not be changed once it is set"))
 	}
 
-	if oldObj.Spec.ExternallyProvisioned != newObj.Spec.ExternallyProvisioned {
-		errs = append(errs, errors.New("externallyProvisioned can not be changed"))
+	// Disallow disabling externallyProvisioned.
+	if oldObj.Spec.ExternallyProvisioned && !newObj.Spec.ExternallyProvisioned {
+		errs = append(errs, errors.New("externallyProvisioned can not be changed from true to false"))
+	}
+
+	// Only allow enabling externallyProvisioned from Available state.
+	if !oldObj.Spec.ExternallyProvisioned && newObj.Spec.ExternallyProvisioned &&
+		newObj.Status.Provisioning.State != metal3api.StateAvailable {
+		errs = append(errs, fmt.Errorf(
+			"externallyProvisioned can only be enabled when in Available state, currently in %s",
+			newObj.Status.Provisioning.State))
 	}
 
 	return errs
 }
 
-func validateBMCAccess(s metal3api.BareMetalHostSpec, bmcAccess bmc.AccessDetails) []error {
+func validateBMCAccess(host *metal3api.BareMetalHost, bmcAccess bmc.AccessDetails) []error {
 	var errs []error
+	s := host.Spec
 
 	if bmcAccess == nil {
 		return errs
@@ -135,7 +145,11 @@ func validateBMCAccess(s metal3api.BareMetalHostSpec, bmcAccess bmc.AccessDetail
 		}
 	}
 
-	if bmcAccess.NeedsMAC() && s.BootMACAddress == "" {
+	// Check if bootMACAddress is required
+	// Virtual media drivers (NeedsMAC() returns false) still require MAC when inspection is disabled
+	requiresMAC := bmcAccess.NeedsMAC() || host.InspectionDisabled()
+
+	if requiresMAC && s.BootMACAddress == "" {
 		errs = append(errs, fmt.Errorf("BMC driver %s requires a BootMACAddress value", bmcAccess.Type()))
 	}
 

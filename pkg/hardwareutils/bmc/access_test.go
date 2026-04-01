@@ -399,7 +399,7 @@ func TestStaticDriverInfo(t *testing.T) {
 		{
 			Scenario:   "redfish virtual media",
 			input:      "redfish-virtualmedia://192.168.122.1",
-			needsMac:   true,
+			needsMac:   false,
 			driver:     "redfish",
 			bios:       "",
 			boot:       "redfish-virtual-media",
@@ -411,7 +411,7 @@ func TestStaticDriverInfo(t *testing.T) {
 		{
 			Scenario:   "redfish virtual media HTTP",
 			input:      "redfish-virtualmedia+http://192.168.122.1",
-			needsMac:   true,
+			needsMac:   false,
 			driver:     "redfish",
 			bios:       "",
 			boot:       "redfish-virtual-media",
@@ -423,7 +423,7 @@ func TestStaticDriverInfo(t *testing.T) {
 		{
 			Scenario:   "redfish virtual media HTTPS",
 			input:      "redfish-virtualmedia+https://192.168.122.1",
-			needsMac:   true,
+			needsMac:   false,
 			driver:     "redfish",
 			bios:       "",
 			boot:       "redfish-virtual-media",
@@ -460,7 +460,7 @@ func TestStaticDriverInfo(t *testing.T) {
 		{
 			Scenario: "ilo5 virtual media",
 			input:    "ilo5-virtualmedia://192.168.122.1",
-			needsMac: true,
+			needsMac: false,
 			driver:   "redfish",
 			bios:     "",
 			boot:     "redfish-virtual-media",
@@ -470,7 +470,7 @@ func TestStaticDriverInfo(t *testing.T) {
 		{
 			Scenario: "ilo5 virtual media HTTP",
 			input:    "ilo5-virtualmedia+http://192.168.122.1",
-			needsMac: true,
+			needsMac: false,
 			driver:   "redfish",
 			bios:     "",
 			boot:     "redfish-virtual-media",
@@ -480,7 +480,7 @@ func TestStaticDriverInfo(t *testing.T) {
 		{
 			Scenario: "ilo5 virtual media HTTPS",
 			input:    "ilo5-virtualmedia+https://192.168.122.1",
-			needsMac: true,
+			needsMac: false,
 			driver:   "redfish",
 			bios:     "",
 			boot:     "redfish-virtual-media",
@@ -490,7 +490,7 @@ func TestStaticDriverInfo(t *testing.T) {
 		{
 			Scenario:   "idrac virtual media",
 			input:      "idrac-virtualmedia://192.168.122.1",
-			needsMac:   true,
+			needsMac:   false,
 			driver:     "idrac",
 			bios:       "idrac-redfish",
 			boot:       "idrac-redfish-virtual-media",
@@ -503,7 +503,7 @@ func TestStaticDriverInfo(t *testing.T) {
 		{
 			Scenario:   "idrac virtual media HTTP",
 			input:      "idrac-virtualmedia+http://192.168.122.1",
-			needsMac:   true,
+			needsMac:   false,
 			driver:     "idrac",
 			bios:       "idrac-redfish",
 			boot:       "idrac-redfish-virtual-media",
@@ -516,7 +516,7 @@ func TestStaticDriverInfo(t *testing.T) {
 		{
 			Scenario:   "idrac virtual media HTTPS",
 			input:      "idrac-virtualmedia+https://192.168.122.1",
-			needsMac:   true,
+			needsMac:   false,
 			driver:     "idrac",
 			bios:       "idrac-redfish",
 			boot:       "idrac-redfish-virtual-media",

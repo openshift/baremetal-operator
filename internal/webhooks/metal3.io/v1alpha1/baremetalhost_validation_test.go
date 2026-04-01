@@ -19,6 +19,8 @@ import (
 	"testing"
 
 	metal3api "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
+	// Import BMC drivers to register their factories.
+	_ "github.com/metal3-io/baremetal-operator/pkg/hardwareutils/bmc"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -271,6 +273,75 @@ func TestValidateCreate(t *testing.T) {
 			wantedErr: "",
 		},
 		{
+			name: "BootMACAddressNotRequiredForVirtualMedia",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta:   tm,
+				ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "idrac-virtualmedia+https://192.168.1.1/redfish/v1/Systems/System.Embedded.1",
+						CredentialsName: "test1",
+					},
+				}},
+			oldBMH:    nil,
+			wantedErr: "",
+		},
+		{
+			name: "BootMACAddressRequiredForVirtualMediaWithInspectionDisabled",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test-namespace",
+					Annotations: map[string]string{
+						metal3api.InspectAnnotationPrefix: "disabled",
+					},
+				},
+				Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "idrac-virtualmedia+https://192.168.1.1/redfish/v1/Systems/System.Embedded.1",
+						CredentialsName: "test1",
+					},
+				}},
+			oldBMH:    nil,
+			wantedErr: "BMC driver idrac-virtualmedia+https requires a BootMACAddress value",
+		},
+		{
+			name: "BootMACAddressProvidedForVirtualMediaWithInspectionDisabled",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test-namespace",
+					Annotations: map[string]string{
+						metal3api.InspectAnnotationPrefix: "disabled",
+					},
+				},
+				Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "idrac-virtualmedia+https://192.168.1.1/redfish/v1/Systems/System.Embedded.1",
+						CredentialsName: "test1",
+					},
+					BootMACAddress: "00:00:00:00:00:00",
+				}},
+			oldBMH:    nil,
+			wantedErr: "",
+		},
+		{
+			name: "BootMACAddressNotRequiredForVirtualMediaWithInspectionEnabled",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta:   tm,
+				ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "redfish-virtualmedia+https://192.168.1.1/redfish/v1/Systems/1",
+						CredentialsName: "test1",
+					},
+				}},
+			oldBMH:    nil,
+			wantedErr: "",
+		},
+		{
 			name: "BootMACAddressRequired",
 			newBMH: &metal3api.BareMetalHost{
 				TypeMeta:   tm,
@@ -458,7 +529,7 @@ func TestValidateCreate(t *testing.T) {
 					BMC: metal3api.BMCDetails{
 						Address: "ipmi://[fe80::fc33:62ff:fe33:8xff]:6223"}}},
 			oldBMH:    nil,
-			wantedErr: "failed to parse BMC address information: BMC address hostname/IP : [fe80::fc33:62ff:fe33:8xff] is invalid",
+			wantedErr: `failed to parse BMC address information: parse "ipmi://[fe80::fc33:62ff:fe33:8xff]:6223": invalid host: ParseAddr("fe80::fc33:62ff:fe33:8xff"): unexpected character, want colon (at "xff")`,
 		},
 		{
 			name: "validRootDeviceHint",
@@ -971,12 +1042,65 @@ func TestValidateUpdate(t *testing.T) {
 			wantedErr: "bootMACAddress can not be changed once it is set",
 		},
 		{
-			name: "updateExternallyProvisioned",
+			name: "updateBootMACCaseOnly",
 			newBMH: &metal3api.BareMetalHost{
-				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{}},
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "AA:BB:CC:DD:EE:FF"}},
+			oldBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "aa:bb:cc:dd:ee:ff"}},
+			wantedErr: "",
+		},
+		{
+			name: "updateBootMACCaseMixed",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "aA:Bb:cC:Dd:Ee:Ff"}},
+			oldBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "AA:BB:CC:DD:EE:FF"}},
+			wantedErr: "",
+		},
+		{
+			name: "updateBootMACInvalidNew",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "redfish://127.0.0.1",
+						CredentialsName: "test1",
+					},
+					BootMACAddress: "invalid-mac"}},
+			oldBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{BootMACAddress: "00:11:22:33:44:55"}},
+			wantedErr: "address invalid-mac: invalid MAC address",
+		},
+		{
+			name: "rejectDisablingExternallyProvisioned",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{ExternallyProvisioned: false}},
 			oldBMH: &metal3api.BareMetalHost{
 				TypeMeta: tm, ObjectMeta: om, Spec: metal3api.BareMetalHostSpec{ExternallyProvisioned: true}},
-			wantedErr: "externallyProvisioned can not be changed",
+			wantedErr: "externallyProvisioned can not be changed from true to false",
+		},
+		{
+			name: "rejectEnablingExternallyProvisionedWhenNotInAvailable",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec:   metal3api.BareMetalHostSpec{ExternallyProvisioned: true},
+				Status: metal3api.BareMetalHostStatus{Provisioning: metal3api.ProvisionStatus{State: metal3api.StateInspecting}}},
+			oldBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec:   metal3api.BareMetalHostSpec{ExternallyProvisioned: false},
+				Status: metal3api.BareMetalHostStatus{Provisioning: metal3api.ProvisionStatus{State: metal3api.StateInspecting}}},
+			wantedErr: "externallyProvisioned can only be enabled when in Available state, currently in inspecting",
+		},
+		{
+			name: "allowEnablingExternallyProvisionedWhenInAvailable",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec:   metal3api.BareMetalHostSpec{ExternallyProvisioned: true},
+				Status: metal3api.BareMetalHostStatus{Provisioning: metal3api.ProvisionStatus{State: metal3api.StateAvailable}}},
+			oldBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec:   metal3api.BareMetalHostSpec{ExternallyProvisioned: false},
+				Status: metal3api.BareMetalHostStatus{Provisioning: metal3api.ProvisionStatus{State: metal3api.StateAvailable}}},
+			wantedErr: "",
 		},
 	}
 
