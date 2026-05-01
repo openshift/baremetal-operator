@@ -17,7 +17,7 @@ type VMConfig struct {
 	Volumes []VolumeConfig `json:"volumes,omitempty" yaml:"volumes,omitempty"`
 
 	// Networks is a list of networks to attach to the VM.
-	Networks []NetworkAttachment `json:"networks,omitempty" yaml:"networks,omitempty"`
+	Networks []NetworkAttachment `json:"networkAttachments,omitempty" yaml:"networkAttachments,omitempty"`
 }
 
 // VolumeConfig represents the configuration for a storage volume.
@@ -27,6 +27,27 @@ type VolumeConfig struct {
 
 	// Size is the size of the volume in GB.
 	Size int `json:"size" yaml:"size"`
+}
+
+// ImageServerConfig represents the configuration for the image server.
+type ImageServerConfig struct {
+	// Port is the host port to bind the image server to.
+	Port uint16 `json:"port" yaml:"port"`
+
+	// ContainerPort is the container port that the image server listens on.
+	ContainerPort uint16 `json:"containerPort" yaml:"containerPort"`
+
+	// DataDir is the host directory to mount as a volume for the image server.
+	DataDir string `json:"dataDir" yaml:"dataDir"`
+
+	// ContainerDataDir is the directory inside the container to mount the data volume to.
+	ContainerDataDir string `json:"containerDataDir" yaml:"containerDataDir"`
+
+	// Image is the container image to use for the image server.
+	Image string `json:"image" yaml:"image"`
+
+	// ContainerName is the name of the container to create for the image server.
+	ContainerName string `json:"containerName" yaml:"containerName"`
 }
 
 // NetworkAttachment represents a network interface attached to a VM.
@@ -40,6 +61,21 @@ type NetworkAttachment struct {
 
 	// IPAddress is an optional static IP address to reserve via DHCP.
 	IPAddress string `json:"ipAddress,omitempty" yaml:"ipAddress,omitempty"`
+}
+
+// Network represents libvirt network.
+type NetworkConfig struct {
+	// Name is the name of the libvirt network.
+	Name string `json:"name,omitempty" yaml:"name,omitempty"`
+
+	// Bridge is the name of the bridge interface for the network.
+	Bridge string `json:"bridge,omitempty" yaml:"bridge,omitempty"`
+
+	// Address is the address of the bridge interface.
+	Address string `json:"address,omitempty" yaml:"address,omitempty"`
+
+	// Netmask is the netmask for the network.
+	Netmask string `json:"netmask,omitempty" yaml:"netmask,omitempty"`
 }
 
 // PoolConfig represents the configuration for a storage pool.
@@ -130,6 +166,24 @@ func (c VolumeConfig) Defaults() VolumeConfig {
 	cfg := c
 	if cfg.Size == 0 {
 		cfg.Size = 20 // 20GB default
+	}
+	return cfg
+}
+
+// Defaults returns a copy of NetworkConfig with default values applied.
+func (c NetworkConfig) Defaults() NetworkConfig {
+	cfg := c
+	if cfg.Name == "" {
+		cfg.Name = "baremetal-e2e"
+	}
+	if cfg.Bridge == "" {
+		cfg.Bridge = "metal3"
+	}
+	if cfg.Address == "" {
+		cfg.Address = "192.168.222.1"
+	}
+	if cfg.Netmask == "" {
+		cfg.Netmask = "255.255.255.0"
 	}
 	return cfg
 }
