@@ -233,6 +233,9 @@
 #  if !LIBVIR_CHECK_VERSION(11, 0, 0)
 #    define VIR_CONNECT_GET_DOMAIN_CAPABILITIES_DISABLE_DEPRECATED_FEATURES (1 << 0)
 #  endif
+#  if !LIBVIR_CHECK_VERSION(12, 2, 0)
+#    define VIR_CONNECT_GET_DOMAIN_CAPABILITIES_EXPAND_CPU_FEATURES (1 << 1)
+#  endif
 
 /* enum virConnectListAllDomainsFlags */
 #  if !LIBVIR_CHECK_VERSION(0, 9, 13)
@@ -535,6 +538,9 @@
 #  endif
 #  if !LIBVIR_CHECK_VERSION(8, 0, 0)
 #    define VIR_DOMAIN_BLOCK_COPY_SYNCHRONOUS_WRITES (1 << 3)
+#  endif
+#  if !LIBVIR_CHECK_VERSION(12, 2, 0)
+#    define VIR_DOMAIN_BLOCK_COPY_TARGET_ZEROED (1 << 4)
 #  endif
 
 /* enum virDomainBlockJobAbortFlags */

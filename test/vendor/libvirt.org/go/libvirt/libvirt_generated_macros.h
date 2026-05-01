@@ -29,7 +29,7 @@
 #pragma once
 
 #if !LIBVIR_CHECK_VERSION(0, 0, 1)
-#  define LIBVIR_VERSION_NUMBER 12001000
+#  define LIBVIR_VERSION_NUMBER 12002000
 #endif
 
 #if !LIBVIR_CHECK_VERSION(5, 8, 0)
@@ -1642,6 +1642,10 @@
 
 #if !LIBVIR_CHECK_VERSION(10, 9, 0)
 #  define VIR_MIGRATE_PARAM_MIGRATE_DISKS_DETECT_ZEROES "migrate_disks_detect_zeroes"
+#endif
+
+#if !LIBVIR_CHECK_VERSION(12, 2, 0)
+#  define VIR_MIGRATE_PARAM_MIGRATE_DISKS_TARGET_ZERO "migrate_disks_target_zero"
 #endif
 
 #if !LIBVIR_CHECK_VERSION(5, 2, 0)
