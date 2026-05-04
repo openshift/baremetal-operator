@@ -1319,7 +1319,7 @@ func (m *mockProvisioner) Register(_ context.Context, _ provisioner.ManagementAc
 	return m.getNextResultByMethod("ValidateManagementAccess"), "", err
 }
 
-func (m *mockProvisioner) PreprovisioningImageFormats() ([]metal3api.ImageFormat, error) {
+func (m *mockProvisioner) PreprovisioningImageFormats(_ context.Context) ([]metal3api.ImageFormat, error) {
 	return nil, nil
 }
 
@@ -1352,11 +1352,11 @@ func (m *mockProvisioner) Deprovision(_ context.Context, _ bool, _ metal3api.Aut
 	return m.getNextResultByMethod("Deprovision"), err
 }
 
-func (m *mockProvisioner) Delete(context.Context) (result provisioner.Result, err error) {
+func (m *mockProvisioner) Delete(_ context.Context) (result provisioner.Result, err error) {
 	return m.getNextResultByMethod("Delete"), err
 }
 
-func (m *mockProvisioner) Detach(context.Context) (result provisioner.Result, err error) {
+func (m *mockProvisioner) Detach(_ context.Context, _ bool) (result provisioner.Result, err error) {
 	res := m.getNextResultByMethod("Detach")
 	return res, err
 }

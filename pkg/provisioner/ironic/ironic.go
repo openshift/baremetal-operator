@@ -389,7 +389,7 @@ func (p *ironicProvisioner) configureNode(ctx context.Context, data provisioner.
 // PreprovisioningImageFormats returns a list of acceptable formats for a
 // pre-provisioning image to be built by a PreprovisioningImage object. The
 // list should be nil if no image build is requested.
-func (p *ironicProvisioner) PreprovisioningImageFormats() ([]metal3api.ImageFormat, error) {
+func (p *ironicProvisioner) PreprovisioningImageFormats(_ context.Context) ([]metal3api.ImageFormat, error) {
 	if !p.config.havePreprovImgBuilder {
 		return nil, nil
 	}
@@ -609,7 +609,7 @@ func (p *ironicProvisioner) setLiveIsoUpdateOptsForNode(ironicNode *nodes.Node, 
 	updater.SetDriverInfoOpts(driverOptValues, ironicNode)
 }
 
-func (p *ironicProvisioner) setDirectDeployUpdateOptsForNode(ironicNode *nodes.Node, imageData *metal3api.Image, updater *clients.NodeUpdater) {
+func (p *ironicProvisioner) setDirectDeployUpdateOptsForNode(ironicNode *nodes.Node, imageData *metal3api.Image, imagePullSecret string, updater *clients.NodeUpdater) {
 	checksum, checksumType, err := imageData.GetChecksum()
 	if err != nil {
 		p.log.Info("image/checksum not found for host", "message", err)
@@ -621,6 +621,13 @@ func (p *ironicProvisioner) setDirectDeployUpdateOptsForNode(ironicNode *nodes.N
 		"boot_iso":          nil,
 		"image_source":      imageData.URL,
 		"image_disk_format": imageData.DiskFormat,
+	}
+
+	// Set or clear image pull secret (clear removes a previously-set secret on reprovision)
+	if imagePullSecret != "" {
+		optValues["image_pull_secret"] = imagePullSecret
+	} else {
+		optValues["image_pull_secret"] = nil
 	}
 
 	// For OCI images without checksum, don't set checksum fields
@@ -655,7 +662,7 @@ func (p *ironicProvisioner) setDirectDeployUpdateOptsForNode(ironicNode *nodes.N
 	updater.SetDriverInfoOpts(driverOptValues, ironicNode)
 }
 
-func (p *ironicProvisioner) setCustomDeployUpdateOptsForNode(ironicNode *nodes.Node, imageData *metal3api.Image, updater *clients.NodeUpdater) {
+func (p *ironicProvisioner) setCustomDeployUpdateOptsForNode(ironicNode *nodes.Node, imageData *metal3api.Image, imagePullSecret string, updater *clients.NodeUpdater) {
 	var optValues clients.UpdateOptsData
 	if imageData != nil && imageData.URL != "" {
 		checksum, checksumType, err := imageData.GetChecksum()
@@ -679,6 +686,12 @@ func (p *ironicProvisioner) setCustomDeployUpdateOptsForNode(ironicNode *nodes.N
 				"image_disk_format":   imageData.DiskFormat,
 			}
 		}
+		// Set or clear image pull secret (clear removes a previously-set secret on reprovision)
+		if imagePullSecret != "" {
+			optValues["image_pull_secret"] = imagePullSecret
+		} else {
+			optValues["image_pull_secret"] = nil
+		}
 	} else {
 		// Clean up everything
 		optValues = clients.UpdateOptsData{
@@ -688,6 +701,7 @@ func (p *ironicProvisioner) setCustomDeployUpdateOptsForNode(ironicNode *nodes.N
 			"image_os_hash_algo":  nil,
 			"image_os_hash_value": nil,
 			"image_disk_format":   nil,
+			"image_pull_secret":   nil,
 		}
 	}
 
@@ -712,13 +726,13 @@ func (p *ironicProvisioner) getInstanceUpdateOpts(ironicNode *nodes.Node, data p
 
 	if hasCustomDeploy {
 		// Custom deploy process
-		p.setCustomDeployUpdateOptsForNode(ironicNode, &data.Image, updater)
+		p.setCustomDeployUpdateOptsForNode(ironicNode, &data.Image, data.ImagePullSecret, updater)
 	} else if data.Image.IsLiveISO() {
 		// Set live-iso format options
 		p.setLiveIsoUpdateOptsForNode(ironicNode, &data.Image, updater)
 	} else {
 		// Set deploy_interface direct options when not booting a live-iso
-		p.setDirectDeployUpdateOptsForNode(ironicNode, &data.Image, updater)
+		p.setDirectDeployUpdateOptsForNode(ironicNode, &data.Image, data.ImagePullSecret, updater)
 	}
 
 	return updater
@@ -1534,23 +1548,27 @@ func (p *ironicProvisioner) Delete(ctx context.Context) (result provisioner.Resu
 		"target", ironicNode.TargetProvisionState,
 		"deploy step", ironicNode.DeployStep,
 	)
+	return p.realDelete(ctx, ironicNode, false)
+}
 
+func (p *ironicProvisioner) realDelete(ctx context.Context, ironicNode *nodes.Node, force bool) (result provisioner.Result, err error) {
 	currentProvState := nodes.ProvisionState(ironicNode.ProvisionState)
 
-	// Handle verifying state specially: Ironic holds an exclusive lock during
-	// verification, so we can't set maintenance mode or delete until it completes.
-	// Just wait for the verification to finish (success or timeout).
-	if currentProvState == nodes.Verifying {
+	switch currentProvState {
+	case nodes.Verifying:
+		// Handle verifying state specially: Ironic holds an exclusive lock during
+		// verification, so we can't set maintenance mode or delete until it completes.
+		// Just wait for the verification to finish (success or timeout).
 		p.log.Info("node is verifying, waiting for verification to complete before deletion")
 		return operationContinuing(provisionRequeueDelay)
-	}
 
-	// For enroll state, the node can be deleted directly without maintenance mode
-	// since it has no Nova associations and isn't locked.
-	if currentProvState == nodes.Enroll {
+	case nodes.Enroll:
+		// For enroll state, the node can be deleted directly without maintenance mode
+		// since it has no Nova associations and isn't locked.
 		p.log.Info("node is in enroll state, proceeding to delete directly")
 		// Fall through to deletion
-	} else if currentProvState == nodes.Available || currentProvState == nodes.Manageable {
+
+	case nodes.Available, nodes.Manageable:
 		// Make sure we don't have a stale instance UUID
 		if ironicNode.InstanceUUID != "" {
 			var success bool
@@ -1562,20 +1580,51 @@ func (p *ironicProvisioner) Delete(ctx context.Context) (result provisioner.Resu
 				return result, err
 			}
 		}
-	} else if !ironicNode.Maintenance {
-		// If we see an active node and the controller doesn't think
-		// we need to deprovision it, that means the node was
-		// ExternallyProvisioned and we should remove it from Ironic
-		// without deprovisioning it.
-		//
-		// If we see a node with an error, we will have to set the
-		// maintenance flag before deleting it.
-		//
-		// Any other state requires us to use maintenance mode to
-		// delete while bypassing Ironic's internal checks related to
-		// Nova.
-		p.log.Info("setting host maintenance flag to force image delete")
-		return p.setMaintenanceFlag(ctx, ironicNode, true, "forcing deletion in baremetal-operator")
+
+	case nodes.Deploying, nodes.Cleaning, nodes.Inspecting, nodes.Servicing, nodes.Deleting:
+		p.log.Info("node is in state that does not allow deletion, waiting", "currentState", currentProvState)
+		return operationContinuing(provisionRequeueDelay)
+
+	case nodes.DeployWait:
+		if force && !p.availableFeatures.HasDeploymentAbort() {
+			p.log.Info("deprovisioning to force deletion")
+			// No new API - fall back to deprovisioning and wait for CLEANWAIT
+			return p.changeNodeProvisionState(ctx, ironicNode,
+				nodes.ProvisionStateOpts{Target: nodes.TargetDeleted},
+			)
+		}
+
+		// Otherwise, use the abort API as well
+		fallthrough
+
+	case nodes.InspectWait, nodes.CleanWait, nodes.ServiceWait:
+		if force {
+			p.log.Info("aborting the current operation to force deletion", "currentState", currentProvState)
+			return p.changeNodeProvisionState(ctx, ironicNode,
+				nodes.ProvisionStateOpts{Target: nodes.TargetAbort},
+			)
+		}
+
+		// Normal deletion won't work in these states, so wait
+		p.log.Info("node is in state that does not allow deletion, waiting", "currentState", currentProvState)
+		return operationContinuing(provisionRequeueDelay)
+
+	default:
+		if !ironicNode.Maintenance {
+			// If we see an active node and the controller doesn't think
+			// we need to deprovision it, that means the node was
+			// ExternallyProvisioned and we should remove it from Ironic
+			// without deprovisioning it.
+			//
+			// If we see a node with an error, we will have to set the
+			// maintenance flag before deleting it.
+			//
+			// Any other state requires us to use maintenance mode to
+			// delete while bypassing Ironic's internal checks related to
+			// Nova.
+			p.log.Info("setting host maintenance flag to force image delete", "currentState", currentProvState)
+			return p.setMaintenanceFlag(ctx, ironicNode, true, "forcing deletion in baremetal-operator")
+		}
 	}
 
 	p.log.Info("host ready to be removed")
@@ -1595,14 +1644,31 @@ func (p *ironicProvisioner) Delete(ctx context.Context) (result provisioner.Resu
 }
 
 // Detach removes the host from the provisioning system.
-// Similar to Delete, but ensures non-interruptive behavior
-// for the target system.  It may be called multiple times,
-// and should return true for its dirty  flag until the
-// deletion operation is completed.
-func (p *ironicProvisioner) Detach(ctx context.Context) (result provisioner.Result, err error) {
-	// Currently the same behavior as Delete()
-	p.log.Info("removing the node for detachment", "node", p.nodeID)
-	return p.Delete(ctx)
+// With force set to false, it ensures non-interruptive behavior
+// for the target system. When force is set to true, provisioning
+// processes may be interrupted to speed up the removal. Otherwise,
+// the provisioner must wait for a stable state before the removal.
+// This method may be called multiple times, and should return true
+// for its dirty flag until the detachment operation is completed.
+func (p *ironicProvisioner) Detach(ctx context.Context, force bool) (result provisioner.Result, err error) {
+	ironicNode, err := p.getNode(ctx)
+	if err != nil {
+		if errors.Is(err, provisioner.ErrNeedsRegistration) {
+			p.log.Info("no node found, already deleted")
+			return operationComplete()
+		}
+		return transientError(err)
+	}
+
+	p.log.Info("deleting host for detachment",
+		"ID", ironicNode.UUID,
+		"lastError", ironicNode.LastError,
+		"current", ironicNode.ProvisionState,
+		"target", ironicNode.TargetProvisionState,
+		"deploy step", ironicNode.DeployStep,
+		"force", force,
+	)
+	return p.realDelete(ctx, ironicNode, force)
 }
 
 // softPowerOffUnsupportedError is returned when the BMC does not
@@ -2004,7 +2070,9 @@ func (p *ironicProvisioner) HasPowerFailure(ctx context.Context) bool {
 func (p *ironicProvisioner) GetHealth(ctx context.Context) string {
 	node, err := p.getNode(ctx)
 	if err != nil {
-		p.log.Error(err, "ignored error while checking health status")
+		if !errors.Is(err, provisioner.ErrNeedsRegistration) {
+			p.log.Error(err, "ignored error while checking health status")
+		}
 		return ""
 	}
 	return node.Health

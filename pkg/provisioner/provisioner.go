@@ -133,6 +133,7 @@ type ProvisionData struct {
 	HardwareProfile profile.Profile
 	RootDeviceHints *metal3api.RootDeviceHints
 	CustomDeploy    *metal3api.CustomDeploy
+	ImagePullSecret string
 }
 
 type HTTPHeaders []map[string]string
@@ -152,7 +153,7 @@ type Provisioner interface {
 	// PreprovisioningImageFormats returns a list of acceptable formats for a
 	// pre-provisioning image to be built by a PreprovisioningImage object. The
 	// list should be nil if no image build is requested.
-	PreprovisioningImageFormats() ([]metal3api.ImageFormat, error)
+	PreprovisioningImageFormats(ctx context.Context) ([]metal3api.ImageFormat, error)
 
 	// InspectHardware updates the HardwareDetails field of the host with
 	// details of devices discovered on the hardware. It may be called
@@ -194,11 +195,13 @@ type Provisioner interface {
 	Delete(ctx context.Context) (result Result, err error)
 
 	// Detach removes the host from the provisioning system.
-	// Similar to Delete, but ensures non-interruptive behavior
-	// for the target system.  It may be called multiple times,
-	// and should return true for its dirty  flag until the
-	// deletion operation is completed.
-	Detach(ctx context.Context) (result Result, err error)
+	// With force set to false, it ensures non-interruptive behavior
+	// for the target system. When force is set to true, provisioning
+	// processes may be interrupted to speed up the removal. Otherwise,
+	// the provisioner must wait for a stable state before the removal.
+	// This method may be called multiple times, and should return true
+	// for its dirty flag until the detachment operation is completed.
+	Detach(ctx context.Context, force bool) (result Result, err error)
 
 	// PowerOn ensures the server is powered on independently of any image
 	// provisioning operation.

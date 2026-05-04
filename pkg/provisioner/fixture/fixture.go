@@ -149,7 +149,7 @@ func (p *fixtureProvisioner) Register(_ context.Context, _ provisioner.Managemen
 	return
 }
 
-func (p *fixtureProvisioner) PreprovisioningImageFormats() ([]metal3api.ImageFormat, error) {
+func (p *fixtureProvisioner) PreprovisioningImageFormats(_ context.Context) ([]metal3api.ImageFormat, error) {
 	return nil, nil
 }
 
@@ -351,7 +351,7 @@ func (p *fixtureProvisioner) Delete(_ context.Context) (result provisioner.Resul
 // for the target system.  It may be called multiple times,
 // and should return true for its dirty  flag until the
 // deletion operation is completed.
-func (p *fixtureProvisioner) Detach(ctx context.Context) (result provisioner.Result, err error) {
+func (p *fixtureProvisioner) Detach(ctx context.Context, _ bool) (result provisioner.Result, err error) {
 	return p.Delete(ctx)
 }
 

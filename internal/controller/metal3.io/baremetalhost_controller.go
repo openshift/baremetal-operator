@@ -39,6 +39,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -66,6 +67,7 @@ type BareMetalHostReconciler struct {
 	Log                logr.Logger
 	ProvisionerFactory provisioner.Factory
 	APIReader          client.Reader
+	Recorder           record.EventRecorder
 }
 
 // Instead of passing a zillion arguments to the action of a phase,
@@ -90,8 +92,8 @@ func (info *reconcileInfo) publishEvent(reason, message string) {
 // +kubebuilder:rbac:groups=metal3.io,resources=preprovisioningimages,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=metal3.io,resources=hardwaredata,verbs=get;list;watch;create;delete;patch;update
 // +kubebuilder:rbac:groups=metal3.io,resources=hardware/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update;delete
-// +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;update;patch
 
 // Allow for managing hostfirmwaresettings, firmwareschema, bmceventsubscriptions and hostfirmwarecomponents
 // +kubebuilder:rbac:groups=metal3.io,resources=hostfirmwaresettings,verbs=get;list;watch;create;update;patch
@@ -240,16 +242,21 @@ func (r *BareMetalHostReconciler) Reconcile(ctx context.Context, request ctrl.Re
 		return result, err
 	}
 
+	// Always compute conditions since some (e.g. Healthy) can change
+	// based on external state from Ironic regardless of state machine
+	// transitions.
+	conditionsBefore := slices.Clone(host.GetConditions())
+	computeConditions(ctx, host, prov)
+	conditionsChanged := !reflect.DeepEqual(conditionsBefore, host.GetConditions())
+
 	// Only save status when we're told to, otherwise we
 	// introduce an infinite loop reconciling the same object over and
 	// over when there is an unrecoverable error (tracked through the
 	// error state of the host).
-	if actResult.Dirty() {
-		// Save Host
+	if actResult.Dirty() || conditionsChanged {
 		info.log.Info("saving host status",
 			"operational status", host.OperationalStatus(),
 			"provisioning state", host.Status.Provisioning.State)
-		computeConditions(ctx, host, prov)
 		err = r.saveHostStatus(ctx, host)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to save host status after %q: %w", initialState, err)
@@ -617,8 +624,8 @@ func hasCustomDeploy(host *metal3api.BareMetalHost) bool {
 }
 
 // detachHost() detaches the host from the Provisioner.
-func (r *BareMetalHostReconciler) detachHost(ctx context.Context, prov provisioner.Provisioner, info *reconcileInfo) actionResult {
-	provResult, err := prov.Detach(ctx)
+func (r *BareMetalHostReconciler) detachHost(ctx context.Context, prov provisioner.Provisioner, info *reconcileInfo, force bool) actionResult {
+	provResult, err := prov.Detach(ctx, force)
 	if err != nil {
 		return actionError{fmt.Errorf("failed to detach: %w", err)}
 	}
@@ -828,7 +835,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		dirty = true
 	}
 
-	preprovImgFormats, err := prov.PreprovisioningImageFormats()
+	preprovImgFormats, err := prov.PreprovisioningImageFormats(ctx)
 	if err != nil {
 		return actionError{err}
 	}
@@ -1319,6 +1326,12 @@ func (r *BareMetalHostReconciler) actionProvisioning(ctx context.Context, prov p
 		image = *info.host.Spec.Image.DeepCopy()
 	}
 
+	// Extract OCI auth secret credentials if needed
+	authSecret, err := r.getImageAuthSecret(ctx, info.host, &image)
+	if err != nil {
+		return recordActionFailure(info, metal3api.ProvisioningError, err.Error())
+	}
+
 	provResult, err := prov.Provision(ctx, provisioner.ProvisionData{
 		Image:           image,
 		CustomDeploy:    info.host.Spec.CustomDeploy.DeepCopy(),
@@ -1326,6 +1339,7 @@ func (r *BareMetalHostReconciler) actionProvisioning(ctx context.Context, prov p
 		BootMode:        info.host.Status.Provisioning.BootMode,
 		HardwareProfile: hwProf,
 		RootDeviceHints: info.host.Status.Provisioning.RootDeviceHints.DeepCopy(),
+		ImagePullSecret: authSecret,
 	}, forceReboot)
 	if err != nil {
 		return actionError{fmt.Errorf("failed to provision: %w", err)}
@@ -2304,7 +2318,11 @@ func computeConditions(ctx context.Context, host *metal3api.BareMetalHost, prov 
 		setConditionUnknown(host, metal3api.HealthyCondition, metal3api.UnknownHealthReason)
 		return
 	}
-	switch prov.GetHealth(ctx) {
+	switch health := prov.GetHealth(ctx); health {
+	case "":
+		if meta.FindStatusCondition(host.Status.Conditions, string(metal3api.HealthyCondition)) == nil {
+			setConditionUnknown(host, metal3api.HealthyCondition, metal3api.UnknownHealthReason)
+		}
 	case provisioner.HealthOK:
 		setConditionTrue(host, metal3api.HealthyCondition, metal3api.HealthyReason)
 	case provisioner.HealthWarning:
@@ -2401,6 +2419,23 @@ func (r *BareMetalHostReconciler) getBMCSecretAndSetOwner(ctx context.Context, r
 	return bmcCredsSecret, nil
 }
 
+// getImageAuthSecret validates and extracts the OCI registry credentials for the image.
+// It returns the base64-encoded credentials in the format expected by Ironic, or an empty
+// string if no auth secret is configured.
+func (r *BareMetalHostReconciler) getImageAuthSecret(ctx context.Context, host *metal3api.BareMetalHost, image *metal3api.Image) (string, error) {
+	if image == nil || !image.IsOCI() {
+		return "", nil
+	}
+
+	if image.OCIAuthSecretName == nil || *image.OCIAuthSecretName == "" {
+		return "", nil
+	}
+
+	secretManager := r.secretManager(ctx, r.Log)
+	validator := NewImageAuthValidator(r.Recorder)
+	return validator.Validate(ctx, host, secretManager)
+}
+
 func credentialsFromSecret(bmcCredsSecret *corev1.Secret) *bmc.Credentials {
 	// We trim surrounding whitespace because those characters are
 	// unlikely to be part of the username or password and it is
@@ -2486,6 +2521,8 @@ func (r *BareMetalHostReconciler) updateEventHandler(e event.UpdateEvent) bool {
 
 // SetupWithManager registers the reconciler to be run by the manager.
 func (r *BareMetalHostReconciler) SetupWithManager(mgr ctrl.Manager, preprovImgEnable bool, maxConcurrentReconcile int) error {
+	r.Recorder = mgr.GetEventRecorderFor("baremetalhost-controller")
+
 	controller := ctrl.NewControllerManagedBy(mgr).
 		For(&metal3api.BareMetalHost{}).
 		WithEventFilter(

@@ -4,7 +4,7 @@ GO_TEST_FLAGS = $(TEST_FLAGS)
 DEBUG = --debug
 COVER_PROFILE = cover.out
 GO := $(shell type -P go)
-GO_VERSION ?= 1.25.8
+GO_VERSION ?= 1.25.9
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -49,9 +49,12 @@ export GOFLAGS=
 #
 # Ginkgo configuration.
 #
+# We default to fixture tests, since they are fast and require little
+# both in terms of resources and tooling.
+# Note that some tests may not make sense for fixture, so we skip them.
 GINKGO_FOCUS ?=
 GINKGO_SKIP ?=
-GINKGO_SKIP_LABELS ?=
+GINKGO_SKIP_LABELS ?= automated-cleaning
 GINKGO_NODES ?= 2
 GINKGO_TIMEOUT ?= 3h
 GINKGO_POLL_PROGRESS_AFTER ?= 60m
@@ -79,7 +82,7 @@ endif
 
 .PHONY: help
 help:  ## Display this help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 	@echo
 	@echo "Variables:"
 	@echo "  TEST_NAMESPACE   -- project name to use ($(TEST_NAMESPACE))"
@@ -136,11 +139,16 @@ fuzz-run: ## Run all fuzz tests sequentially with fuzzing enabled (use FUZZ_TIME
 	@echo "Discovering fuzz tests..."
 	@cd test/fuzz && go test -list='Fuzz.*' | grep '^Fuzz' | while read -r fuzz_test; do \
 		echo "Running $$fuzz_test for $(FUZZ_TIME)..."; \
-		go test -fuzz=$$fuzz_test -fuzztime=$(FUZZ_TIME) || exit 1; \
+		go test -fuzz=$$fuzz_test -fuzztime='$(FUZZ_TIME)' || exit 1; \
 	done
 	@echo "All fuzz tests completed successfully!"
 
 ARTIFACTS ?= ${ROOT_DIR}/test/e2e/_artifacts
+
+.PHONY: verify-e2e-prerequisites
+verify-e2e-prerequisites: ## Check that required tools exist for e2e tests
+	@echo "Ensure the local environment is ready for e2e tests..."
+	VERIFY_ONLY=1 ./hack/e2e/ensure_e2e_prerequisites.sh
 
 .PHONY: test-e2e
 test-e2e: $(GINKGO) ## Run the end-to-end tests
@@ -239,10 +247,6 @@ build-vbmctl:
 .PHONY: unit-vbmctl
 unit-vbmctl: ## Run vbmctl unit tests
 	cd test && go test --tags=e2e,vbmctl $(GO_TEST_FLAGS) ./vbmctl/...
-
-.PHONY: build-legacy-vbmctl
-build-legacy-vbmctl:
-	cd test; go build --tags=e2e,vbmctl -ldflags $(LDFLAGS) -o $(abspath $(BIN_DIR)/vbmctl) ./vbmctl/main.go
 
 .PHONY: manifests
 manifests: manifests-generate manifests-kustomize ## Generate manifests e.g. CRD, RBAC etc.
@@ -451,6 +455,7 @@ clean: ## Remove all temporary files, directories and tools
 	rm -rf ironic-deployment/overlays/temp
 	rm -rf config/overlays/temp
 	rm -rf $(TOOLS_BIN_DIR)
+	rm -rf tools/bin
 
 .PHONY: clean-e2e
 clean-e2e: ## Remove everything related to e2e tests

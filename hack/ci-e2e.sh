@@ -35,6 +35,11 @@ echo "BMO_E2E_EMULATOR=${BMO_E2E_EMULATOR}"
 export E2E_CONF_FILE="${REPO_ROOT}/test/e2e/config/ironic.yaml"
 export E2E_BMCS_CONF_FILE="${REPO_ROOT}/test/e2e/config/bmcs-${BMC_PROTOCOL}.yaml"
 
+# make test-e2e runs the fixture tests by default and skips some tests
+# that don't make sense in that context. We need to override.
+export GINKGO_SKIP_LABELS="${GINKGO_SKIP_LABELS:-}"
+GINKGO_FOCUS="${GINKGO_FOCUS:-}"
+
 case "${GINKGO_FOCUS,,}" in
   *upgrade*)
     export DEPLOY_IRONIC="false"
@@ -56,7 +61,7 @@ export PATH="/usr/local/go/bin:${PATH}"
 "${REPO_ROOT}/hack/e2e/ensure_yq.sh"
 
 sudo apt-get update
-sudo apt-get install -y libvirt-dev pkg-config
+sudo apt-get install -y libvirt-dev pkg-config gettext-base
 
 # Increase inotify limits to prevent "too many open files" errors.
 # Kind nodes (Docker containers running systemd) consume inotify resources heavily.
@@ -67,15 +72,15 @@ sudo sysctl fs.inotify.max_user_instances=8192
 # Build the container image with e2e tag (used in tests)
 IMG=quay.io/metal3-io/baremetal-operator IMG_TAG=e2e make docker
 
-if ! sudo virsh net-list --all | grep baremetal-e2e; then
-    virsh -c qemu:///system net-define "${REPO_ROOT}/hack/e2e/net.xml"
-    virsh -c qemu:///system net-start baremetal-e2e
-fi
+# Build vbmctl
+make build-vbmctl
+# Create VMs to act as BMHs in the tests and the libvirt network
+./bin/vbmctl -c "${REPO_ROOT}/test/e2e/config/vbmctl.yaml" create bml
 
-# We need to create veth pair to connect metal3 net (defined above) and kind
-# docker subnet. Let us start by creating a docker network with pre-defined
-# name for bridge, so that we can configure the veth pair correctly.
-# Also assume that if kind net exists, it is created by us.
+# We need to create veth pair to connect metal3 net (defined above with vbmctl)
+# and kind docker subnet. Let us start by creating a docker network with
+# pre-defined name for bridge, so that we can configure the veth pair
+# correctly. Also assume that if kind net exists, it is created by us.
 if ! docker network list | grep kind; then
     # These options are used by kind itself. It uses docker default mtu and
     # generates ipv6 subnet ULA, but we can fix the ULA. Only addition to kind
@@ -109,11 +114,6 @@ sudo iptables -L FORWARD -n -v
 # This IP is defined by the network we created above. It is sushy-tools / image
 # server endpoint, not ironic.
 IP_ADDRESS="192.168.222.1"
-
-# Build vbmctl
-make build-legacy-vbmctl
-# Create VMs to act as BMHs in the tests.
-./bin/vbmctl --yaml-source-file "${E2E_BMCS_CONF_FILE}"
 
 if [[ "${BMO_E2E_EMULATOR}" == "vbmc" ]]; then
   # Start VBMC
@@ -170,9 +170,7 @@ if [[ ! -f "${IMAGE_DIR}/${IPA_FILE}" ]]; then
 fi
 
 ## Start the image server
-docker start image-server-e2e || docker run --name image-server-e2e -d \
-  -p 80:8080 \
-  -v "${IMAGE_DIR}:/usr/share/nginx/html" nginxinc/nginx-unprivileged
+./bin/vbmctl create image-server --host-port 80 --image-dir "${IMAGE_DIR}" --name "vbmctl-image-server-e2e"
 
 # Generate ssh key pair for verifying provisioned BMHs
 if [[ ! -f "${IMAGE_DIR}/ssh_testkey" ]]; then
@@ -228,7 +226,10 @@ IRSO_IRONIC_AUTH_DIR="${REPO_ROOT}/test/e2e/data/ironic-standalone-operator/comp
 echo "${IRONIC_USERNAME}" > "${IRSO_IRONIC_AUTH_DIR}/ironic-username"
 echo "${IRONIC_PASSWORD}" > "${IRSO_IRONIC_AUTH_DIR}/ironic-password"
 
-sed -i "s|SSH_PUB_KEY_CONTENT|${pub_ssh_key}|" "${REPO_ROOT}"/test/e2e/data/ironic-standalone-operator/ironic/base/ironic.yaml
+# shellcheck disable=SC2016
+SSH_PUB_KEY_CONTENT="${pub_ssh_key}" envsubst '${SSH_PUB_KEY_CONTENT}' < \
+  "${REPO_ROOT}/test/e2e/data/ironic-standalone-operator/ironic/base/ironic.yaml.tmpl" > \
+  "${REPO_ROOT}/test/e2e/data/ironic-standalone-operator/ironic/base/ironic.yaml"
 
 # We need to gather artifacts/logs before exiting also if there are errors
 set +e

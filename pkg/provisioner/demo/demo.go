@@ -111,7 +111,7 @@ func (p *demoProvisioner) Register(_ context.Context, _ provisioner.ManagementAc
 	return
 }
 
-func (p *demoProvisioner) PreprovisioningImageFormats() ([]metal3api.ImageFormat, error) {
+func (p *demoProvisioner) PreprovisioningImageFormats(_ context.Context) ([]metal3api.ImageFormat, error) {
 	return nil, nil
 }
 
@@ -287,7 +287,7 @@ func (p *demoProvisioner) Delete(_ context.Context) (result provisioner.Result, 
 // for the target system.  It may be called multiple times,
 // and should return true for its dirty  flag until the
 // deletion operation is completed.
-func (p *demoProvisioner) Detach(_ context.Context) (result provisioner.Result, err error) {
+func (p *demoProvisioner) Detach(_ context.Context, _ bool) (result provisioner.Result, err error) {
 	p.log.Info("detaching host")
 	return result, nil
 }
