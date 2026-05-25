@@ -121,9 +121,9 @@ type ServicingData struct {
 	TargetFirmwareSettings   metal3api.DesiredSettingsMap
 	ActualFirmwareSettings   metal3api.SettingsMap
 	TargetFirmwareComponents []metal3api.FirmwareUpdate
-	// True if any firmware spec exists (settings, components, or legacy FirmwareConfig),
-	// used to distinguish "no updates" from "user cleared spec".
-	HasFirmwareSpec bool
+	// Flags to track if specs exist (vs. just no updates calculated)
+	HasFirmwareSettingsSpec   bool
+	HasFirmwareComponentsSpec bool
 }
 
 type ProvisionData struct {

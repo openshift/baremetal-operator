@@ -79,7 +79,15 @@ func (p *ironicProvisioner) startServicing(ctx context.Context, bmcAccess bmc.Ac
 }
 
 func (p *ironicProvisioner) abortServicing(ctx context.Context, ironicNode *nodes.Node) (result provisioner.Result, started bool, err error) {
-	p.log.Info("aborting servicing because firmware spec was removed")
+	// Clear maintenance flag first if it's set
+	if ironicNode.Maintenance {
+		p.log.Info("clearing maintenance flag before aborting servicing")
+		result, err = p.setMaintenanceFlag(ctx, ironicNode, false, "")
+		return result, started, err
+	}
+
+	// Set started to let the controller know about the change
+	p.log.Info("aborting servicing due to removal of spec.updates/spec.settings")
 	started, result, err = p.tryChangeNodeProvisionState(
 		ctx,
 		ironicNode,
@@ -101,11 +109,17 @@ func (p *ironicProvisioner) Service(ctx context.Context, data provisioner.Servic
 		return result, started, err
 	}
 
+	if _, err = p.buildServiceSteps(bmcAccess, data); err != nil {
+		result, err = operationFailed(err.Error())
+		return result, started, err
+	}
+
 	switch nodes.ProvisionState(ironicNode.ProvisionState) {
 	case nodes.ServiceFail:
-		// When servicing failed and user removed all firmware specs,
-		// abort the servicing operation to back out
-		if !data.HasFirmwareSpec {
+		// When servicing failed and user actually removed the specs (not just no updates calculated),
+		// we need to abort the servicing operation to back out
+		if !data.HasFirmwareSettingsSpec && !data.HasFirmwareComponentsSpec {
+			p.log.Info("aborting servicing because spec.updates/spec.settings was removed")
 			return p.abortServicing(ctx, ironicNode)
 		}
 
@@ -137,18 +151,13 @@ func (p *ironicProvisioner) Service(ctx context.Context, data provisioner.Servic
 		// Servicing finished
 		p.log.Info("servicing finished on the host")
 		result, err = operationComplete()
-	case nodes.Servicing:
-		p.log.Info("waiting for host to finish servicing",
-			"state", ironicNode.ProvisionState,
-			"serviceStep", ironicNode.ServiceStep)
-		result, err = operationContinuing(provisionRequeueDelay)
-
-	case nodes.ServiceWait:
-		// If user removed all firmware specs while in ServiceWait, abort
-		if !data.HasFirmwareSpec {
+	case nodes.Servicing, nodes.ServiceWait:
+		// If user actually removed spec.updates/spec.settings while servicing is in progress, abort immediately
+		if !data.HasFirmwareSettingsSpec && !data.HasFirmwareComponentsSpec {
+			p.log.Info("aborting in-progress servicing because spec.updates/spec.settings was removed")
 			return p.abortServicing(ctx, ironicNode)
 		}
-
+		
 		p.log.Info("waiting for host to become active",
 			"state", ironicNode.ProvisionState,
 			"serviceStep", ironicNode.ServiceStep)

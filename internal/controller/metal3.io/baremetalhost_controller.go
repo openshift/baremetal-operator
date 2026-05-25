@@ -47,6 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
@@ -1474,14 +1475,51 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 		liveFirmwareUpdatesAllowed = (hup.Spec.FirmwareUpdates == metal3api.HostUpdatePolicyOnReboot)
 	}
 
+	// Fast-path: when recovering from a servicing error, check if specs are
+	// cleared before calling getHostFirmwareSettings/Components. Those
+	// functions fail on generation mismatch (sub-controller hasn't reconciled
+	// yet), which would block the abort/recovery path indefinitely.
+	if info.host.Status.ErrorType == metal3api.ServicingError {
+		specsExist := false
+		if liveFirmwareSettingsAllowed {
+			hfsCheck := &metal3api.HostFirmwareSettings{}
+			if err := r.Get(ctx, info.request.NamespacedName, hfsCheck); err == nil && len(hfsCheck.Spec.Settings) > 0 {
+				specsExist = true
+			}
+		}
+		if liveFirmwareUpdatesAllowed && !specsExist {
+			hfcCheck := &metal3api.HostFirmwareComponents{}
+			if err := r.Get(ctx, info.request.NamespacedName, hfcCheck); err == nil && len(hfcCheck.Spec.Updates) > 0 {
+				specsExist = true
+			}
+		}
+		if !specsExist {
+			info.log.Info("specs cleared while in servicing error state, attempting abort")
+			provResult, _, err := prov.Service(ctx, servicingData, false, false)
+			if err != nil {
+				return actionError{fmt.Errorf("failed to abort servicing: %w", err)}
+			}
+			if provResult.ErrorMessage != "" {
+				return actionError{fmt.Errorf("failed to abort servicing: %s", provResult.ErrorMessage)}
+			}
+			if provResult.Dirty {
+				info.log.Info("abort operation in progress, checking back later")
+				return actionContinue{provResult.RequeueAfter}
+			}
+			info.log.Info("successfully recovered from servicing error")
+			info.host.Status.ErrorType = ""
+			info.host.Status.ErrorMessage = ""
+			info.host.Status.OperationalStatus = metal3api.OperationalStatusOK
+			return actionComplete{}
+		}
+	}
+
 	if liveFirmwareSettingsAllowed {
 		// handling pre-HFS FirmwareSettings here
 		if !reflect.DeepEqual(info.host.Status.Provisioning.Firmware, info.host.Spec.Firmware) {
 			servicingData.FirmwareConfig = info.host.Spec.Firmware
 			fwDirty = true
 		}
-		servicingData.HasFirmwareSpec = fwDirty && info.host.Spec.Firmware != nil
-
 		// handling HFS based FirmwareSettings here
 		var hfs *metal3api.HostFirmwareSettings
 		var err error
@@ -1494,7 +1532,11 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 			servicingData.TargetFirmwareSettings = hfs.Spec.Settings
 		}
 
-		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfs != nil && len(hfs.Spec.Settings) > 0)
+		// Track if HFS spec has actual settings - check independently since getHostFirmwareSettings
+		// returns nil when no changes even if object exists
+		hfsExists := &metal3api.HostFirmwareSettings{}
+		hfsExistsErr := r.Get(ctx, info.request.NamespacedName, hfsExists)
+		servicingData.HasFirmwareSettingsSpec = (hfsExistsErr == nil && len(hfsExists.Spec.Settings) > 0)
 	}
 
 	if liveFirmwareUpdatesAllowed {
@@ -1512,7 +1554,11 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 			}
 		}
 
-		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfc != nil && len(hfc.Spec.Updates) > 0)
+		// Track if HFC spec has actual updates - check independently since getHostFirmwareComponents
+		// returns nil when no changes even if object exists
+		hfcExists := &metal3api.HostFirmwareComponents{}
+		hfcExistsErr := r.Get(ctx, info.request.NamespacedName, hfcExists)
+		servicingData.HasFirmwareComponentsSpec = (hfcExistsErr == nil && len(hfcExists.Spec.Updates) > 0)
 	}
 
 	hasChanges := fwDirty || hfsDirty || hfcDirty
@@ -2162,8 +2208,7 @@ func hostObjectHasChanges(conditions []metav1.Condition, changedCondition, valid
 	return false, true, nil
 }
 
-// Get the stored firmware settings. Returns dirty=true if there are valid pending changes.
-// The hfs object is returned when available regardless of validity, so callers can inspect spec contents.
+// Get the stored firmware settings if there are valid changes.
 func (r *BareMetalHostReconciler) getHostFirmwareSettings(ctx context.Context, info *reconcileInfo) (dirty bool, hfs *metal3api.HostFirmwareSettings, err error) {
 	hfs = &metal3api.HostFirmwareSettings{}
 	if err = r.Get(ctx, info.request.NamespacedName, hfs); err != nil {
@@ -2183,7 +2228,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareSettings(ctx context.Context, i
 	}
 	if !valid {
 		info.log.Info("hostFirmwareSettings not valid", "namespacename", info.request.NamespacedName)
-		return false, hfs, nil
+		return false, nil, nil
 	}
 
 	if changed {
@@ -2197,11 +2242,11 @@ func (r *BareMetalHostReconciler) getHostFirmwareSettings(ctx context.Context, i
 	}
 
 	info.log.Info("hostFirmwareSettings no updates", "namespacename", info.request.NamespacedName)
-	return false, hfs, nil
+	return false, nil, nil
 }
 
-// Get the stored firmware components. Returns dirty=true if there are valid pending changes.
-// The hfc object is returned when available regardless of validity, so callers can inspect spec contents.
+// Get the stored firmware settings if there are valid changes.
+
 func (r *BareMetalHostReconciler) getHostFirmwareComponents(ctx context.Context, info *reconcileInfo) (dirty bool, hfc *metal3api.HostFirmwareComponents, err error) {
 	hfc = &metal3api.HostFirmwareComponents{}
 	if err = r.Get(ctx, info.request.NamespacedName, hfc); err != nil {
@@ -2221,7 +2266,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareComponents(ctx context.Context,
 	}
 	if !valid {
 		info.log.Info("hostFirmwareComponents not valid", "namespacename", info.request.NamespacedName)
-		return false, hfc, nil
+		return false, nil, nil
 	}
 	if changed {
 		info.log.Info("hostFirmwareComponents indicating ChangeDetected", "namespacename", info.request.NamespacedName)
@@ -2229,7 +2274,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareComponents(ctx context.Context,
 	}
 
 	info.log.Info("hostFirmwareComponents no updates", "namespacename", info.request.NamespacedName)
-	return false, hfc, nil
+	return false, nil, nil
 }
 
 func setConditionTrue(host *metal3api.BareMetalHost, typ, reason string) {
@@ -2537,6 +2582,22 @@ func (r *BareMetalHostReconciler) SetupWithManager(mgr ctrl.Manager, preprovImgE
 		// need to pass MatchEveryOwner
 		controller.Owns(&metal3api.PreprovisioningImage{})
 	}
+
+	// Watch HFC/HFS for spec changes (generation bumps) so that the BMH
+	// controller reconciles promptly when a user clears firmware specs,
+	// rather than waiting for the error-state exponential backoff to expire.
+	firmwareEventHandler := handler.EnqueueRequestsFromMapFunc(
+		func(_ context.Context, obj client.Object) []ctrl.Request {
+			return []ctrl.Request{{NamespacedName: client.ObjectKey{
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
+			}}}
+		},
+	)
+	controller.Watches(&metal3api.HostFirmwareSettings{}, firmwareEventHandler,
+		builder.WithPredicates(predicate.GenerationChangedPredicate{}))
+	controller.Watches(&metal3api.HostFirmwareComponents{}, firmwareEventHandler,
+		builder.WithPredicates(predicate.GenerationChangedPredicate{}))
 
 	return controller.Complete(r)
 }
