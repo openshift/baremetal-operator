@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	vbmctlapi "github.com/metal3-io/baremetal-operator/test/vbmctl/pkg/api"
+	"k8s.io/utils/ptr"
 )
 
 func TestDefault(t *testing.T) {
@@ -49,6 +50,28 @@ spec:
     dataDir: "/var/lib/vbmctl/images-test"
     containerDataDir: "/usr/share/nginx/html"
     containerName: "vbmctl-image-server-test"
+  bmcEmulator:
+    type: "sushy-tools"
+    configFile: "vbmc-emulator-file"
+    image: "test/bmc-emulator:latest"
+    listenAddress: "1.2.3.4"
+    listenPort: 1234
+  networks:
+  - name: "baremetal-e2e"
+    bridge: "metal3"
+    address: "192.168.222.1"
+    netmask: "255.255.255.0"
+  vethPairs:
+  - link1: "metal3"
+    link2: "kind-bridge"
+    veth1: "metalend"
+    veth2: "kindend"
+  dockerNetworks:
+  - name: "kind"
+    bridgeName: "kind-bridge"
+    subnet: "fc00:f853:ccd:e793::/64"
+    driverMtu: 1500
+    ipv6: true
 `)
 
 	cfg, err := Parse(yamlData)
@@ -103,6 +126,97 @@ spec:
 	if cfg.Spec.ImageServer.ContainerName != "vbmctl-image-server-test" {
 		t.Errorf("expected image server container name 'vbmctl-image-server-test', got %s", cfg.Spec.ImageServer.ContainerName)
 	}
+
+	if cfg.Spec.BMCEmulator == nil {
+		t.Fatal("expected BMC emulator config, got nil")
+	}
+
+	if cfg.Spec.BMCEmulator.Type != "sushy-tools" {
+		t.Errorf("expected BMC emulator type 'sushy-tools', got %s", cfg.Spec.BMCEmulator.Type)
+	}
+
+	if cfg.Spec.BMCEmulator.ConfigFile != "vbmc-emulator-file" {
+		t.Errorf("expected BMC emulator config file 'vbmc-emulator-file', got %s", cfg.Spec.BMCEmulator.ConfigFile)
+	}
+
+	if cfg.Spec.BMCEmulator.Image != "test/bmc-emulator:latest" {
+		t.Errorf("expected BMC emulator image 'test/bmc-emulator:latest', got %s", cfg.Spec.BMCEmulator.Image)
+	}
+
+	if cfg.Spec.BMCEmulator.ListenAddress != "1.2.3.4" {
+		t.Errorf("expected BMC emulator listen address '1.2.3.4', got %s", cfg.Spec.BMCEmulator.ListenAddress)
+	}
+
+	if cfg.Spec.BMCEmulator.ListenPort != 1234 {
+		t.Errorf("expected BMC emulator listen port 1234, got %d", cfg.Spec.BMCEmulator.ListenPort)
+	}
+
+	// Libvirt network tests
+	if len(cfg.Spec.Networks) != 1 {
+		t.Fatalf("expected 1 libvirt network config, got %d", len(cfg.Spec.Networks))
+	}
+
+	if cfg.Spec.Networks[0].Name != "baremetal-e2e" {
+		t.Errorf("expected libvirt network name 'baremetal-e2e', got %s", cfg.Spec.Networks[0].Name)
+	}
+
+	if cfg.Spec.Networks[0].Bridge != "metal3" {
+		t.Errorf("expected libvirt network bridge 'metal3', got %s", cfg.Spec.Networks[0].Bridge)
+	}
+
+	if cfg.Spec.Networks[0].Address != "192.168.222.1" {
+		t.Errorf("expected libvirt network address '192.168.222.1', got %s", cfg.Spec.Networks[0].Address)
+	}
+
+	if cfg.Spec.Networks[0].Netmask != "255.255.255.0" {
+		t.Errorf("expected libvirt network netmask '255.255.255.0', got %s", cfg.Spec.Networks[0].Netmask)
+	}
+
+	// vethPairs tests
+	if len(cfg.Spec.VethPairs) != 1 {
+		t.Fatalf("expected 1 veth pair config, got %d", len(cfg.Spec.VethPairs))
+	}
+
+	if cfg.Spec.VethPairs[0].Link1 != "metal3" {
+		t.Errorf("expected veth pair link1 'metal3', got %s", cfg.Spec.VethPairs[0].Link1)
+	}
+
+	if cfg.Spec.VethPairs[0].Link2 != "kind-bridge" {
+		t.Errorf("expected veth pair link2 'kind-bridge', got %s", cfg.Spec.VethPairs[0].Link2)
+	}
+
+	if cfg.Spec.VethPairs[0].Veth1 != "metalend" {
+		t.Errorf("expected veth pair veth1 'metalend', got %s", cfg.Spec.VethPairs[0].Veth1)
+	}
+
+	if cfg.Spec.VethPairs[0].Veth2 != "kindend" {
+		t.Errorf("expected veth pair veth2 'kindend', got %s", cfg.Spec.VethPairs[0].Veth2)
+	}
+
+	// DockerNetworks tests
+	if len(cfg.Spec.DockerNetworks) != 1 {
+		t.Fatalf("expected 1 docker network config, got %d", len(cfg.Spec.DockerNetworks))
+	}
+
+	if cfg.Spec.DockerNetworks[0].Name != "kind" {
+		t.Errorf("expected docker network name 'kind', got %s", cfg.Spec.DockerNetworks[0].Name)
+	}
+
+	if cfg.Spec.DockerNetworks[0].BridgeName != "kind-bridge" {
+		t.Errorf("expected docker network bridge name 'kind-bridge', got %s", cfg.Spec.DockerNetworks[0].BridgeName)
+	}
+
+	if cfg.Spec.DockerNetworks[0].Subnet != "fc00:f853:ccd:e793::/64" {
+		t.Errorf("expected docker network subnet 'fc00:f853:ccd:e793::/64', got %s", cfg.Spec.DockerNetworks[0].Subnet)
+	}
+
+	if cfg.Spec.DockerNetworks[0].DriverMtu != 1500 {
+		t.Errorf("expected docker network driver MTU '1500', got %d", cfg.Spec.DockerNetworks[0].DriverMtu)
+	}
+
+	if *cfg.Spec.DockerNetworks[0].IPv6 != true {
+		t.Errorf("expected docker network ipv6 'true', got %v", cfg.Spec.DockerNetworks[0].IPv6)
+	}
 }
 
 func TestLoadAndSave(t *testing.T) {
@@ -122,6 +236,20 @@ func TestLoadAndSave(t *testing.T) {
 		ContainerDataDir: "/usr/share/nginx/html",
 		ContainerName:    "vbmctl-image-server",
 	}
+	cfg.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+		Type:          BMCEmulatorTypeSushyTools,
+		ConfigFile:    "vbmc-emulator-file",
+		Image:         "test/bmc-emulator:latest",
+		ListenAddress: "1.2.3.4",
+		ListenPort:    1234,
+	}
+	cfg.Spec.DockerNetworks = []vbmctlapi.DockerBridgeNetwork{{
+		Name:       "kind",
+		BridgeName: "kind-bridge",
+		Subnet:     "fc00:f853:ccd:e793::/64",
+		DriverMtu:  1500,
+		IPv6:       ptr.To(true),
+	}}
 
 	// Save it
 	if err := cfg.Save(configPath); err != nil {
@@ -173,6 +301,55 @@ func TestLoadAndSave(t *testing.T) {
 
 	if loadedCfg.Spec.ImageServer.ContainerPort != 8081 {
 		t.Errorf("expected image server container port %d, got %d", 8081, loadedCfg.Spec.ImageServer.ContainerPort)
+	}
+
+	if loadedCfg.Spec.BMCEmulator == nil {
+		t.Fatal("expected BMC emulator config, got nil")
+	}
+
+	if loadedCfg.Spec.BMCEmulator.Type != BMCEmulatorTypeSushyTools {
+		t.Errorf("expected BMC emulator type '%s', got %s", BMCEmulatorTypeSushyTools, loadedCfg.Spec.BMCEmulator.Type)
+	}
+
+	if loadedCfg.Spec.BMCEmulator.ConfigFile != "vbmc-emulator-file" {
+		t.Errorf("expected BMC emulator config file 'vbmc-emulator-file', got %s", loadedCfg.Spec.BMCEmulator.ConfigFile)
+	}
+
+	if loadedCfg.Spec.BMCEmulator.Image != "test/bmc-emulator:latest" {
+		t.Errorf("expected BMC emulator image 'test/bmc-emulator:latest', got %s", loadedCfg.Spec.BMCEmulator.Image)
+	}
+
+	if loadedCfg.Spec.BMCEmulator.ListenAddress != "1.2.3.4" {
+		t.Errorf("expected BMC emulator listen address '1.2.3.4', got %s", loadedCfg.Spec.BMCEmulator.ListenAddress)
+	}
+
+	if loadedCfg.Spec.BMCEmulator.ListenPort != 1234 {
+		t.Errorf("expected BMC emulator listen port '1234', got %d", loadedCfg.Spec.BMCEmulator.ListenPort)
+	}
+
+	// DockerNetworks tests
+	if len(loadedCfg.Spec.DockerNetworks) != 1 {
+		t.Fatalf("expected 1 docker network config, got %d", len(cfg.Spec.DockerNetworks))
+	}
+
+	if loadedCfg.Spec.DockerNetworks[0].Name != "kind" {
+		t.Errorf("expected docker network name 'kind', got %s", cfg.Spec.DockerNetworks[0].Name)
+	}
+
+	if loadedCfg.Spec.DockerNetworks[0].BridgeName != "kind-bridge" {
+		t.Errorf("expected docker network bridge name 'kind-bridge', got %s", cfg.Spec.DockerNetworks[0].BridgeName)
+	}
+
+	if loadedCfg.Spec.DockerNetworks[0].Subnet != "fc00:f853:ccd:e793::/64" {
+		t.Errorf("expected docker network subnet 'fc00:f853:ccd:e793::/64', got %s", cfg.Spec.DockerNetworks[0].Subnet)
+	}
+
+	if loadedCfg.Spec.DockerNetworks[0].DriverMtu != 1500 {
+		t.Errorf("expected docker network driver MTU '1500', got %d", cfg.Spec.DockerNetworks[0].DriverMtu)
+	}
+
+	if *loadedCfg.Spec.DockerNetworks[0].IPv6 != true {
+		t.Errorf("expected docker network ipv6 'true', got %v", cfg.Spec.DockerNetworks[0].IPv6)
 	}
 }
 
@@ -329,6 +506,171 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "valid BMC emulator config (vbmc)",
+			modify: func(c *Config) {
+				c.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+					Type:  BMCEmulatorTypeVBMC,
+					Image: "test/bmc-emulator:latest",
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid BMC emulator config (sushy-tools) no config file specified",
+			modify: func(c *Config) {
+				c.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+					Type:          BMCEmulatorTypeSushyTools,
+					Image:         "test/bmc-emulator:latest",
+					ListenAddress: "1.2.3.4",
+					ListenPort:    1234,
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid BMC emulator config (sushy-tools) with config file specified",
+			modify: func(c *Config) {
+				c.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+					Type:       BMCEmulatorTypeSushyTools,
+					Image:      "test/bmc-emulator:latest",
+					ConfigFile: "vbmc-emulator-file",
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid BMC emulator config (sushy-tools) with all values specified",
+			modify: func(c *Config) {
+				c.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+					Type:          BMCEmulatorTypeSushyTools,
+					Image:         "test/bmc-emulator:latest",
+					ConfigFile:    "vbmc-emulator-file",
+					StoragePool:   "custom-storage-pool",
+					ListenAddress: "1.2.3.4",
+					ListenPort:    1234,
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid BMC emulator config - missing type",
+			modify: func(c *Config) {
+				c.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+					ConfigFile: "vbmc-emulator-file",
+					Image:      "test/bmc-emulator:latest",
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid BMC emulator config - missing either config file or listen address for sushy-tools",
+			modify: func(c *Config) {
+				c.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+					Type:       BMCEmulatorTypeSushyTools,
+					Image:      "test/bmc-emulator:latest",
+					ListenPort: 1234,
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid BMC emulator config - missing either config file or listen port for sushy-tools",
+			modify: func(c *Config) {
+				c.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+					Type:          BMCEmulatorTypeSushyTools,
+					Image:         "test/bmc-emulator:latest",
+					ListenAddress: "1.2.3.4",
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid BMC emulator config - missing image",
+			modify: func(c *Config) {
+				c.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+					Type:       BMCEmulatorTypeVBMC,
+					ConfigFile: "vbmc-emulator-file",
+				}
+			},
+			wantErr: true,
+		},
+
+		{
+			name: "valid libvirt network config",
+			modify: func(c *Config) {
+				c.Spec.Networks = []vbmctlapi.NetworkConfig{{
+					Name:    "baremetal-e2e",
+					Bridge:  "metal3",
+					Address: "192.168.222.1",
+					Netmask: "255.255.255.0",
+				}}
+			},
+			wantErr: false,
+		},
+
+		{
+			name: "invalid libvirt network config - malformed address",
+			modify: func(c *Config) {
+				c.Spec.Networks = []vbmctlapi.NetworkConfig{{
+					Address: "What is your favourite pair of socks?",
+				}}
+			},
+			wantErr: true,
+		},
+
+		{
+			name: "invalid libvirt network config - malformed netmask",
+			modify: func(c *Config) {
+				c.Spec.Networks = []vbmctlapi.NetworkConfig{{
+					Netmask: "tsubadubaduu",
+				}}
+			},
+			wantErr: true,
+		},
+
+		{
+			name: "invalid libvirt network config - too long bridge name",
+			modify: func(c *Config) {
+				c.Spec.Networks = []vbmctlapi.NetworkConfig{{
+					Bridge: "RÄYY RÄKÄ TÄKÄ TÖYY",
+				}}
+			},
+			wantErr: true,
+		},
+
+		{
+			name: "valid DockerNetwork config",
+			modify: func(c *Config) {
+				c.Spec.DockerNetworks = []vbmctlapi.DockerBridgeNetwork{{
+					Name:       "kind",
+					BridgeName: "kind-bridge",
+					Subnet:     "fc00:f853:ccd:e793::/64",
+					DriverMtu:  1500,
+				}}
+			},
+			wantErr: false,
+		},
+
+		{
+			name: "invalid DockerNetwork config - too long bridge name",
+			modify: func(c *Config) {
+				c.Spec.DockerNetworks = []vbmctlapi.DockerBridgeNetwork{{
+					BridgeName: "What is the speed of smell?",
+				}}
+			},
+			wantErr: true,
+		},
+
+		{
+			name: "invalid DockerNetwork config - malformed subnet",
+			modify: func(c *Config) {
+				c.Spec.DockerNetworks = []vbmctlapi.DockerBridgeNetwork{{
+					Subnet: "Like seriously, we know the speed of light and sound, but what is the speed of smell?",
+				}}
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -345,6 +687,8 @@ func TestValidate(t *testing.T) {
 
 func TestApplyDefaults(t *testing.T) {
 	cfg := &Config{}
+	cfg.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{}
+	cfg.Spec.DockerNetworks = []vbmctlapi.DockerBridgeNetwork{{}}
 	cfg.ApplyDefaults()
 
 	if cfg.Spec.Libvirt.URI != DefaultLibvirtURI {
@@ -353,6 +697,79 @@ func TestApplyDefaults(t *testing.T) {
 
 	if cfg.Spec.Pool.Name != DefaultPoolName {
 		t.Errorf("expected Pool Name %s, got %s", DefaultPoolName, cfg.Spec.Pool.Name)
+	}
+
+	if cfg.Spec.BMCEmulator.Type != DefaultBMCEmulatorType {
+		t.Errorf("expected BMC Emulator Type %s, got %s", DefaultBMCEmulatorType, cfg.Spec.BMCEmulator.Type)
+	}
+
+	if *cfg.Spec.DockerNetworks[0].IPv6 {
+		t.Error("expected IPv6 to be disabled in Docker network")
+	}
+
+	if !*cfg.Spec.DockerNetworks[0].IPv4 {
+		t.Error("expected IPv4 to enabled in Docker network")
+	}
+
+	if cfg.Spec.DockerNetworks[0].DriverMtu != 0 {
+		t.Errorf("expected Docker network driver MTU to be 0, got %d", cfg.Spec.DockerNetworks[0].DriverMtu)
+	}
+
+	// If BMCEmulator type is unknown, image default should not be applied
+	unknownCfg := &Config{}
+	unknownCfg.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+		Type: "unknown-type",
+	}
+	unknownCfg.ApplyDefaults()
+	if unknownCfg.Spec.BMCEmulator.Image != "" {
+		t.Errorf("expected BMC Emulator Image <empty>, got %s", unknownCfg.Spec.BMCEmulator.Image)
+	}
+
+	// If BMCEmulator type is vbmc, vbmc image default should be applied
+	vbmcCfg := &Config{}
+	vbmcCfg.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+		Type: BMCEmulatorTypeVBMC,
+	}
+	vbmcCfg.ApplyDefaults()
+	if vbmcCfg.Spec.BMCEmulator.Image != DefaultBMCEmulatorVBMCImage {
+		t.Errorf("expected BMC Emulator Image %s, got %s", DefaultBMCEmulatorVBMCImage, vbmcCfg.Spec.BMCEmulator.Image)
+	}
+
+	// Verify that defaults for sushy-tools are applied and
+	// that the listen address and listen port defaults are applied when no config file is specified.
+	sushyCfg := &Config{}
+	sushyCfg.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+		Type: BMCEmulatorTypeSushyTools,
+	}
+	sushyCfg.ApplyDefaults()
+	if sushyCfg.Spec.BMCEmulator.Image != DefaultBMCEmulatorSushyToolsImage {
+		t.Errorf("expected BMC Emulator Image %s, got %s", DefaultBMCEmulatorSushyToolsImage, sushyCfg.Spec.BMCEmulator.Image)
+	}
+	if sushyCfg.Spec.BMCEmulator.ListenAddress != DefaultNetworkAddress {
+		t.Errorf("expected BMC Emulator Listen Address %s, got %s", DefaultNetworkAddress, sushyCfg.Spec.BMCEmulator.ListenAddress)
+	}
+	if sushyCfg.Spec.BMCEmulator.ListenPort != DefaultBMCEmulatorSushyToolsListenPort {
+		t.Errorf("expected BMC Emulator Listen Port %d, got %d", DefaultBMCEmulatorSushyToolsListenPort, sushyCfg.Spec.BMCEmulator.ListenPort)
+	}
+	if sushyCfg.Spec.BMCEmulator.StoragePool != DefaultPoolName {
+		t.Errorf("expected BMC Emulator Storage Pool %s, got %s", DefaultPoolName, sushyCfg.Spec.BMCEmulator.StoragePool)
+	}
+	if sushyCfg.Spec.BMCEmulator.LibvirtURI != DefaultLibvirtURI {
+		t.Errorf("expected BMC Emulator Libvirt URI %s, got %s", DefaultLibvirtURI, sushyCfg.Spec.BMCEmulator.LibvirtURI)
+	}
+
+	// However, if a config file is specified for sushy-tools, the listen address and listen port defaults should not be applied.
+	sushyWithConfigFileCfg := &Config{}
+	sushyWithConfigFileCfg.Spec.BMCEmulator = &vbmctlapi.BMCEmulatorConfig{
+		Type:       BMCEmulatorTypeSushyTools,
+		ConfigFile: "vbmc-emulator-file",
+	}
+	sushyWithConfigFileCfg.ApplyDefaults()
+	if sushyWithConfigFileCfg.Spec.BMCEmulator.ListenAddress != "" {
+		t.Errorf("expected BMC Emulator Listen Address <empty>, got %s", sushyWithConfigFileCfg.Spec.BMCEmulator.ListenAddress)
+	}
+	if sushyWithConfigFileCfg.Spec.BMCEmulator.ListenPort != 0 {
+		t.Errorf("expected BMC Emulator Listen Port <empty>, got %d", sushyWithConfigFileCfg.Spec.BMCEmulator.ListenPort)
 	}
 }
 

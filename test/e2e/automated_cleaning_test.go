@@ -14,17 +14,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Automated cleaning", Label("required", "automated-cleaning"), func() {
 	var (
 		specName      = "automated-cleaning"
-		secretName    = "bmc-credentials"
 		namespace     *corev1.Namespace
 		cancelWatches context.CancelFunc
+		toCleanup     []client.Object
 	)
 
 	BeforeEach(func() {
+		toCleanup = nil
 		namespace, cancelWatches = framework.CreateNamespaceAndWatchEvents(ctx, framework.CreateNamespaceAndWatchEventsInput{
 			Creator:             clusterProxy.GetClient(),
 			ClientSet:           clusterProxy.GetClientSet(),
@@ -40,7 +42,8 @@ var _ = Describe("Automated cleaning", Label("required", "automated-cleaning"), 
 			"username": bmc.User,
 			"password": bmc.Password,
 		}
-		CreateSecret(ctx, clusterProxy.GetClient(), namespace.Name, secretName, bmcCredentialsData)
+		secret := CreateSecret(ctx, clusterProxy.GetClient(), namespace.Name, "bmc-credentials", bmcCredentialsData)
+		toCleanup = append(toCleanup, secret)
 
 		By("Creating a BMH")
 		bmh := metal3api.BareMetalHost{
@@ -66,6 +69,7 @@ var _ = Describe("Automated cleaning", Label("required", "automated-cleaning"), 
 		}
 		err := clusterProxy.GetClient().Create(ctx, &bmh)
 		Expect(err).NotTo(HaveOccurred())
+		toCleanup = append(toCleanup, &bmh)
 
 		By("Waiting for the BMH to become available")
 		WaitForBmhInProvisioningState(ctx, WaitForBmhInProvisioningStateInput{
@@ -110,9 +114,11 @@ var _ = Describe("Automated cleaning", Label("required", "automated-cleaning"), 
 		client := EstablishSSHConnection(e2eConfig, bmc.IPAddress)
 
 		By("Check that the mount point exists")
-		output, err := executeSSHCommand(client, "lsblk -o NAME,MOUNTPOINT | grep vdb")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(output).To(ContainSubstring("/mnt/data"), "Mount point /mnt/data should exist")
+		Eventually(func(g Gomega) {
+			output, sshErr := executeSSHCommand(client, "lsblk -o NAME,MOUNTPOINT | grep vdb")
+			g.Expect(sshErr).NotTo(HaveOccurred())
+			g.Expect(output).To(ContainSubstring("/mnt/data"), "Mount point /mnt/data should exist")
+		}, e2eConfig.GetIntervals(specName, "wait-user-data")...).Should(Succeed())
 
 		By("Checking that the disks have the test file")
 		_, err = executeSSHCommand(client, "ls -la /test_file_vda.txt")
@@ -179,7 +185,7 @@ var _ = Describe("Automated cleaning", Label("required", "automated-cleaning"), 
 		defer client.Close()
 
 		By("Checking that the first disk has been cleaned")
-		output, err = executeSSHCommand(client, "ls -la /test_file_vda.txt 2>/dev/null || echo 'file not found'")
+		output, err := executeSSHCommand(client, "ls -la /test_file_vda.txt 2>/dev/null || echo 'file not found'")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(ContainSubstring("file not found"), "Test file /test_file_vda.txt should have been cleaned")
 
@@ -198,23 +204,12 @@ var _ = Describe("Automated cleaning", Label("required", "automated-cleaning"), 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(ContainSubstring("file not found"), "Test file /mnt/data/test_file_vdb.txt should have been cleaned")
 
-		By("Delete BMH")
-		err = clusterProxy.GetClient().Delete(ctx, &bmh)
-		Expect(err).NotTo(HaveOccurred())
-
-		By("Waiting for the BMH to be deleted")
-		WaitForBmhDeleted(ctx, WaitForBmhDeletedInput{
-			Client:    clusterProxy.GetClient(),
-			BmhName:   bmh.Name,
-			Namespace: bmh.Namespace,
-		}, e2eConfig.GetIntervals(specName, "wait-bmh-deleted")...)
 	})
 	AfterEach(func() {
 		CollectSerialLogs(bmc.Name, path.Join(artifactFolder, specName))
 		DumpResources(ctx, e2eConfig, clusterProxy, path.Join(artifactFolder, specName))
 		if !skipCleanup {
-			isNamespaced := e2eConfig.GetBoolVariable("NAMESPACE_SCOPED")
-			Cleanup(ctx, clusterProxy, namespace, cancelWatches, isNamespaced, e2eConfig.GetIntervals("default", "wait-namespace-deleted")...)
+			Cleanup(ctx, clusterProxy, namespace, cancelWatches, e2eConfig, toCleanup)
 		}
 	})
 })
