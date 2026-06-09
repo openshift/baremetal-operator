@@ -2456,6 +2456,7 @@ func TestGetPreprovImageCreateUpdate(t *testing.T) {
 	assert.Equal(t, "x86_64", img.Spec.Architecture)
 	assert.Equal(t, secretName, img.Spec.NetworkDataName)
 	assert.Equal(t, "42", img.Labels["answer.metal3.io"])
+	assert.Contains(t, img.Finalizers, preprovisioningImageFinalizer)
 
 	newSecretName := "new_net_secret"
 	host.Spec.PreprovisioningNetworkDataName = newSecretName
@@ -2481,8 +2482,9 @@ func TestGetPreprovImage(t *testing.T) {
 	acceptFormats := []metal3api.ImageFormat{metal3api.ImageFormatISO, metal3api.ImageFormatInitRD}
 	image := &metal3api.PreprovisioningImage{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      host.Name,
-			Namespace: namespace,
+			Name:       host.Name,
+			Namespace:  namespace,
+			Finalizers: []string{preprovisioningImageFinalizer},
 		},
 		Spec: metal3api.PreprovisioningImageSpec{
 			Architecture:  "x86_64",
@@ -2548,6 +2550,123 @@ func TestGetPreprovImageNotCurrent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, imgData)
 }
+
+func TestGetPreprovImageBeingDeleted(t *testing.T) {
+	host := newDefaultHost(t)
+	imageURL := "http://example.test/image.iso"
+	acceptFormats := []metal3api.ImageFormat{metal3api.ImageFormatISO, metal3api.ImageFormatInitRD}
+	now := metav1.Now()
+	image := &metal3api.PreprovisioningImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              host.Name,
+			Namespace:         namespace,
+			DeletionTimestamp: &now, // PPI is being deleted
+			Finalizers:        []string{"test-finalizer"},
+		},
+		Spec: metal3api.PreprovisioningImageSpec{
+			Architecture:  "x86_64",
+			AcceptFormats: acceptFormats,
+		},
+		Status: metal3api.PreprovisioningImageStatus{
+			Architecture: "x86_64",
+			Format:       metal3api.ImageFormatISO,
+			ImageUrl:     imageURL,
+			Conditions: []metav1.Condition{
+				{
+					Type:   string(metal3api.ConditionImageReady),
+					Status: metav1.ConditionTrue,
+				},
+				{
+					Type:   string(metal3api.ConditionImageError),
+					Status: metav1.ConditionFalse,
+				},
+			},
+		},
+	}
+	r := newTestReconciler(host, image)
+	i := makeReconcileInfo(host)
+
+	// Even though the image is ready, it should be treated as unavailable
+	// because it has a DeletionTimestamp
+	imgData, err := r.getPreprovImage(i, acceptFormats)
+	require.NoError(t, err)
+	assert.Nil(t, imgData)
+}
+
+func TestGetPreprovImageBeingDeletedWithFinalizer(t *testing.T) {
+	host := newDefaultHost(t)
+	imageURL := "http://example.test/image.iso"
+	acceptFormats := []metal3api.ImageFormat{metal3api.ImageFormatISO, metal3api.ImageFormatInitRD}
+	now := metav1.Now()
+	arch := "x86_64"
+	image := &metal3api.PreprovisioningImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              host.Name,
+			Namespace:         namespace,
+			DeletionTimestamp: &now,
+			Finalizers:        []string{preprovisioningImageFinalizer},
+		},
+		Spec: metal3api.PreprovisioningImageSpec{
+			Architecture:  arch,
+			AcceptFormats: acceptFormats,
+		},
+		Status: metal3api.PreprovisioningImageStatus{
+			Architecture: arch,
+			Format:       metal3api.ImageFormatISO,
+			ImageUrl:     imageURL,
+			Conditions: []metav1.Condition{
+				{
+					Type:   string(metal3api.ConditionImageReady),
+					Status: metav1.ConditionTrue,
+				},
+				{
+					Type:   string(metal3api.ConditionImageError),
+					Status: metav1.ConditionFalse,
+				},
+			},
+		},
+	}
+	r := newTestReconciler(host, image)
+	i := makeReconcileInfo(host)
+
+	imgData, err := r.getPreprovImage(i, acceptFormats)
+	require.NoError(t, err)
+	assert.NotNil(t, imgData)
+	assert.Equal(t, imageURL, imgData.ImageURL)
+	assert.Equal(t, metal3api.ImageFormatISO, imgData.Format)
+}
+
+func TestGetPreprovImageAddsFinalizerToExisting(t *testing.T) {
+	host := newDefaultHost(t)
+	arch := "x86_64"
+	acceptFormats := []metal3api.ImageFormat{metal3api.ImageFormatISO}
+	image := &metal3api.PreprovisioningImage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      host.Name,
+			Namespace: namespace,
+		},
+		Spec: metal3api.PreprovisioningImageSpec{
+			Architecture:  arch,
+			AcceptFormats: acceptFormats,
+		},
+	}
+	r := newTestReconciler(host, image)
+	i := makeReconcileInfo(host)
+
+	// First call adds the finalizer and returns nil (triggers requeue)
+	imgData, err := r.getPreprovImage(i, acceptFormats)
+	require.NoError(t, err)
+	assert.Nil(t, imgData)
+
+	// Verify finalizer was added
+	img := metal3api.PreprovisioningImage{}
+	require.NoError(t, r.Client.Get(context.TODO(), client.ObjectKey{
+		Name:      host.Name,
+		Namespace: host.Namespace,
+	}, &img))
+	assert.Contains(t, img.Finalizers, preprovisioningImageFinalizer)
+}
+
 
 func TestPreprovImageAvailable(t *testing.T) {
 	host := newDefaultHost(t)
