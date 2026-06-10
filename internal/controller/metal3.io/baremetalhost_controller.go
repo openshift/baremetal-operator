@@ -39,6 +39,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -73,12 +74,13 @@ type BareMetalHostReconciler struct {
 // Instead of passing a zillion arguments to the action of a phase,
 // hold them in a struct.
 type reconcileInfo struct {
-	log               logr.Logger
-	host              *metal3api.BareMetalHost
-	request           ctrl.Request
-	bmcCredsSecret    *corev1.Secret
-	events            []corev1.Event
-	postSaveCallbacks []func()
+	log                              logr.Logger
+	host                             *metal3api.BareMetalHost
+	request                          ctrl.Request
+	bmcCredsSecret                   *corev1.Secret
+	preprovisioningNetworkDataSecret *corev1.Secret
+	events                           []corev1.Event
+	postSaveCallbacks                []func()
 }
 
 // match the provisioner.EventPublisher interface.
@@ -207,12 +209,29 @@ func (r *BareMetalHostReconciler) Reconcile(ctx context.Context, request ctrl.Re
 		}
 	}
 
+	var preprovisioningNetworkDataSecret *corev1.Secret
+	if host.Spec.PreprovisioningNetworkDataName != "" &&
+		host.Status.Provisioning.State != metal3api.StateNone &&
+		host.Status.Provisioning.State != metal3api.StateUnmanaged {
+		preprovisioningNetworkDataSecret, err = r.acquirePreprovisioningNetworkDataSecret(ctx, host)
+		if err != nil {
+			if hostInDeletionFlow(host) && k8serrors.IsNotFound(err) {
+				preprovisioningNetworkDataSecret = &corev1.Secret{}
+			} else if !hostInDeletionFlow(host) {
+				reqLogger.Info("failed to acquire preprovisioning network data secret", "error", err)
+			} else {
+				return ctrl.Result{}, fmt.Errorf("failed to acquire preprovisioning network data secret during deletion: %w", err)
+			}
+		}
+	}
+
 	initialState := host.Status.Provisioning.State
 	info := &reconcileInfo{
-		log:            reqLogger.WithValues("provisioningState", initialState),
-		host:           host,
-		request:        request,
-		bmcCredsSecret: bmcCredsSecret,
+		log:                              reqLogger.WithValues("provisioningState", initialState),
+		host:                             host,
+		request:                          request,
+		bmcCredsSecret:                   bmcCredsSecret,
+		preprovisioningNetworkDataSecret: preprovisioningNetworkDataSecret,
 	}
 
 	prov, err := r.ProvisionerFactory.NewProvisioner(ctx, provisioner.BuildHostData(*host, *bmcCreds), info.publishEvent)
@@ -574,6 +593,13 @@ func (r *BareMetalHostReconciler) actionDeleting(ctx context.Context, prov provi
 		return actionError{err}
 	}
 
+	if info.preprovisioningNetworkDataSecret != nil && info.preprovisioningNetworkDataSecret.Name != "" {
+		err = secretManager.ReleaseSecret(ctx, info.preprovisioningNetworkDataSecret)
+		if err != nil {
+			return actionError{err}
+		}
+	}
+
 	if controllerutil.RemoveFinalizer(info.host, metal3api.BareMetalHostFinalizer) {
 		info.log.Info("cleanup is complete, removed finalizer",
 			"remaining", info.host.Finalizers)
@@ -872,7 +898,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 	}
 	preprovisioningNetworkData, err := hostConf.PreprovisioningNetworkData(ctx)
 	if err != nil {
-		return recordActionFailure(info, metal3api.RegistrationError, "failed to read preprovisioningNetworkData")
+		return recordActionFailure(info, metal3api.RegistrationError, fmt.Sprintf("failed to read preprovisioningNetworkData: %v", err))
 	}
 
 	openShiftNoAgentPowerOff := info.host.Annotations["baremetal.openshift.io/disable-agent-power-off"] == "true"
@@ -954,7 +980,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		} else {
 			if err = r.createHostFirmwareSettings(ctx, info); err != nil {
 				info.log.Info("failed creating hostfirmwaresettings")
-				return actionError{fmt.Errorf("failed to validate BMC access: %w", err)}
+				return actionError{fmt.Errorf("failed to create or update hostFirmwareSettings: %w", err)}
 			}
 			if supportsFirmwareComponents {
 				if err = r.createHostFirmwareComponents(ctx, info); err != nil {
@@ -2091,8 +2117,8 @@ func (r *BareMetalHostReconciler) createHostFirmwareSettings(ctx context.Context
 			hfs.Spec.Settings = make(metal3api.DesiredSettingsMap)
 
 			// Set bmh as owner, this makes sure the resource is deleted when bmh is deleted
-			if err = controllerutil.SetControllerReference(info.host, hfs, r.Scheme()); err != nil {
-				return fmt.Errorf("could not set bmh as controller: %w", err)
+			if err = controllerutil.SetOwnerReference(info.host, hfs, r.Scheme()); err != nil {
+				return fmt.Errorf("could not set bmh as owner: %w", err)
 			}
 			if err = r.Create(ctx, hfs); err != nil {
 				return fmt.Errorf("failure creating hostFirmwareSettings resource: %w", err)
@@ -2102,6 +2128,15 @@ func (r *BareMetalHostReconciler) createHostFirmwareSettings(ctx context.Context
 		} else {
 			// Error reading the object
 			return fmt.Errorf("could not load hostFirmwareSettings resource: %w", err)
+		}
+	}
+
+	if !ownerReferenceExists(info.host, hfs) {
+		if err := controllerutil.SetOwnerReference(info.host, hfs, r.Scheme()); err != nil {
+			return fmt.Errorf("could not set bmh as owner for hostFirmwareSettings: %w", err)
+		}
+		if err := r.Update(ctx, hfs); err != nil {
+			return fmt.Errorf("failure updating hostFirmwareSettings resource: %w", err)
 		}
 	}
 
@@ -2417,6 +2452,22 @@ func (r *BareMetalHostReconciler) getBMCSecretAndSetOwner(ctx context.Context, r
 	}
 
 	return bmcCredsSecret, nil
+}
+
+// acquirePreprovisioningNetworkDataSecret claims the Secret referenced by
+// spec.preprovisioningNetworkDataName with a finalizer so it is not removed
+// before the host finishes deletion. Callers must ensure
+// spec.preprovisioningNetworkDataName is set.
+func (r *BareMetalHostReconciler) acquirePreprovisioningNetworkDataSecret(ctx context.Context, host *metal3api.BareMetalHost) (*corev1.Secret, error) {
+	secretManager := r.secretManager(ctx, r.Log.WithValues(
+		"baremetalhost", types.NamespacedName{Namespace: host.Namespace, Name: host.Name},
+	))
+	key := types.NamespacedName{
+		Name:      host.Spec.PreprovisioningNetworkDataName,
+		Namespace: host.Namespace,
+	}
+
+	return secretManager.ObtainSecretWithFinalizer(ctx, key, host.Status.Provisioning.State != metal3api.StateDeleting)
 }
 
 // getImageAuthSecret validates and extracts the OCI registry credentials for the image.

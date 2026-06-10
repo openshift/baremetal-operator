@@ -12,22 +12,24 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api/test/framework"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("basic", Label("required", "basic"), func() {
 	var (
 		specName      = "basic-ops"
-		secretName    = "bmc-credentials"
 		namespace     *corev1.Namespace
 		cancelWatches context.CancelFunc
+		toCleanup     []client.Object
 	)
 	const (
 		rebootAnnotation   = "reboot.metal3.io"
 		poweroffAnnotation = "reboot.metal3.io/poweroff"
 	)
 	BeforeEach(func() {
+		toCleanup = nil
 		namespace, cancelWatches = framework.CreateNamespaceAndWatchEvents(ctx, framework.CreateNamespaceAndWatchEventsInput{
 			Creator:             clusterProxy.GetClient(),
 			ClientSet:           clusterProxy.GetClientSet(),
@@ -43,7 +45,8 @@ var _ = Describe("basic", Label("required", "basic"), func() {
 			"username": bmc.User,
 			"password": bmc.Password,
 		}
-		CreateSecret(ctx, clusterProxy.GetClient(), namespace.Name, secretName, bmcCredentialsData)
+		secret := CreateSecret(ctx, clusterProxy.GetClient(), namespace.Name, "bmc-credentials", bmcCredentialsData)
+		toCleanup = append(toCleanup, secret)
 
 		By("creating a BMH")
 		bmh := metal3api.BareMetalHost{
@@ -67,6 +70,7 @@ var _ = Describe("basic", Label("required", "basic"), func() {
 		}
 		err := clusterProxy.GetClient().Create(ctx, &bmh)
 		Expect(err).NotTo(HaveOccurred())
+		toCleanup = append(toCleanup, &bmh)
 
 		By("waiting for the BMH to become available")
 		WaitForBmhInProvisioningState(ctx, WaitForBmhInProvisioningStateInput{
@@ -76,7 +80,7 @@ var _ = Describe("basic", Label("required", "basic"), func() {
 		}, e2eConfig.GetIntervals(specName, "wait-available")...)
 
 		By("setting the reboot annotation and checking that the BMH was rebooted")
-		AnnotateBmh(ctx, clusterProxy.GetClient(), bmh, rebootAnnotation, pointer.String("{\"force\": true}"))
+		AnnotateBmh(ctx, clusterProxy.GetClient(), bmh, rebootAnnotation, ptr.To("{\"force\": true}"))
 
 		WaitForBmhInPowerState(ctx, WaitForBmhInPowerStateInput{
 			Client: clusterProxy.GetClient(),
@@ -91,7 +95,7 @@ var _ = Describe("basic", Label("required", "basic"), func() {
 		}, e2eConfig.GetIntervals(specName, "wait-power-state")...)
 
 		By("setting the power off annotation on the BMH and checking that it worked")
-		AnnotateBmh(ctx, clusterProxy.GetClient(), bmh, poweroffAnnotation, pointer.String("{\"force\": true}"))
+		AnnotateBmh(ctx, clusterProxy.GetClient(), bmh, poweroffAnnotation, ptr.To("{\"force\": true}"))
 
 		WaitForBmhInPowerState(ctx, WaitForBmhInPowerStateInput{
 			Client: clusterProxy.GetClient(),
@@ -109,24 +113,13 @@ var _ = Describe("basic", Label("required", "basic"), func() {
 			State:  PoweredOn,
 		}, e2eConfig.GetIntervals(specName, "wait-power-state")...)
 
-		By("Delete BMH")
-		err = clusterProxy.GetClient().Delete(ctx, &bmh)
-		Expect(err).NotTo(HaveOccurred())
-
-		By("Waiting for the BMH to be deleted")
-		WaitForBmhDeleted(ctx, WaitForBmhDeletedInput{
-			Client:    clusterProxy.GetClient(),
-			BmhName:   bmh.Name,
-			Namespace: bmh.Namespace,
-		}, e2eConfig.GetIntervals(specName, "wait-bmh-deleted")...)
 	})
 
 	AfterEach(func() {
 		CollectSerialLogs(bmc.Name, path.Join(artifactFolder, specName))
 		DumpResources(ctx, e2eConfig, clusterProxy, path.Join(artifactFolder, specName))
 		if !skipCleanup {
-			isNamespaced := e2eConfig.GetBoolVariable("NAMESPACE_SCOPED")
-			Cleanup(ctx, clusterProxy, namespace, cancelWatches, isNamespaced, e2eConfig.GetIntervals("default", "wait-namespace-deleted")...)
+			Cleanup(ctx, clusterProxy, namespace, cancelWatches, e2eConfig, toCleanup)
 		}
 	})
 })

@@ -4,10 +4,13 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 
 	vbmctlapi "github.com/metal3-io/baremetal-operator/test/vbmctl/pkg/api"
+	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v2"
 )
 
@@ -71,6 +74,27 @@ const (
 
 	// DefaultImageServerContainerName is the default container name for the image server.
 	DefaultImageServerContainerName = "vbmctl-image-server"
+
+	// DefaultBMCEmulatorType is the default BMC emulator type.
+	DefaultBMCEmulatorType = BMCEmulatorTypeVBMC
+
+	// DefaultBMCEmulatorVBMCImage is the default container image for the VBMC BMC emulator.
+	DefaultBMCEmulatorVBMCImage = "quay.io/metal3-io/vbmc"
+
+	// DefaultBMCEmulatorSushyToolsImage is the default container image for the sushy-tools BMC emulator.
+	DefaultBMCEmulatorSushyToolsImage = "quay.io/metal3-io/sushy-tools:latest"
+
+	// DefaultBMCEmulatorSushyToolsListenPort is the default listen port for the sushy-tools BMC emulator.
+	DefaultBMCEmulatorSushyToolsListenPort = 8000
+)
+
+// BMC emulator types.
+const (
+	// BMC emulator type: vbmc.
+	BMCEmulatorTypeVBMC = "vbmc"
+
+	// BMC emulator type: sushy-tools.
+	BMCEmulatorTypeSushyTools = "sushy-tools"
 )
 
 // Config is the top-level configuration for vbmctl.
@@ -96,11 +120,20 @@ type Spec struct {
 	// VMs is a list of VM configurations to create.
 	VMs []vbmctlapi.VMConfig `json:"vms,omitempty" yaml:"vms,omitempty"`
 
-	// Networks is a list of network configurations to create.
+	// Networks is a list of libvirt network configurations to create.
 	Networks []vbmctlapi.NetworkConfig `json:"networks,omitempty" yaml:"networks,omitempty"`
 
 	// ImageServer contains configuration for the image server.
 	ImageServer *vbmctlapi.ImageServerConfig `json:"imageServer,omitempty" yaml:"imageServer,omitempty"`
+
+	// BMCEmulator contains configuration for the BMC emulator.
+	BMCEmulator *vbmctlapi.BMCEmulatorConfig `json:"bmcEmulator,omitempty" yaml:"bmcEmulator,omitempty"`
+
+	// VethPairs is a list of interfaces that should be connected with a veth-pair.
+	VethPairs []vbmctlapi.VethPair `json:"vethPairs,omitempty" yaml:"vethPairs,omitempty"`
+
+	// DockerNetworks is a list of docker network that should be present
+	DockerNetworks []vbmctlapi.DockerBridgeNetwork `json:"dockerNetworks,omitempty" yaml:"dockerNetworks,omitempty"`
 }
 
 // LibvirtConfig contains libvirt connection settings.
@@ -253,6 +286,86 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Validate BMC emulator config
+	if c.Spec.BMCEmulator != nil {
+		if c.Spec.BMCEmulator.Type == "" {
+			return errors.New("BMC emulator type is required")
+		}
+		if c.Spec.BMCEmulator.Type != BMCEmulatorTypeVBMC && c.Spec.BMCEmulator.Type != BMCEmulatorTypeSushyTools {
+			return fmt.Errorf("unsupported BMC emulator type: %s", c.Spec.BMCEmulator.Type)
+		}
+		if c.Spec.BMCEmulator.Image == "" {
+			return errors.New("BMC emulator container image is required")
+		}
+		if c.Spec.BMCEmulator.Type == BMCEmulatorTypeSushyTools {
+			if c.Spec.BMCEmulator.ListenAddress == "" && c.Spec.BMCEmulator.ConfigFile == "" {
+				return errors.New("either listen address or config file must be specified for sushy-tools BMC emulator")
+			}
+			if c.Spec.BMCEmulator.ListenPort == 0 && c.Spec.BMCEmulator.ConfigFile == "" {
+				return errors.New("either listen port or config file must be specified for sushy-tools BMC emulator")
+			}
+		}
+	}
+
+	// Validate libvirt network config
+	for _, network := range c.Spec.Networks {
+		if network.Name == "" {
+			return errors.New("name is required for libvirt network")
+		}
+
+		if network.Bridge != "" {
+			if len(network.Bridge) > unix.IFNAMSIZ-1 {
+				return fmt.Errorf("too long bridgename for libvirt network %s", network.Name)
+			}
+		}
+
+		if network.Address != "" {
+			addr, err := netip.ParseAddr(network.Address)
+			if err != nil {
+				return fmt.Errorf("malformed libvirt network address: %w", err)
+			}
+			if !addr.Is4() {
+				return fmt.Errorf("libvirt network address must be an IPv4 address: %s", network.Address)
+			}
+		}
+
+		if network.Netmask != "" {
+			ip := net.ParseIP(network.Netmask)
+			if ip == nil {
+				return fmt.Errorf("malformed libvirt netmask: %s", ip)
+			}
+			m := net.IPMask(ip.To4())
+			ones, zeros := m.Size()
+			if ones == 0 && zeros == 0 {
+				return fmt.Errorf("malformed libvirt netmask: %s", ip)
+			}
+		}
+	}
+
+	// Validate Docker network configs
+	for _, network := range c.Spec.DockerNetworks {
+		if network.Name == "" {
+			return errors.New("name is required for Docker network")
+		}
+
+		if network.BridgeName == "" {
+			return errors.New("BridgeName is required for Docker network")
+		}
+		if len(network.BridgeName) > unix.IFNAMSIZ-1 {
+			return fmt.Errorf("too long bridgename for Docker network %s", network.Name)
+		}
+
+		if network.Subnet == "" {
+			return errors.New("subnet is required for Docker network")
+		}
+		if network.Subnet != "" {
+			_, _, err := net.ParseCIDR(network.Subnet)
+			if err != nil {
+				return errors.New("malformed docker subnet")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -295,6 +408,46 @@ func (c *Config) ApplyDefaults() {
 		}
 		if c.Spec.ImageServer.ContainerName == "" {
 			c.Spec.ImageServer.ContainerName = DefaultImageServerContainerName
+		}
+	}
+
+	// Apply BMC emulator defaults
+	if c.Spec.BMCEmulator != nil {
+		if c.Spec.BMCEmulator.Type == "" {
+			c.Spec.BMCEmulator.Type = DefaultBMCEmulatorType
+		}
+		if c.Spec.BMCEmulator.Image == "" {
+			switch c.Spec.BMCEmulator.Type {
+			case BMCEmulatorTypeVBMC:
+				c.Spec.BMCEmulator.Image = DefaultBMCEmulatorVBMCImage
+			case BMCEmulatorTypeSushyTools:
+				c.Spec.BMCEmulator.Image = DefaultBMCEmulatorSushyToolsImage
+			default:
+				// If the type is unrecognized, we won't set a default image
+			}
+		}
+		if c.Spec.BMCEmulator.Type == BMCEmulatorTypeSushyTools {
+			if c.Spec.BMCEmulator.ListenPort == 0 && c.Spec.BMCEmulator.ConfigFile == "" {
+				c.Spec.BMCEmulator.ListenPort = DefaultBMCEmulatorSushyToolsListenPort
+			}
+			if c.Spec.BMCEmulator.ListenAddress == "" && c.Spec.BMCEmulator.ConfigFile == "" {
+				c.Spec.BMCEmulator.ListenAddress = DefaultNetworkAddress
+			}
+		}
+		// Set storage pool and libvirt URI for BMC emulator to match the main config
+		c.Spec.BMCEmulator.StoragePool = c.Spec.Pool.Name
+		c.Spec.BMCEmulator.LibvirtURI = c.Spec.Libvirt.URI
+	}
+
+	if len(c.Spec.Networks) > 0 {
+		for i, net := range c.Spec.Networks {
+			c.Spec.Networks[i] = net.Defaults()
+		}
+	}
+
+	if len(c.Spec.DockerNetworks) > 0 {
+		for i, net := range c.Spec.DockerNetworks {
+			c.Spec.DockerNetworks[i] = net.Defaults()
 		}
 	}
 }

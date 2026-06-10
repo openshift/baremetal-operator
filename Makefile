@@ -4,7 +4,7 @@ GO_TEST_FLAGS = $(TEST_FLAGS)
 DEBUG = --debug
 COVER_PROFILE = cover.out
 GO := $(shell type -P go)
-GO_VERSION ?= 1.25.9
+GO_VERSION ?= 1.25.11
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -253,7 +253,7 @@ manifests: manifests-generate manifests-kustomize ## Generate manifests e.g. CRD
 
 .PHONY: manifests-generate
 manifests-generate: $(CONTROLLER_GEN)
-	cd apis; $(abspath $<) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:webhook:dir=../config/base/webhook/ output:crd:artifacts:config=../config/base/crds/bases
+	cd internal/webhooks; $(abspath $<) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:webhook:dir=../../config/base/webhook/ output:crd:artifacts:config=../../config/base/crds/bases
 	$< rbac:roleName=manager-role paths="./..." output:rbac:artifacts:config=config/base/rbac
 
 .PHONY: manifests-kustomize

@@ -26,6 +26,7 @@ import (
 	irsov1alpha1 "github.com/metal3-io/ironic-standalone-operator/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	gomegatypes "github.com/onsi/gomega/types"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/apps/v1"
@@ -288,6 +289,47 @@ func DeleteBmhsInNamespace(ctx context.Context, deleter client.Client, namespace
 	Expect(err).NotTo(HaveOccurred(), "Unable to delete BMHs")
 }
 
+// CleanupBMH deletes the given BMH and waits for it to be fully removed.
+// If the BMH has no name set (i.e. it was never created), it is a no-op.
+// This function is safe to use when tests run in parallel and share a namespace,
+// because it only deletes the specific BMH that belongs to the current test.
+func CleanupBMH(ctx context.Context, cl client.Client, bmh *metal3api.BareMetalHost, intervals ...interface{}) {
+	if bmh.Name == "" {
+		return
+	}
+	Logf("Cleaning up BMH %s/%s", bmh.Namespace, bmh.Name)
+	err := cl.Delete(ctx, bmh)
+	if err != nil && !k8serrors.IsNotFound(err) {
+		Expect(err).NotTo(HaveOccurred(), "Unable to delete BMH %s/%s", bmh.Namespace, bmh.Name)
+	}
+	WaitForBmhDeleted(ctx, WaitForBmhDeletedInput{
+		Client:    cl,
+		BmhName:   bmh.Name,
+		Namespace: bmh.Namespace,
+	}, intervals...)
+}
+
+// DeleteSecretIfExists deletes the named secret from the given namespace if it exists.
+// If the secret does not exist, this is a no-op. It is used to clean up BMC
+// credentials secrets in namespace-scoped runs where the namespace is reused
+// between test runs, to prevent CreateSecret from failing on the next run.
+func DeleteSecretIfExists(ctx context.Context, cl client.Client, namespace, name string) {
+	if name == "" {
+		return
+	}
+	secret := &corev1.Secret{}
+	err := cl.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, secret)
+	if k8serrors.IsNotFound(err) {
+		return
+	}
+	Expect(err).NotTo(HaveOccurred(), "Unable to look up secret %s/%s", namespace, name)
+	err = cl.Delete(ctx, secret)
+	if err != nil && !k8serrors.IsNotFound(err) {
+		Expect(err).NotTo(HaveOccurred(), "Unable to delete secret %s/%s", namespace, name)
+	}
+	Logf("Deleted secret %s/%s", namespace, name)
+}
+
 // WaitForBmhDeletedInput is the input for WaitForBmhDeleted.
 type WaitForBmhDeletedInput struct {
 	Client          client.Client
@@ -337,9 +379,22 @@ func WaitForNamespaceDeleted(ctx context.Context, input WaitForNamespaceDeletedI
 	}, intervals...).Should(BeTrue())
 }
 
-func Cleanup(ctx context.Context, clusterProxy framework.ClusterProxy, namespace *corev1.Namespace, cancelWatches context.CancelFunc, isNamespaced bool, intervals ...interface{}) {
-	// Due to limitation in controller runtime watched namespaces cannot be deleted
-	if !isNamespaced {
+// Cleanup cleans up resources created by a test. It should only be called when
+// skipCleanup is false. For cluster-scoped BMO (NAMESPACE_SCOPED=false), the entire
+// namespace is deleted, which implicitly removes all resources including BMHs and
+// secrets. For namespace-scoped BMO (NAMESPACE_SCOPED=true), the namespace is shared
+// across tests and must not be deleted; instead, we delete the objects in toCleanup
+// so that subsequent runs can start clean.
+// cancelWatches stops the namespace event watcher in both cases.
+func Cleanup(ctx context.Context, clusterProxy framework.ClusterProxy, namespace *corev1.Namespace, cancelWatches context.CancelFunc, cfg *Config, toCleanup []client.Object) {
+	if namespace == nil {
+		// The test was likely skipped before the namespace was created.
+		return
+	}
+
+	if !cfg.GetBoolVariable("NAMESPACE_SCOPED") {
+		// When not namespace-scoped, we can delete the whole namespace which
+		// takes care of all remaining resources.
 		// Trigger deletion of BMHs before deleting the namespace.
 		// This way there should be no risk of BMO getting stuck trying to progress
 		// and create HardwareDetails or similar, while the namespace is terminating.
@@ -351,9 +406,23 @@ func Cleanup(ctx context.Context, clusterProxy framework.ClusterProxy, namespace
 		WaitForNamespaceDeleted(ctx, WaitForNamespaceDeletedInput{
 			Getter:    clusterProxy.GetClient(),
 			Namespace: *namespace,
-		}, intervals...)
+		}, cfg.GetIntervals("default", "wait-namespace-deleted")...)
+	} else {
+		// When namespace-scoped, the namespace is reused between tests; clean up
+		// individual resources to allow the next run to start clean.
+		for _, obj := range toCleanup {
+			if bmh, ok := obj.(*metal3api.BareMetalHost); ok {
+				CleanupBMH(ctx, clusterProxy.GetClient(), bmh, cfg.GetIntervals("default", "wait-bmh-deleted")...)
+			} else {
+				if err := clusterProxy.GetClient().Delete(ctx, obj); err != nil && !k8serrors.IsNotFound(err) {
+					Expect(err).NotTo(HaveOccurred(), "Unable to delete %T %s/%s", obj, obj.GetNamespace(), obj.GetName())
+				}
+			}
+		}
 	}
-	cancelWatches()
+	if cancelWatches != nil {
+		cancelWatches()
+	}
 }
 
 type WaitForBmhInPowerStateInput struct {
@@ -381,8 +450,8 @@ func BuildKustomizeManifest(source string) ([]byte, error) {
 	return resources.AsYaml()
 }
 
-func CreateSecret(ctx context.Context, client client.Client, secretNamespace, secretName string, data map[string]string) {
-	secret := corev1.Secret{
+func CreateSecret(ctx context.Context, cl client.Client, secretNamespace, secretName string, data map[string]string) *corev1.Secret {
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: secretNamespace,
@@ -390,7 +459,8 @@ func CreateSecret(ctx context.Context, client client.Client, secretNamespace, se
 		StringData: data,
 	}
 
-	Expect(client.Create(ctx, &secret)).NotTo(HaveOccurred(), fmt.Sprintf("Failed to create secret '%s/%s'", secretNamespace, secretName))
+	Expect(cl.Create(ctx, secret)).NotTo(HaveOccurred(), fmt.Sprintf("Failed to create secret '%s/%s'", secretNamespace, secretName))
+	return secret
 }
 
 func executeSSHCommand(client *ssh.Client, command string) (string, error) {
@@ -535,6 +605,114 @@ func PerformSSHBootCheck(e2eConfig *Config, expectedBootMode string, ipAddress s
 	isExpectedBootMode := (expectedBootMode == "disk" && bootedFromDisk) ||
 		(expectedBootMode == "memory" && !bootedFromDisk)
 	Expect(isExpectedBootMode).To(BeTrue(), fmt.Sprintf("Expected booting from %s, but found different mode", expectedBootMode))
+}
+
+// UsesIPXE returns true if the given BMC address uses iPXE boot
+// (as opposed to virtual media boot). Virtual media addresses contain
+// "virtualmedia" in the protocol prefix.
+func UsesIPXE(bmcAddress string) bool {
+	return !strings.Contains(bmcAddress, "virtualmedia")
+}
+
+// VerifyIronicManagedBoot SSHes into IPA during inspection and checks
+// /proc/cmdline to verify that IPA was booted by an Ironic-managed process
+// (per-node iPXE config or virtual media ISO), not the inspector.ipxe fallback.
+//
+// For iPXE BMCs (IPMI, Redfish), this verifies that the per-node iPXE config
+// (rendered from ipxe_config.template) was used instead of the fallback. The
+// per-node template hardcodes "selinux=0" in the kernel command line, which
+// inspector.ipxe does not include.
+//
+// For virtual media BMCs (Redfish-VirtualMedia), this verifies that IPA
+// booted from the Ironic-managed virtual media ISO by checking for
+// "boot_method=vmedia" in the kernel command line. This parameter is set by
+// Ironic's redfish boot module and is the same signal IPA uses internally
+// to determine it was booted from virtual media.
+//
+// The detection relies on kernel parameters from Ironic's kernel_append_params
+// configuration (e.g. "nofb") which are included in both per-node iPXE configs
+// and virtual media ISOs, but NOT in inspector.ipxe. Additionally, "selinux=0"
+// is hardcoded in the iPXE per-node template but not in kernel_append_params,
+// so its presence confirms iPXE boot and its absence (combined with "nofb")
+// confirms virtual media boot.
+func VerifyIronicManagedBoot(e2eConfig *Config, bmcAddress, ipAddress string) {
+	Logf("Verifying IPA boot source by SSHing into IPA at %s", ipAddress)
+
+	client := EstablishSSHConnection(e2eConfig, ipAddress)
+	defer func() {
+		if client != nil {
+			client.Close()
+		}
+	}()
+
+	output, err := executeSSHCommand(client, "cat /proc/cmdline")
+	Expect(err).NotTo(HaveOccurred(), "Failed to read /proc/cmdline from IPA via SSH")
+
+	cmdline := strings.TrimSpace(output)
+	Logf("IPA kernel command line: %s", cmdline)
+
+	// Sanity check: verify that the custom marker we set in
+	// Ironic.spec.deployRamdisk.extraKernelParams actually made it into
+	// the kernel command line. This confirms that Ironic's kernel parameter
+	// pipeline (extraKernelParams -> IRONIC_KERNEL_PARAMS -> kernel cmdline)
+	// is working correctly. Note that this marker appears in ALL boot paths
+	// (including inspector.ipxe), so it does NOT distinguish managed from
+	// fallback boot — the checks below do that.
+	Expect(cmdline).To(ContainSubstring("bmo-e2e-kernel-params-ok"),
+		"Kernel command line does not contain the custom marker "+
+			"'bmo-e2e-kernel-params-ok' that was set in "+
+			"Ironic.spec.deployRamdisk.extraKernelParams. "+
+			"This indicates a problem with Ironic's kernel parameter pipeline. "+
+			"Full cmdline: %s", cmdline)
+
+	// All Ironic-managed boots (both iPXE per-node config and virtual media ISO)
+	// include kernel parameters from kernel_append_params, which contains "nofb".
+	// The inspector.ipxe fallback does NOT use kernel_append_params, so "nofb" is
+	// absent when IPA boots from the fallback.
+	Expect(cmdline).To(ContainSubstring("nofb"),
+		"Kernel command line does not contain 'nofb'. "+
+			"IPA appears to have booted from the inspector.ipxe fallback "+
+			"instead of an Ironic-managed boot (per-node iPXE or virtual media). "+
+			"Full cmdline: %s", cmdline)
+
+	if UsesIPXE(bmcAddress) {
+		// The per-node iPXE config template (ipxe_config.template) hardcodes
+		// "selinux=0" in the kernel line. This is NOT in kernel_append_params,
+		// so it only appears in iPXE per-node boots.
+		Expect(cmdline).To(ContainSubstring("selinux=0"),
+			"Kernel command line does not contain 'selinux=0'. "+
+				"For an iPXE BMC, IPA should boot from the per-node iPXE config "+
+				"which hardcodes 'selinux=0'. This may indicate a broken "+
+				"ipxe_config.template rendering "+
+				"(see https://github.com/metal3-io/ironic-image/issues/971). "+
+				"Full cmdline: %s", cmdline)
+		Logf("Confirmed: IPA booted from the Ironic per-node iPXE script")
+	} else {
+		// For virtual media, Ironic sets "boot_method=vmedia" in the kernel
+		// command line of the ISO. This is the authoritative signal that IPA
+		// uses to determine it was booted from virtual media (see
+		// ironic_python_agent/utils.py:_booted_from_vmedia()).
+		Expect(cmdline).To(ContainSubstring("boot_method=vmedia"),
+			"kernel command line does not contain 'boot_method=vmedia'. "+
+				"For a virtual media BMC, Ironic should set this parameter "+
+				"in the virtual media ISO kernel command line. "+
+				"This may indicate the machine PXE booted instead of booting "+
+				"from the Ironic-managed virtual media ISO. "+
+				"Full cmdline: %s", cmdline)
+
+		// Additionally, "selinux=0" should NOT be present since it is
+		// only hardcoded in the iPXE per-node template. If it IS present,
+		// it means IPA PXE booted (using someone else's per-node config or
+		// some other iPXE path) instead of booting from the virtual media ISO.
+		Expect(cmdline).NotTo(ContainSubstring("selinux=0"),
+			"Kernel command line contains 'selinux=0' which is only present in "+
+				"the iPXE per-node config template. For a virtual media BMC, "+
+				"IPA should boot from the Ironic-managed virtual media ISO, not "+
+				"from iPXE. This may indicate the machine PXE booted before "+
+				"Ironic attached the virtual media. "+
+				"Full cmdline: %s", cmdline)
+		Logf("Confirmed: IPA booted from the Ironic virtual media ISO")
+	}
 }
 
 // BuildAndApplyKustomizationInput provides input for BuildAndApplyKustomize().
@@ -996,4 +1174,14 @@ func ConfigureProvisioningNetwork(ctx context.Context, clusterName string, provi
 	} else {
 		Logf("Provisioning network configured successfully")
 	}
+}
+
+// ContainCondition is a Gomega matcher for Kubernetes conditions.
+func ContainCondition(conditionType string, conditionStatus metav1.ConditionStatus) gomegatypes.GomegaMatcher {
+	return ContainElement(
+		And(
+			HaveField("Type", conditionType),
+			HaveField("Status", conditionStatus),
+		),
+	)
 }

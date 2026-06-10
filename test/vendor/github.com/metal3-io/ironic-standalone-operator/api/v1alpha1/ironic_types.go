@@ -21,11 +21,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	// ResourceKindConfigMap is the kind for ConfigMap resources.
+	ResourceKindConfigMap = "ConfigMap"
+	// ResourceKindSecret is the kind for Secret resources.
+	ResourceKindSecret = "Secret"
+)
+
 var (
 	VersionLatest = Version{}
+	Version350    = Version{Major: 35, Minor: 0}
 	Version340    = Version{Major: 34, Minor: 0}
 	Version330    = Version{Major: 33, Minor: 0}
-	Version320    = Version{Major: 32, Minor: 0}
 )
 
 // SupportedVersions is a mapping of supported versions to container image tags.
@@ -35,9 +42,9 @@ var (
 // expectations.
 var SupportedVersions = map[Version]string{
 	VersionLatest: "latest",
+	Version350:    "release-35.0",
 	Version340:    "release-34.0",
 	Version330:    "release-33.0",
-	Version320:    "release-32.0",
 }
 
 // Inspection defines inspection settings.
@@ -169,6 +176,33 @@ type Networking struct {
 	RPCPort int32 `json:"rpcPort,omitempty"`
 }
 
+// CPUArchitecture represents a CPU architecture supported by IPA.
+// +kubebuilder:validation:Enum="";x86_64;aarch64
+type CPUArchitecture string
+
+const (
+	ArchX86_64  CPUArchitecture = "x86_64"
+	ArchAarch64 CPUArchitecture = "aarch64"
+)
+
+// AgentImages defines a single IPA (Ironic Python Agent) image configuration.
+type AgentImages struct {
+	// Kernel is the URL of the IPA kernel image.
+	// Supported schemes: file://, http://, https://, oci://.
+	// file:// URLs must use absolute paths (e.g. "file:///shared/html/images/ironic-python-agent.kernel").
+	Kernel string `json:"kernel"`
+
+	// Initramfs is the URL of the IPA initramfs/ramdisk image.
+	// Supported schemes: file://, http://, https://, oci://.
+	// file:// URLs must use absolute paths (e.g. "file:///shared/html/images/ironic-python-agent.initramfs").
+	Initramfs string `json:"initramfs"`
+
+	// Architecture is the target CPU architecture.
+	// When empty, sets the default DEPLOY_KERNEL_URL/DEPLOY_RAMDISK_URL.
+	// +optional
+	Architecture CPUArchitecture `json:"architecture,omitempty"`
+}
+
 // DeployRamdisk defines IPA ramdisk settings.
 type DeployRamdisk struct {
 	// DisableDownloader tells the operator not to start the IPA downloader as the init container.
@@ -188,9 +222,17 @@ type DeployRamdisk struct {
 
 // TLS defines the TLS settings.
 type TLS struct {
+	// BMCCA is a reference to a ConfigMap or Secret containing the CA certificate(s)
+	// to use when validating TLS connections to BMCs.
+	// Supported in Ironic 32.0 or newer.
+	// +optional
+	BMCCA *ResourceReference `json:"bmcCA,omitempty"`
+
 	// BMCCAName is a reference to the secret with the CA certificate(s)
 	// to use when validating TLS connections to BMC's.
 	// Supported in Ironic 32.0 or newer.
+	//
+	// Deprecated: Use BMCCA instead. This field will be removed in a future release.
 	// +optional
 	BMCCAName string `json:"bmcCAName,omitempty"`
 
@@ -199,11 +241,19 @@ type TLS struct {
 	// +optional
 	CertificateName string `json:"certificateName,omitempty"`
 
+	// TrustedCA is a reference to a ConfigMap or Secret containing the CA certificate(s)
+	// to use when validating TLS connections to image servers and other services.
+	// The resource should contain one or more CA certificates in PEM format.
+	// +optional
+	TrustedCA *ResourceReferenceWithKey `json:"trustedCA,omitempty"`
+
 	// TrustedCAName is a reference to the configmap with the CA certificate(s)
 	// to use when validating TLS connections to image servers and other services.
 	// The configmap should contain one or more CA certificates in PEM format.
 	// If the configmap contains multiple keys, only the first key will be used and
 	// a warning will be logged.
+	//
+	// Deprecated: Use TrustedCA instead. This field will be removed in a future release.
 	// +optional
 	TrustedCAName string `json:"trustedCAName,omitempty"`
 
@@ -250,7 +300,6 @@ type Images struct {
 // Warning: modifying arbitrary options may cause your Ironic installation to
 // fail or misbehave. Do not modify anything you don't understand well.
 type ExtraConfig struct {
-
 	// The group that config belongs to.
 	// +optional
 	Group string `json:"group,omitempty"`
@@ -287,10 +336,23 @@ type Overrides struct {
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 
+	// AgentImages overrides the default IPA images with custom per-architecture images.
+	// Consider setting deployRamdisk.disableDownloader=true when using custom images.
+	// +optional
+	AgentImages []AgentImages `json:"agentImages,omitempty"`
+
 	// Containers to append to the main Ironic pod.
 	// If a container name matches an existing container, the existing container is replaced.
 	// +optional
 	Containers []corev1.Container `json:"containers,omitempty"`
+
+	// HttpdLivenessProbe overrides the httpd container liveness probe.
+	// +optional
+	HttpdLivenessProbe *corev1.Probe `json:"httpdLivenessProbe,omitempty"`
+
+	// HttpdReadinessProbe overrides the httpd container readiness probe.
+	// +optional
+	HttpdReadinessProbe *corev1.Probe `json:"httpdReadinessProbe,omitempty"`
 
 	// InitContainers to append to the main Ironic pod.
 	// If a container name matches an existing init container, the existing init container is replaced.
@@ -317,6 +379,17 @@ type PrometheusExporter struct {
 	// When true, configures Ironic to collect sensor data and deploys the
 	// ironic-prometheus-exporter container.
 	Enabled bool `json:"enabled"`
+
+	// BindAddress is the IP address the metrics endpoint listens on.
+	// Defaults to "0.0.0.0" to listen on all interfaces.
+	//
+	// Can be set to a specific IP address (e.g. the provisioning network IP)
+	// to limit exposure to a particular network interface, or to "127.0.0.1"
+	// to restrict access to the local host only (note: this makes
+	// ServiceMonitor-based scraping impossible).
+	// +kubebuilder:default="0.0.0.0"
+	// +optional
+	BindAddress string `json:"bindAddress,omitempty"`
 
 	// SensorCollectionInterval defines how often (in seconds) sensor data
 	// is collected from BMCs using Ironic. Must be at least 60 seconds.

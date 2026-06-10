@@ -49,6 +49,95 @@
 //	    ContainerPort:     80,
 //	})
 //
+// # BMC Emulator Management
+//
+// A BMC emulator container can be provisioned using
+// CreateBMCEmulatorInstance:
+//
+// For the "vbmc" type, only the Image field is required.
+//
+//	err := containers.CreateBMCEmulatorInstance(ctx, &api.BMCEmulatorConfig{
+//	    Type:          "vbmc",
+//	    Image:         "my-vbmc:latest",
+//	})
+//
+// For the "sushy-tools" type, ConfigFile must point to a Sushy-tools configuration
+// file that already exists on the host in which case the configuration file will be
+// bind-mounted into the container.
+//
+//	err := containers.CreateBMCEmulatorInstance(ctx, &api.BMCEmulatorConfig{
+//	    Type:          "sushy-tools",
+//	    Image:         "my-sushy-tools:latest",
+//	    ConfigFile:    "/path/to/existing/config/file",
+//	})
+//
+// Alternatively, if ConfigFile is not specified for the "sushy-tools" type, the
+// ListenAddress and ListenPort fields can be used for configuration.
+//
+//	err := containers.CreateBMCEmulatorInstance(ctx, &api.BMCEmulatorConfig{
+//	    Type:          "sushy-tools",
+//	    Image:         "my-sushy-tools:latest",
+//	    ListenAddress: "1.2.3.4",
+//	    ListenPort:    1234,
+//	})
+//
+// It should be noted that if using command line arguments to configure
+// sushy-tools, the listen address and listen port defaults will be applied if
+// they are not explicitly set. However, default values for listen address and
+// listen port will only be applied if no configuration file is provided. In addition,
+// if both configuration file and command line arguments are provided, the command
+// line arguments will take precedence.
+//
+// Storage pool and libvirt URI are also relevant for sushy-tools and they are set
+// according to the values specified in the vbmctl config.
+//
+// # Container network management
+//
+// Networks can be created using CreateNetwork.
+//
+//	networkOpts := client.NetworkCreateOptions{
+//		Driver:     "bridge",
+//		EnableIPv4: net.IPv4,
+//		EnableIPv6: net.IPv6,
+//		Options: map[string]string{
+//			"com.docker.network.bridge.name": "my-bridge",
+//		},
+//	}
+//
+// createdNetworkID, err := CreateNetwork(ctx, "my-net", &networkOpts)
+//
+// The function checks if the network exists already, and creates it if it does
+// not.
+//
+// Networks can be deleted with DeleteNetwork.
+//
+// err = DeleteNetwork(ctx, networkID, &client.NetworkRemoveOptions{})
+//
+// Currently NetworkRemoveOptions don't contain anything, it is just a
+// placeholder for possible future options.
+//
+// # Bridge network management
+//
+// Bridge network (for Kind) can be created using
+//
+//	networkIDs, err := containers.CreateBridgeNetworks(ctx, []api.DockerBridgeNetwork{{
+//	 	Name: "kind",
+//	 	BridgeName: "kind-bridge",
+//	 	IPv4: ptr.To(true),
+//	 	IPv6: ptr.To(false),
+//	 	Subnet: "fc00:f853:ccd:e793::/64",
+//	 	DriverMtu: 1500,
+//	}})
+//
+// # Bridge network can be deleted using
+//
+//	err = containers.DeleteBridgeNetworks(ctx, []api.DockerBridgeNetwork{{
+//		 	Name: "kind",
+//		}})
+//
+// The deletion uses only the name to look for the network, so the rest can be
+// omitted.
+//
 // # Error Handling
 //
 // All operations return standard Go errors that can be inspected for specific

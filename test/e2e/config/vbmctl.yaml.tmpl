@@ -1,0 +1,56 @@
+apiVersion: vbmctl.metal3.io/v1alpha1
+kind: Config
+spec:
+  libvirt:
+    uri: qemu:///system
+  pool:
+    name: baremetal-e2e
+    path: /tmp/pool_oo
+  vms:
+  - name: bmo-e2e-0
+    memory: 4096
+    vcpus: 2
+    volumes:
+    - name: "1"
+      size: 20
+    - name: "2"
+      size: 20
+    networkAttachments:
+    - network: baremetal-e2e
+      macAddress: "00:60:2f:31:81:01"
+  - name: bmo-e2e-1
+    memory: 4096
+    vcpus: 2
+    volumes:
+    - name: "1"
+      size: 20
+    - name: "2"
+      size: 20
+    networkAttachments:
+    - network: baremetal-e2e
+      macAddress: "00:60:2f:31:81:02"
+  networks:
+  - name: baremetal-e2e
+    bridge: metal3
+    address: 192.168.222.1
+    netmask: 255.255.255.0
+  vethPairs:
+  - link1: metal3
+    link2: kind-bridge
+    veth1: metalend
+    veth2: kindend
+  dockerNetworks:
+  - name: "kind"
+    bridgeName: "kind-bridge"
+    subnet: "fc00:f853:ccd:e793::/64"
+    driverMtu: 1500
+    ipv6: true
+  bmcEmulator:
+    type: "${BMO_E2E_EMULATOR}"
+    image: "${BMO_E2E_IMAGE}"
+    listenAddress: "${IP_ADDRESS}"
+    listenPort: ${BMO_E2E_LISTEN_PORT}
+  imageServer:
+    port: 80
+    dataDir: "${IMAGE_DIR}"
+    containerName: "vbmctl-image-server-e2e"
