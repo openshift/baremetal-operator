@@ -1,6 +1,7 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.26-openshift-5.0 AS builder
 WORKDIR /go/src/github.com/metal3-io/baremetal-operator
 COPY . .
+ENV CGO_ENABLED=1
 RUN make manager
 RUN make tools
 RUN make tools/bin/kustomize
@@ -15,6 +16,8 @@ COPY --from=builder /go/src/github.com/metal3-io/baremetal-operator/bin/baremeta
 COPY --from=builder /go/src/github.com/metal3-io/baremetal-operator/bin/get-hardware-details /
 COPY --from=builder /go/src/github.com/metal3-io/baremetal-operator/bin/make-bm-worker /
 COPY --from=builder /go/src/github.com/metal3-io/baremetal-operator/bin/make-virt-host /
+COPY --from=builder /go/src/github.com/metal3-io/baremetal-operator/bin/ironic-provisioner.so /plugins/ironic-provisioner.so
+COPY --from=builder /go/src/github.com/metal3-io/baremetal-operator/bin/demo-provisioner.so /plugins/demo-provisioner.so
 COPY --from=builder /go/src/github.com/metal3-io/baremetal-operator/manifests /manifests
 
 LABEL io.openshift.release.operator=true

@@ -18,7 +18,6 @@ const (
 	defaultBackoff  = 0.5
 )
 
-
 // actionResult is an interface that encapsulates the result of a Reconcile
 // call, as returned by the action corresponding to the current state.
 type actionResult interface {
