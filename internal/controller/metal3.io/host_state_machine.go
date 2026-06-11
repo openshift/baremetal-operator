@@ -355,7 +355,7 @@ func (hsm *hostStateMachine) ensureRegistered(ctx context.Context, info *reconci
 	case metal3api.StateInspecting:
 		if hsm.Host.InspectionDisabled() {
 			// No need to register if we are not actually going to inspect
-			return
+			return result
 		}
 		fallthrough
 	default:

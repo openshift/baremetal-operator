@@ -1358,8 +1358,8 @@ func TestRegisterDisablePowerOff(t *testing.T) {
 		t.Fatalf("could not create provisioner: %s", err)
 	}
 
-	if _, err := prov.TryInit(t.Context()); err != nil {
-		t.Fatalf("error from TryInit: %s", err)
+	if _, tryInitErr := prov.TryInit(t.Context()); tryInitErr != nil {
+		t.Fatalf("error from TryInit: %s", tryInitErr)
 	}
 	result, _, err := prov.Register(t.Context(), provisioner.ManagementAccessData{DisablePowerOff: true}, false, false)
 	if err != nil {
@@ -1388,8 +1388,8 @@ func TestRegisterDisablePowerOffNotAvail(t *testing.T) {
 		t.Fatalf("could not create provisioner: %s", err)
 	}
 
-	if _, err := prov.TryInit(t.Context()); err != nil {
-		t.Fatalf("error from TryInit: %s", err)
+	if _, tryInitErr := prov.TryInit(t.Context()); tryInitErr != nil {
+		t.Fatalf("error from TryInit: %s", tryInitErr)
 	}
 	result, _, err := prov.Register(t.Context(), provisioner.ManagementAccessData{DisablePowerOff: true}, false, false)
 	if err != nil {
