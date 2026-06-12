@@ -1479,8 +1479,9 @@ func TestRegisterExistingNodeWithHardwareData(t *testing.T) {
 	host.Status.Provisioning.ID = "node-uuid"
 
 	existingNode := nodes.Node{
-		Name: host.Namespace + nameSeparator + host.Name,
-		UUID: "node-uuid",
+		Name:           host.Namespace + nameSeparator + host.Name,
+		UUID:           "node-uuid",
+		ProvisionState: string(nodes.Enroll),
 	}
 
 	// Create HardwareData with NIC information
@@ -1556,17 +1557,14 @@ func TestRegisterExistingNodeWithoutHardwareData(t *testing.T) {
 	host.Status.Provisioning.ID = "node-uuid"
 
 	existingNode := nodes.Node{
-		Name: host.Namespace + nameSeparator + host.Name,
-		UUID: "node-uuid",
+		Name:           host.Namespace + nameSeparator + host.Name,
+		UUID:           "node-uuid",
+		ProvisionState: string(nodes.Enroll),
 	}
 
 	ironic := testserver.NewIronic(t).Node(existingNode).NodeUpdate(nodes.Node{
 		UUID: "node-uuid",
 	})
-
-	// Set up handler to capture port creation
-	createdPorts := []ports.Port{}
-	ironic.Handler("/v1/ports", setupPortHandler(&createdPorts))
 
 	ironic.Start()
 	defer ironic.Stop()
@@ -1584,6 +1582,7 @@ func TestRegisterExistingNodeWithoutHardwareData(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result.ErrorMessage)
 	assert.Equal(t, "node-uuid", provID)
+	assert.NotContains(t, ironic.Requests, "/v1/ports")
 }
 
 // TestRegisterExistingNodeWithEmptyHardwareData ensures registration works when
@@ -1594,8 +1593,9 @@ func TestRegisterExistingNodeWithEmptyHardwareData(t *testing.T) {
 	host.Status.Provisioning.ID = "node-uuid"
 
 	existingNode := nodes.Node{
-		Name: host.Namespace + nameSeparator + host.Name,
-		UUID: "node-uuid",
+		Name:           host.Namespace + nameSeparator + host.Name,
+		UUID:           "node-uuid",
+		ProvisionState: string(nodes.Enroll),
 	}
 
 	// Create HardwareData with no NICs
@@ -1610,10 +1610,6 @@ func TestRegisterExistingNodeWithEmptyHardwareData(t *testing.T) {
 	ironic := testserver.NewIronic(t).Node(existingNode).NodeUpdate(nodes.Node{
 		UUID: "node-uuid",
 	})
-
-	// Set up handler to capture port creation
-	createdPorts := []ports.Port{}
-	ironic.Handler("/v1/ports", setupPortHandler(&createdPorts))
 
 	ironic.Start()
 	defer ironic.Stop()
@@ -1631,6 +1627,65 @@ func TestRegisterExistingNodeWithEmptyHardwareData(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result.ErrorMessage)
 	assert.Equal(t, "node-uuid", provID)
+	assert.NotContains(t, ironic.Requests, "/v1/ports")
+}
+
+// TestRegisterExistingNodeWrongStateForPortCreate ensures ports are not created
+// in transient states.
+func TestRegisterExistingNodeWrongStateForPortCreate(t *testing.T) {
+	host := makeHost()
+	host.Spec.BootMACAddress = "aa:bb:cc:dd:ee:ff"
+	host.Status.Provisioning.ID = "node-uuid"
+
+	existingNode := nodes.Node{
+		Name:           host.Namespace + nameSeparator + host.Name,
+		UUID:           "node-uuid",
+		ProvisionState: string(nodes.Inspecting),
+	}
+
+	// Create HardwareData with NIC information
+	hardwareData := &metal3api.HardwareData{
+		Spec: metal3api.HardwareDataSpec{
+			HardwareDetails: &metal3api.HardwareDetails{
+				NIC: []metal3api.NIC{
+					{
+						MAC: "aa:bb:cc:dd:ee:ff",
+						PXE: true,
+					},
+					{
+						MAC: "11:22:33:44:55:66",
+						PXE: false,
+					},
+					{
+						MAC: "77:88:99:aa:bb:cc",
+						PXE: false,
+					},
+				},
+			},
+		},
+	}
+
+	ironic := testserver.NewIronic(t).Node(existingNode).NodeUpdate(nodes.Node{
+		UUID: "node-uuid",
+	})
+
+	ironic.Start()
+	defer ironic.Stop()
+
+	auth := clients.AuthConfig{Type: clients.NoAuth}
+	prov, err := newProvisionerWithSettings(host, bmc.Credentials{}, nullEventPublisher, ironic.Endpoint(), auth)
+	if err != nil {
+		t.Fatalf("could not create provisioner: %s", err)
+	}
+
+	result, provID, err := prov.Register(t.Context(), provisioner.ManagementAccessData{
+		HardwareData: hardwareData,
+	}, false, false)
+
+	require.NoError(t, err)
+	assert.Empty(t, result.ErrorMessage)
+	assert.Equal(t, "node-uuid", provID)
+	assert.NotContains(t, ironic.Requests, "/v1/ports")
 }
 
 // setupPortHandler is a helper function that creates a port handler for test servers.
@@ -1676,6 +1731,35 @@ func setupPortHandler(createdPorts *[]ports.Port) func(http.ResponseWriter, *htt
 	}
 }
 
+func setupNodeHandlerForRegister(provisionState string) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		var node nodes.Node
+		if err := json.Unmarshal(body, &node); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		node.UUID = "new-node-uuid"
+		node.ProvisionState = provisionState
+
+		response, _ := json.Marshal(node)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write(response)
+	}
+}
+
 // TestRegisterNewNodeWithHardwareData tests the scenario where the Ironic DB is dropped
 // (node not found) and re-enrollment happens via the ironicNode == nil path.
 // This ensures ports are recreated from HardwareData even when the node doesn't exist.
@@ -1709,7 +1793,6 @@ func TestRegisterNewNodeWithHardwareData(t *testing.T) {
 
 	// Track created ports
 	createdPorts := []ports.Port{}
-	var nodeCreated *nodes.Node
 
 	ironic := testserver.NewIronic(t)
 
@@ -1717,35 +1800,12 @@ func TestRegisterNewNodeWithHardwareData(t *testing.T) {
 	ironic.AddDefaultResponse("/v1/nodes/myns"+nameSeparator+"myhost", "GET", http.StatusNotFound, "")
 	ironic.AddDefaultResponse("/v1/nodes/myhost", "GET", http.StatusNotFound, "")
 	// Return OK for PATCH on the new node
-	ironic.AddDefaultResponse("/v1/nodes/new-node-uuid", "PATCH", http.StatusOK, "{\"uuid\": \"new-node-uuid\"}")
+	ironic.AddDefaultResponse("/v1/nodes/new-node-uuid", "PATCH", http.StatusOK,
+		`{"uuid": "new-node-uuid", "provision_state": "enroll"}`)
+	ironic.AddDefaultResponse("/v1/nodes/new-node-uuid/states/provision", "PUT", http.StatusAccepted, "{}")
 
 	// Set up handler for node creation (POST)
-	ironic.Handler("/v1/nodes", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		var node nodes.Node
-		if err := json.Unmarshal(body, &node); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		node.UUID = "new-node-uuid"
-		nodeCreated = &node
-
-		response, _ := json.Marshal(node)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		w.Write(response)
-	})
+	ironic.Handler("/v1/nodes", setupNodeHandlerForRegister(string(nodes.Enroll)))
 
 	// Set up handler to capture port creation
 	ironic.Handler("/v1/ports", setupPortHandler(&createdPorts))
@@ -1766,7 +1826,6 @@ func TestRegisterNewNodeWithHardwareData(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result.ErrorMessage)
 	assert.Equal(t, "new-node-uuid", provID)
-	assert.NotNil(t, nodeCreated, "Node should have been created")
 
 	// Verify that all three ports were created:
 	// - Boot MAC is created during enrollNode
@@ -1816,43 +1875,19 @@ func TestRegisterNewNodeWithoutBootMACButWithHardwareData(t *testing.T) {
 
 	// Track created ports
 	createdPorts := []ports.Port{}
-	var nodeCreated *nodes.Node
 
 	ironic := testserver.NewIronic(t)
 
 	// Return 404 for node lookups (simulating DB drop)
 	ironic.AddDefaultResponse("/v1/nodes/myns"+nameSeparator+"myhost", "GET", http.StatusNotFound, "")
 	ironic.AddDefaultResponse("/v1/nodes/myhost", "GET", http.StatusNotFound, "")
-	// Return OK for PATCH on the new node
-	ironic.AddDefaultResponse("/v1/nodes/new-node-uuid", "PATCH", http.StatusOK, "{\"uuid\": \"new-node-uuid\"}")
+	// Return OK for PATCH on the new node and PUT on its state
+	ironic.AddDefaultResponse("/v1/nodes/new-node-uuid", "PATCH", http.StatusOK,
+		`{"uuid": "new-node-uuid", "provision_state": "enroll"}`)
+	ironic.AddDefaultResponse("/v1/nodes/new-node-uuid/states/provision", "PUT", http.StatusAccepted, "{}")
 
 	// Set up handler for node creation (POST)
-	ironic.Handler("/v1/nodes", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		var node nodes.Node
-		if err := json.Unmarshal(body, &node); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		node.UUID = "new-node-uuid"
-		nodeCreated = &node
-
-		response, _ := json.Marshal(node)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		w.Write(response)
-	})
+	ironic.Handler("/v1/nodes", setupNodeHandlerForRegister(string(nodes.Enroll)))
 
 	// Set up handler to capture port creation
 	ironic.Handler("/v1/ports", setupPortHandler(&createdPorts))
@@ -1873,7 +1908,6 @@ func TestRegisterNewNodeWithoutBootMACButWithHardwareData(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result.ErrorMessage)
 	assert.Equal(t, "new-node-uuid", provID)
-	assert.NotNil(t, nodeCreated, "Node should have been created")
 
 	// Verify that both ports were created from HardwareData
 	// Since no boot MAC is configured, enrollNode doesn't create any ports
