@@ -66,3 +66,5 @@ require (
 )
 
 replace github.com/metal3-io/baremetal-operator/pkg/hardwareutils => ./../pkg/hardwareutils
+
+replace google.golang.org/grpc => github.com/openshift-sustaining/grpc-go v1.75.1-sec.1
