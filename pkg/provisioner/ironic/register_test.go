@@ -1646,7 +1646,7 @@ func setupPortHandler(createdPorts *[]ports.Port) func(http.ResponseWriter, *htt
 			responseData, _ := json.Marshal(response)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write(responseData)
+			_, _ = w.Write(responseData)
 			return
 		}
 
@@ -1673,7 +1673,7 @@ func setupPortHandler(createdPorts *[]ports.Port) func(http.ResponseWriter, *htt
 		response, _ := json.Marshal(port)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		w.Write(response)
+		_, _ = w.Write(response)
 	}
 }
 
@@ -1745,7 +1745,7 @@ func TestRegisterNewNodeWithHardwareData(t *testing.T) {
 		response, _ := json.Marshal(node)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		w.Write(response)
+		_, _ = w.Write(response)
 	})
 
 	// Set up handler to capture port creation
@@ -1852,7 +1852,7 @@ func TestRegisterNewNodeWithoutBootMACButWithHardwareData(t *testing.T) {
 		response, _ := json.Marshal(node)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		w.Write(response)
+		_, _ = w.Write(response)
 	})
 
 	// Set up handler to capture port creation
