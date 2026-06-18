@@ -198,20 +198,20 @@ manifest-lint: ## Run manifest validation
 build: generate manifests manager tools build-e2e ## Build everything
 
 .PHONY: manager
-manager: generate lint ironic-plugin demo-plugin ## Build manager binary and bundled provisioner plugins
+manager: ## Build manager binary
 	go build -ldflags $(LDFLAGS) -o bin/$(OPERATOR_NAME) main.go
 
 .PHONY: run
-run: generate lint manifests ironic-plugin ## Run against the configured Kubernetes cluster in ~/.kube/config
-	PROVISIONER_PLUGIN_DIR=$(BIN_DIR) go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -provisioner=ironic -webhook-port=0 $(RUN_FLAGS)
+run: generate lint manifests ## Run against the configured Kubernetes cluster in ~/.kube/config
+	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -webhook-port=0 $(RUN_FLAGS)
 
 .PHONY: demo
-demo: generate lint manifests demo-plugin ## Run in demo mode
-	PROVISIONER_PLUGIN_DIR=$(BIN_DIR) go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -provisioner=demo -webhook-port=0 $(RUN_FLAGS)
+demo: generate lint manifests ## Run in demo mode
+	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -demo-mode -webhook-port=0 $(RUN_FLAGS)
 
 .PHONY: run-test-mode
 run-test-mode: generate lint manifests ## Run against the configured Kubernetes cluster in ~/.kube/config
-	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -provisioner=fixture -webhook-port=0 $(RUN_FLAGS)
+	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -test-mode -webhook-port=0 $(RUN_FLAGS)
 
 .PHONY: install
 install: $(KUSTOMIZE) manifests ## Install CRDs into a cluster
