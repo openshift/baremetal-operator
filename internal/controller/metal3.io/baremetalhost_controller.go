@@ -59,6 +59,7 @@ const (
 	subResourceNotReadyRetryDelay = time.Second * 60
 	clarifySoftPoweroffFailure    = "Continuing with hard poweroff after soft poweroff fails. More details: "
 	hardwareDataFinalizer         = metal3api.BareMetalHostFinalizer + "/hardwareData"
+	preprovisioningImageFinalizer = metal3api.BareMetalHostFinalizer + "/preprovisioningImage"
 	NotReady                      = "Not ready"
 )
 
@@ -76,6 +77,7 @@ type BareMetalHostReconciler struct {
 type reconcileInfo struct {
 	log                              logr.Logger
 	host                             *metal3api.BareMetalHost
+	hardwareData                     *metal3api.HardwareData
 	request                          ctrl.Request
 	bmcCredsSecret                   *corev1.Secret
 	preprovisioningNetworkDataSecret *corev1.Secret
@@ -149,7 +151,7 @@ func (r *BareMetalHostReconciler) Reconcile(ctx context.Context, request ctrl.Re
 		}
 	}
 
-	hostData, err := r.reconcileHostData(ctx, host, request)
+	hostData, hardwareData, err := r.reconcileHostData(ctx, host, request)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("could not reconcile host data: %w", err)
 	} else if hostData.Requeue {
@@ -229,6 +231,7 @@ func (r *BareMetalHostReconciler) Reconcile(ctx context.Context, request ctrl.Re
 	info := &reconcileInfo{
 		log:                              reqLogger.WithValues("provisioningState", initialState),
 		host:                             host,
+		hardwareData:                     hardwareData,
 		request:                          request,
 		bmcCredsSecret:                   bmcCredsSecret,
 		preprovisioningNetworkDataSecret: preprovisioningNetworkDataSecret,
@@ -236,20 +239,12 @@ func (r *BareMetalHostReconciler) Reconcile(ctx context.Context, request ctrl.Re
 
 	prov, err := r.ProvisionerFactory.NewProvisioner(ctx, provisioner.BuildHostData(*host, *bmcCreds), info.publishEvent)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to create provisioner: %w", err)
-	}
-
-	ready, err := prov.TryInit(ctx)
-	if err != nil || !ready {
-		var msg string
-		if err == nil {
-			msg = NotReady
-		} else {
-			msg = err.Error()
+		if errors.Is(err, provisioner.ErrNotReady) {
+			provisionerNotReady.Inc()
+			reqLogger.Info("provisioner is not ready", "Error", err.Error(), "RequeueAfter", provisionerNotReadyRetryDelay)
+			return ctrl.Result{RequeueAfter: provisionerNotReadyRetryDelay}, nil
 		}
-		provisionerNotReady.Inc()
-		reqLogger.Info("provisioner is not ready", "Error", msg, "RequeueAfter", provisionerNotReadyRetryDelay)
-		return ctrl.Result{Requeue: true, RequeueAfter: provisionerNotReadyRetryDelay}, nil
+		return ctrl.Result{}, fmt.Errorf("failed to create provisioner: %w", err)
 	}
 
 	stateMachine := newHostStateMachine(host, r, prov, haveCreds)
@@ -600,6 +595,20 @@ func (r *BareMetalHostReconciler) actionDeleting(ctx context.Context, prov provi
 		}
 	}
 
+	preprovImage := &metal3api.PreprovisioningImage{}
+	err = r.Get(ctx, client.ObjectKey{Name: info.host.Name, Namespace: info.host.Namespace}, preprovImage)
+	if err == nil {
+		if controllerutil.RemoveFinalizer(preprovImage, preprovisioningImageFinalizer) {
+			info.log.Info("removing finalizer from PreprovisioningImage")
+			err = r.Update(ctx, preprovImage)
+			if err != nil {
+				return actionError{fmt.Errorf("failed to remove PreprovisioningImage finalizer: %w", err)}
+			}
+		}
+	} else if !k8serrors.IsNotFound(err) {
+		return actionError{fmt.Errorf("failed to get PreprovisioningImage: %w", err)}
+	}
+
 	if controllerutil.RemoveFinalizer(info.host, metal3api.BareMetalHostFinalizer) {
 		info.log.Info("cleanup is complete, removed finalizer",
 			"remaining", info.host.Finalizers)
@@ -789,6 +798,9 @@ func (r *BareMetalHostReconciler) getPreprovImage(ctx context.Context, info *rec
 				Name:      key.Name,
 				Namespace: key.Namespace,
 				Labels:    info.host.Labels,
+				Finalizers: []string{
+					preprovisioningImageFinalizer,
+				},
 			},
 			Spec: expectedSpec,
 		}
@@ -804,31 +816,49 @@ func (r *BareMetalHostReconciler) getPreprovImage(ctx context.Context, info *rec
 		return nil, fmt.Errorf("failed to retrieve pre-provisioning image data: %w", err)
 	}
 
-	// If the PreprovisioningImage is being deleted, treat it as unavailable
 	if !preprovImage.DeletionTimestamp.IsZero() {
-		info.log.Info("PreprovisioningImage is being deleted, waiting for new one")
-		return nil, nil //nolint:nilnil
-	}
-
-	needsUpdate := false
-	if preprovImage.Labels == nil && len(info.host.Labels) > 0 {
-		preprovImage.Labels = make(map[string]string, len(info.host.Labels))
-	}
-	for k, v := range info.host.Labels {
-		if cur, ok := preprovImage.Labels[k]; !ok || cur != v {
-			preprovImage.Labels[k] = v
+		if !controllerutil.ContainsFinalizer(&preprovImage, preprovisioningImageFinalizer) {
+			info.log.Info("PreprovisioningImage is being deleted, waiting for new one")
+			return nil, nil //nolint:nilnil
+		}
+		info.log.Info("PreprovisioningImage is being deleted but protected by finalizer, continuing to use it")
+		if preprovImage.Status.ImageUrl != "" {
+			image := provisioner.PreprovisioningImage{
+				GeneratedImage: imageprovider.GeneratedImage{
+					ImageURL:          preprovImage.Status.ImageUrl,
+					KernelURL:         preprovImage.Status.KernelUrl,
+					ExtraKernelParams: preprovImage.Status.ExtraKernelParams,
+				},
+				Format: preprovImage.Status.Format,
+			}
+			info.log.Info("using PreprovisioningImage", "Image", image)
+			return &image, nil
+		}
+	} else {
+		needsUpdate := false
+		if !controllerutil.ContainsFinalizer(&preprovImage, preprovisioningImageFinalizer) {
+			controllerutil.AddFinalizer(&preprovImage, preprovisioningImageFinalizer)
 			needsUpdate = true
 		}
-	}
-	if !apiequality.Semantic.DeepEqual(preprovImage.Spec, expectedSpec) {
-		info.log.Info("updating PreprovisioningImage spec")
-		preprovImage.Spec = expectedSpec
-		needsUpdate = true
-	}
-	if needsUpdate {
-		info.log.Info("updating PreprovisioningImage")
-		err = r.Update(ctx, &preprovImage)
-		return nil, err
+		if preprovImage.Labels == nil && len(info.host.Labels) > 0 {
+			preprovImage.Labels = make(map[string]string, len(info.host.Labels))
+		}
+		for k, v := range info.host.Labels {
+			if cur, ok := preprovImage.Labels[k]; !ok || cur != v {
+				preprovImage.Labels[k] = v
+				needsUpdate = true
+			}
+		}
+		if !apiequality.Semantic.DeepEqual(preprovImage.Spec, expectedSpec) {
+			info.log.Info("updating PreprovisioningImage spec")
+			preprovImage.Spec = expectedSpec
+			needsUpdate = true
+		}
+		if needsUpdate {
+			info.log.Info("updating PreprovisioningImage")
+			err = r.Update(ctx, &preprovImage)
+			return nil, err
+		}
 	}
 
 	if available, err := r.preprovImageAvailable(ctx, info, &preprovImage); err != nil || !available {
@@ -917,6 +947,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 			OpenShiftNoAgentPowerOff:   openShiftNoAgentPowerOff,
 			DisablePowerOff:            info.host.Spec.DisablePowerOff,
 			CPUArchitecture:            getHostArchitecture(info.host),
+			HardwareData:               info.hardwareData,
 		},
 		credsChanged,
 		info.host.Status.ErrorType == metal3api.RegistrationError)
@@ -968,21 +999,24 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		return actionUpdate{}
 	}
 
-	// Check if the host can support firmware components before creating the resource
-	_, errGetFirmwareComponents := prov.GetFirmwareComponents(ctx)
-	supportsFirmwareComponents := !errors.Is(errGetFirmwareComponents, provisioner.ErrFirmwareUpdateUnsupported)
-
 	// Create the hostFirmwareSettings resource with same host name/namespace if it doesn't exist
 	// Create the hostFirmwareComponents resource with same host name/namespace if it doesn't exist
 	if info.host.Name != "" {
 		if !info.host.DeletionTimestamp.IsZero() {
 			info.log.Info("will not attempt to create new hostFirmwareSettings and hostFirmwareComponents in " + info.host.Namespace)
 		} else {
+			// Check if the host can support firmware components before creating the resource
+			firmwareComponents, errGetFirmwareComponents := prov.GetFirmwareComponents(ctx)
+			if errGetFirmwareComponents != nil {
+				info.log.V(1).Error(errGetFirmwareComponents, "failed to retrieve firmware components; deferring HostFirmwareComponents creation")
+				firmwareComponents = nil
+			}
+
 			if err = r.createHostFirmwareSettings(ctx, info); err != nil {
 				info.log.Info("failed creating hostfirmwaresettings")
 				return actionError{fmt.Errorf("failed to create or update hostFirmwareSettings: %w", err)}
 			}
-			if supportsFirmwareComponents {
+			if len(firmwareComponents) > 0 {
 				if err = r.createHostFirmwareComponents(ctx, info); err != nil {
 					info.log.Info("failed creating hostfirmwarecomponents")
 					return actionError{fmt.Errorf("failed creating hostFirmwareComponents: %w", err)}
@@ -2592,11 +2626,11 @@ func (r *BareMetalHostReconciler) SetupWithManager(mgr ctrl.Manager, preprovImgE
 	return controller.Complete(r)
 }
 
-func (r *BareMetalHostReconciler) reconcileHostData(ctx context.Context, host *metal3api.BareMetalHost, request ctrl.Request) (result ctrl.Result, err error) {
+func (r *BareMetalHostReconciler) reconcileHostData(ctx context.Context, host *metal3api.BareMetalHost, request ctrl.Request) (result ctrl.Result, hardwareData *metal3api.HardwareData, err error) {
 	reqLogger := r.Log.WithValues("baremetalhost", request.NamespacedName)
 
 	// Fetch the HardwareData
-	hardwareData := &metal3api.HardwareData{}
+	hardwareData = &metal3api.HardwareData{}
 	hardwareDataKey := client.ObjectKey{
 		Name:      host.Name,
 		Namespace: host.Namespace,
@@ -2612,7 +2646,7 @@ func (r *BareMetalHostReconciler) reconcileHostData(ctx context.Context, host *m
 			controllerutil.RemoveFinalizer(hardwareData, hardwareDataFinalizer)
 			reqLogger.Info("removing finalizer from hardwareData")
 			if err := r.Update(ctx, hardwareData); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to remove hardwareData finalizer: %w", err)
+				return ctrl.Result{}, hardwareData, fmt.Errorf("failed to remove hardwareData finalizer: %w", err)
 			}
 		}
 		reqLogger.Info("hardwareData is ready to be deleted")
@@ -2640,9 +2674,9 @@ func (r *BareMetalHostReconciler) reconcileHostData(ctx context.Context, host *m
 			}
 			errStatus := r.Status().Update(ctx, host)
 			if errStatus != nil {
-				return ctrl.Result{}, fmt.Errorf("could not restore status from annotation: %w", errStatus)
+				return ctrl.Result{}, hardwareData, fmt.Errorf("could not restore status from annotation: %w", errStatus)
 			}
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{Requeue: true}, hardwareData, nil
 		}
 		reqLogger.V(1).Info("no status cache found")
 	}
@@ -2653,10 +2687,10 @@ func (r *BareMetalHostReconciler) reconcileHostData(ctx context.Context, host *m
 		delete(annotations, metal3api.StatusAnnotation)
 		errStatus := r.Update(ctx, host)
 		if errStatus != nil {
-			return ctrl.Result{}, fmt.Errorf("could not delete status annotation: %w", errStatus)
+			return ctrl.Result{}, hardwareData, fmt.Errorf("could not delete status annotation: %w", errStatus)
 		}
 		reqLogger.Info("deleted status annotation")
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{Requeue: true}, hardwareData, nil
 	}
 
 	if host.Spec.Architecture == "" && hardwareData != nil && hardwareData.Spec.HardwareDetails != nil && hardwareData.Spec.HardwareDetails.CPU.Arch != "" {
@@ -2664,9 +2698,9 @@ func (r *BareMetalHostReconciler) reconcileHostData(ctx context.Context, host *m
 		reqLogger.Info("updating architecture", "Architecture", newArch)
 		host.Spec.Architecture = newArch
 		if err := r.Client.Update(ctx, host); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to update architecture: %w", err)
+			return ctrl.Result{}, hardwareData, fmt.Errorf("failed to update architecture: %w", err)
 		}
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{Requeue: true}, hardwareData, nil
 	}
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, hardwareData, nil
 }
