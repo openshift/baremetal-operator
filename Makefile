@@ -318,8 +318,49 @@ docker-debug: generate manifests ## Build the docker image with debug info
 	--build-arg ARCH=$(ARCH) \
 	--build-arg http_proxy=$(http_proxy) \
 	--build-arg https_proxy=$(https_proxy) \
-	--build-arg LDFLAGS="-extldflags=-static" \
+	--build-arg LDFLAGS="" \
 	. -t ${IMG}-$(ARCH):${IMG_TAG}
+
+## --------------------------------------
+## Plugin / SDK Targets
+## --------------------------------------
+
+IRONIC_PLUGIN_DIR = pkg/provisioner/ironic/plugin
+IRONIC_PLUGIN_SO = bin/ironic-provisioner.so
+DEMO_PLUGIN_DIR = pkg/provisioner/demo/plugin
+DEMO_PLUGIN_SO = bin/demo-provisioner.so
+
+.PHONY: ironic-plugin
+ironic-plugin: ## Build the ironic provisioner plugin .so locally
+	CGO_ENABLED=1 go build -buildmode=plugin -ldflags $(LDFLAGS) -o $(IRONIC_PLUGIN_SO) ./$(IRONIC_PLUGIN_DIR)/
+
+.PHONY: demo-plugin
+demo-plugin: ## Build the demo provisioner plugin .so locally
+	CGO_ENABLED=1 go build -buildmode=plugin -ldflags $(LDFLAGS) -o $(DEMO_PLUGIN_SO) ./$(DEMO_PLUGIN_DIR)/
+
+.PHONY: docker-build-sdk
+docker-build-sdk: ## Build the BMO SDK image for authoring custom provisioner plugins
+	$(CONTAINER_RUNTIME) build --platform=linux/$(ARCH) \
+	--build-arg ARCH=$(ARCH) \
+	--build-arg http_proxy=$(http_proxy) \
+	--build-arg https_proxy=$(https_proxy) \
+	--target sdk \
+	. -t ${IMG}-sdk-$(ARCH):${IMG_TAG}
+
+.PHONY: docker-build-plugin-test
+docker-build-plugin-test: ## Build the out-of-tree plugin compatibility test image
+	$(CONTAINER_RUNTIME) build --platform=linux/$(ARCH) \
+	--build-arg ARCH=$(ARCH) \
+	--build-arg http_proxy=$(http_proxy) \
+	--build-arg https_proxy=$(https_proxy) \
+	-f Dockerfile.plugin-test \
+	. -t ${IMG}-plugin-test-$(ARCH):${IMG_TAG}
+
+.PHONY: docker-build-sdk-all
+docker-build-sdk-all: $(addprefix docker-build-sdk-,$(ALL_ARCH)) ## Build the SDK image for all architectures
+
+docker-build-sdk-%:
+	$(MAKE) ARCH=$* docker-build-sdk
 
 ## --------------------------------------
 ## Docker — All ARCH

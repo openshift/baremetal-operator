@@ -16,6 +16,10 @@ import (
 Package provisioning defines the API for talking to the provisioning backend.
 */
 
+// ErrNotReady is returned by NewProvisioner when the provisioning backend
+// is not yet available. Controllers should requeue and retry.
+var ErrNotReady = errors.New("provisioner is not ready")
+
 // EventPublisher is a function type for publishing events associated
 // with provisioning.
 type EventPublisher func(reason, message string)
@@ -89,6 +93,7 @@ type ManagementAccessData struct {
 	HasCustomDeploy            bool
 	DisablePowerOff            bool
 	CPUArchitecture            string
+	HardwareData               *metal3api.HardwareData
 }
 
 type AdoptData struct {
@@ -214,10 +219,6 @@ type Provisioner interface {
 	// automated cleaning, used to determine if cleaning should be aborted during deletion.
 	PowerOff(ctx context.Context, rebootMode metal3api.RebootMode, force bool, automatedCleaningMode metal3api.AutomatedCleaningMode) (result Result, err error)
 
-	// TryInit checks if the provisioning backend is available to accept
-	// all the incoming requests and configures the available features.
-	TryInit(ctx context.Context) (ready bool, err error)
-
 	// HasCapacity checks if the backend has a free (de)provisioning slot for the current host
 	HasCapacity(ctx context.Context) (result bool, err error)
 
@@ -282,9 +283,6 @@ var ErrNeedsRegistration = errors.New("host not registered")
 // ErrNeedsPreprovisioningImage is returned if a preprovisioning image is
 // required.
 var ErrNeedsPreprovisioningImage = errors.New("no suitable Preprovisioning image available")
-
-// ErrFirmwareUpdateUnsupported is returned if the host can't execute firmware updates.
-var ErrFirmwareUpdateUnsupported = errors.New("host does not support Firmware Updates")
 
 // ErrNodeIsBusy is returned when the node is busy due to being reserved for another
 // task.
