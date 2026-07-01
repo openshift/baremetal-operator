@@ -7,7 +7,7 @@ require (
 	github.com/google/go-github v17.0.0+incompatible
 	golang.org/x/crypto v0.53.0
 	golang.org/x/oauth2 v0.36.0
-	sigs.k8s.io/cluster-api/test v1.13.2
+	sigs.k8s.io/cluster-api/test v1.13.3
 	sigs.k8s.io/controller-tools v0.16.5
 	sigs.k8s.io/kustomize/api v0.21.1
 	sigs.k8s.io/kustomize/kustomize/v5 v5.8.1
@@ -55,9 +55,9 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.35.5 // indirect
-	k8s.io/apiextensions-apiserver v0.35.5 // indirect
-	k8s.io/apimachinery v0.35.5 // indirect
+	k8s.io/api v0.35.6 // indirect
+	k8s.io/apiextensions-apiserver v0.35.6 // indirect
+	k8s.io/apimachinery v0.35.6 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2 // indirect
