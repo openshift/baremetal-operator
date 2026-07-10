@@ -56,6 +56,7 @@ const (
 	subResourceNotReadyRetryDelay = time.Second * 60
 	clarifySoftPoweroffFailure    = "Continuing with hard poweroff after soft poweroff fails. More details: "
 	hardwareDataFinalizer         = metal3api.BareMetalHostFinalizer + "/hardwareData"
+	preprovisioningImageFinalizer = metal3api.BareMetalHostFinalizer + "/preprovisioningImage"
 	NotReady                      = "Not ready"
 )
 
@@ -575,12 +576,26 @@ func (r *BareMetalHostReconciler) actionDeleting(prov provisioner.Provisioner, i
 		}
 	}
 
-	info.host.Finalizers = utils.FilterStringFromList(
-		info.host.Finalizers, metal3api.BareMetalHostFinalizer)
-	info.log.Info("cleanup is complete, removed finalizer",
-		"remaining", info.host.Finalizers)
-	if err := r.Update(info.ctx, info.host); err != nil {
-		return actionError{errors.Wrap(err, "failed to remove finalizer")}
+	preprovImage := &metal3api.PreprovisioningImage{}
+	err = r.Get(info.ctx, client.ObjectKey{Name: info.host.Name, Namespace: info.host.Namespace}, preprovImage)
+	if err == nil {
+		if controllerutil.RemoveFinalizer(preprovImage, preprovisioningImageFinalizer) {
+			info.log.Info("removing finalizer from PreprovisioningImage")
+			err = r.Update(info.ctx, preprovImage)
+			if err != nil {
+				return actionError{fmt.Errorf("failed to remove PreprovisioningImage finalizer: %w", err)}
+			}
+		}
+	} else if !k8serrors.IsNotFound(err) {
+		return actionError{fmt.Errorf("failed to get PreprovisioningImage: %w", err)}
+	}
+
+	if controllerutil.RemoveFinalizer(info.host, metal3api.BareMetalHostFinalizer) {
+		info.log.Info("cleanup is complete, removed finalizer",
+			"remaining", info.host.Finalizers)
+		if err := r.Update(info.ctx, info.host); err != nil {
+			return actionError{fmt.Errorf("failed to remove finalizer: %w", err)}
+		}
 	}
 
 	return deleteComplete{}
@@ -757,6 +772,9 @@ func (r *BareMetalHostReconciler) getPreprovImage(info *reconcileInfo, formats [
 				Name:      key.Name,
 				Namespace: key.Namespace,
 				Labels:    info.host.Labels,
+				Finalizers: []string{
+					preprovisioningImageFinalizer,
+				},
 			},
 			Spec: expectedSpec,
 		}
@@ -769,28 +787,52 @@ func (r *BareMetalHostReconciler) getPreprovImage(info *reconcileInfo, formats [
 		return nil, err
 	}
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to retrieve pre-provisioning image data")
+		return nil, fmt.Errorf("failed to retrieve pre-provisioning image data: %w", err)
 	}
 
-	needsUpdate := false
-	if preprovImage.Labels == nil && len(info.host.Labels) > 0 {
-		preprovImage.Labels = make(map[string]string, len(info.host.Labels))
-	}
-	for k, v := range info.host.Labels {
-		if cur, ok := preprovImage.Labels[k]; !ok || cur != v {
-			preprovImage.Labels[k] = v
+	if !preprovImage.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(&preprovImage, preprovisioningImageFinalizer) {
+			info.log.Info("PreprovisioningImage is being deleted, waiting for new one")
+			return nil, nil //nolint:nilnil
+		}
+		info.log.Info("PreprovisioningImage is being deleted but protected by finalizer, continuing to use it")
+		if preprovImage.Status.ImageUrl != "" {
+			image := provisioner.PreprovisioningImage{
+				GeneratedImage: imageprovider.GeneratedImage{
+					ImageURL:          preprovImage.Status.ImageUrl,
+					KernelURL:         preprovImage.Status.KernelUrl,
+					ExtraKernelParams: preprovImage.Status.ExtraKernelParams,
+				},
+				Format: preprovImage.Status.Format,
+			}
+			info.log.Info("using PreprovisioningImage", "Image", image)
+			return &image, nil
+		}
+	} else {
+		needsUpdate := false
+		if !controllerutil.ContainsFinalizer(&preprovImage, preprovisioningImageFinalizer) {
+			controllerutil.AddFinalizer(&preprovImage, preprovisioningImageFinalizer)
 			needsUpdate = true
 		}
-	}
-	if !apiequality.Semantic.DeepEqual(preprovImage.Spec, expectedSpec) {
-		info.log.Info("updating PreprovisioningImage spec")
-		preprovImage.Spec = expectedSpec
-		needsUpdate = true
-	}
-	if needsUpdate {
-		info.log.Info("updating PreprovisioningImage")
-		err = r.Update(info.ctx, &preprovImage)
-		return nil, err
+		if preprovImage.Labels == nil && len(info.host.Labels) > 0 {
+			preprovImage.Labels = make(map[string]string, len(info.host.Labels))
+		}
+		for k, v := range info.host.Labels {
+			if cur, ok := preprovImage.Labels[k]; !ok || cur != v {
+				preprovImage.Labels[k] = v
+				needsUpdate = true
+			}
+		}
+		if !apiequality.Semantic.DeepEqual(preprovImage.Spec, expectedSpec) {
+			info.log.Info("updating PreprovisioningImage spec")
+			preprovImage.Spec = expectedSpec
+			needsUpdate = true
+		}
+		if needsUpdate {
+			info.log.Info("updating PreprovisioningImage")
+			err = r.Update(info.ctx, &preprovImage)
+			return nil, err
+		}
 	}
 
 	if available, err := r.preprovImageAvailable(info, &preprovImage); err != nil || !available {
