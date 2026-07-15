@@ -60,7 +60,7 @@ func deleteTest(t *testing.T, detach bool) {
 				},
 			).DeleteError(nodeUUID, http.StatusConflict),
 			expectedDirty:        true,
-			expectedRequestAfter: provisionRequeueDelay,
+			expectedRequestAfter: shortRetryDelay,
 		},
 		{
 			name: "delete-host-not-found",
@@ -151,7 +151,7 @@ func deleteTest(t *testing.T, detach bool) {
 			).NodeMaintenanceError(nodeUUID, http.StatusConflict),
 
 			expectedDirty:        true,
-			expectedRequestAfter: provisionRequeueDelay,
+			expectedRequestAfter: shortRetryDelay,
 		},
 		{
 			name: "not-in-maintenance-update",
@@ -178,7 +178,7 @@ func deleteTest(t *testing.T, detach bool) {
 			),
 			// Should wait for verification to complete, not try to set maintenance
 			expectedDirty:        true,
-			expectedRequestAfter: provisionRequeueDelay,
+			expectedRequestAfter: shortRetryDelay,
 		},
 		{
 			name: "enroll-node-deletes-directly",
