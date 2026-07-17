@@ -4,7 +4,7 @@ GO_TEST_FLAGS = $(TEST_FLAGS)
 DEBUG = --debug
 COVER_PROFILE = cover.out
 GO := $(shell type -P go)
-GO_VERSION ?= 1.25.11
+GO_VERSION ?= 1.25.12
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -33,7 +33,7 @@ CONTAINER_RUNTIME = docker
 SOURCE_GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
 BUILD_VERSION ?= $(shell git describe --always --abbrev=40 --dirty)
 VERSION_URI = "github.com/metal3-io/baremetal-operator/pkg/version"
-export LDFLAGS="-X $(VERSION_URI).Raw=${BUILD_VERSION} \
+LDFLAGS = "-X $(VERSION_URI).Raw=${BUILD_VERSION} \
                 -X $(VERSION_URI).Commit=${SOURCE_GIT_COMMIT} \
                 -X $(VERSION_URI).BuildTime=$(shell date +%Y-%m-%dT%H:%M:%S%z)"
 
@@ -253,7 +253,8 @@ manifests: manifests-generate manifests-kustomize ## Generate manifests e.g. CRD
 
 .PHONY: manifests-generate
 manifests-generate: $(CONTROLLER_GEN)
-	cd internal/webhooks; $(abspath $<) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:webhook:dir=../../config/base/webhook/ output:crd:artifacts:config=../../config/base/crds/bases
+	cd apis; $(abspath $<) $(CRD_OPTIONS) paths="./..." output:crd:artifacts:config=../config/base/crds/bases
+	cd internal/webhooks; $(abspath $<) rbac:roleName=manager-role webhook paths="./..." output:webhook:dir=../../config/base/webhook/
 	$< rbac:roleName=manager-role paths="./..." output:rbac:artifacts:config=config/base/rbac
 
 .PHONY: manifests-kustomize
@@ -427,7 +428,7 @@ kind-reset: ## Destroys the "bmo" kind cluster.
 ## Go module Targets
 ## --------------------------------------
 
-.PHONY:
+.PHONY: mod
 mod: ## Clean up go module settings
 	go mod tidy
 	go mod verify

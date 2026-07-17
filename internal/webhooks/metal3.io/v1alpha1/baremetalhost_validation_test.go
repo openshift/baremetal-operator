@@ -1019,6 +1019,86 @@ func TestValidateCreate(t *testing.T) {
 			},
 			wantedErr: "",
 		},
+		{
+			name: "validNetworkInterfaceWithName",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					NetworkInterfaces: []metal3api.NetworkInterface{
+						{Name: "eth0", HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "my-attachment"}},
+					},
+				}},
+			wantedErr: "",
+		},
+		{
+			name: "validNetworkInterfaceWithMACAddress",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					NetworkInterfaces: []metal3api.NetworkInterface{
+						{MACAddress: "00:11:22:33:44:55", HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "my-attachment"}},
+					},
+				}},
+			wantedErr: "",
+		},
+		{
+			name: "invalidNetworkInterfaceMissingIdentifier",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					NetworkInterfaces: []metal3api.NetworkInterface{
+						{HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "my-attachment"}},
+					},
+				}},
+			wantedErr: "networkInterfaces[0]: must specify either name or macAddress",
+		},
+		{
+			name: "invalidNetworkInterfaceDuplicateName",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					NetworkInterfaces: []metal3api.NetworkInterface{
+						{Name: "eth0", HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "attachment-1"}},
+						{Name: "eth0", HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "attachment-2"}},
+					},
+				}},
+			wantedErr: `networkInterfaces[1]: duplicate interface selector for "eth0"`,
+		},
+		{
+			name: "invalidNetworkInterfaceDuplicateMAC",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					NetworkInterfaces: []metal3api.NetworkInterface{
+						{MACAddress: "00:11:22:33:44:55", HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "attachment-1"}},
+						{MACAddress: "00:11:22:33:44:55", HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "attachment-2"}},
+					},
+				}},
+			wantedErr: `networkInterfaces[1]: duplicate interface selector for "00:11:22:33:44:55"`,
+		},
+		{
+			name: "rejectNetworkInterfaceWithBothNameAndMAC",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					NetworkInterfaces: []metal3api.NetworkInterface{
+						{Name: "eth0", MACAddress: "00:11:22:33:44:55", HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "attachment-1"}},
+					},
+				}},
+			wantedErr: "networkInterfaces[0]: name and macAddress are mutually exclusive",
+		},
+		{
+			name: "duplicateMACCaseInsensitive",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm, ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					NetworkInterfaces: []metal3api.NetworkInterface{
+						{MACAddress: "AA:BB:CC:DD:EE:FF", HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "attachment-1"}},
+						{MACAddress: "aa:bb:cc:dd:ee:ff", HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "attachment-2"}},
+					},
+				}},
+			wantedErr: `networkInterfaces[1]: duplicate interface selector for "aa:bb:cc:dd:ee:ff"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1080,7 +1160,10 @@ func TestValidateUpdate(t *testing.T) {
 				ObjectMeta: om,
 				Spec: metal3api.BareMetalHostSpec{
 					BMC: metal3api.BMCDetails{
-						Address: "test-address"}}},
+						Address: "test-address"}},
+				Status: metal3api.BareMetalHostStatus{
+					Provisioning: metal3api.ProvisionStatus{
+						State: metal3api.StateRegistering}}},
 			wantedErr: "",
 		},
 		{
@@ -1098,7 +1181,9 @@ func TestValidateUpdate(t *testing.T) {
 				ObjectMeta: om,
 				Spec: metal3api.BareMetalHostSpec{
 					BMC: metal3api.BMCDetails{
-						Address: "test-address"}}},
+						Address: "test-address"}},
+				Status: metal3api.BareMetalHostStatus{
+					OperationalStatus: metal3api.OperationalStatusDetached}},
 			wantedErr: "",
 		},
 		{
@@ -1177,6 +1262,48 @@ func TestValidateUpdate(t *testing.T) {
 			webhook := &BareMetalHost{}
 			if err := webhook.validateChanges(tt.oldBMH, tt.newBMH); !errorArrContains(err, tt.wantedErr) {
 				t.Errorf("metal3api.BareMetalHost.Validatemetal3api.BareMetalHost() error = %v, wantErr %v", err, tt.wantedErr)
+			}
+		})
+	}
+}
+
+func TestNetworkInterfaceIsValid(t *testing.T) {
+	tests := []struct {
+		name     string
+		iface    metal3api.NetworkInterface
+		expected bool
+	}{
+		{name: "name-only", iface: metal3api.NetworkInterface{Name: "eth0"}, expected: true},
+		{name: "mac-only", iface: metal3api.NetworkInterface{MACAddress: "00:11:22:33:44:55"}, expected: true},
+		{name: "both", iface: metal3api.NetworkInterface{Name: "eth0", MACAddress: "00:11:22:33:44:55"}, expected: true},
+		{name: "neither", iface: metal3api.NetworkInterface{}, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.iface.IsValid(); got != tt.expected {
+				t.Errorf("IsValid() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNetworkInterfaceGetKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		iface    metal3api.NetworkInterface
+		expected string
+	}{
+		{name: "name-only", iface: metal3api.NetworkInterface{Name: "eth0"}, expected: "eth0"},
+		{name: "mac-only", iface: metal3api.NetworkInterface{MACAddress: "00:11:22:33:44:55"}, expected: "00:11:22:33:44:55"},
+		{name: "both-mac-preferred", iface: metal3api.NetworkInterface{Name: "eth0", MACAddress: "00:11:22:33:44:55"}, expected: "00:11:22:33:44:55"},
+		{name: "neither", iface: metal3api.NetworkInterface{}, expected: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.iface.GetKey(); got != tt.expected {
+				t.Errorf("GetKey() = %q, want %q", got, tt.expected)
 			}
 		})
 	}
