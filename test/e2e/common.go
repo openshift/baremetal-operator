@@ -645,10 +645,14 @@ func VerifyIronicManagedBoot(e2eConfig *Config, bmcAddress, ipAddress string) {
 		}
 	}()
 
-	output, err := executeSSHCommand(client, "cat /proc/cmdline")
-	Expect(err).NotTo(HaveOccurred(), "Failed to read /proc/cmdline from IPA via SSH")
+	var cmdline string
+	Eventually(func(g Gomega) {
+		output, err := executeSSHCommand(client, "cat /proc/cmdline")
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to read /proc/cmdline from IPA via SSH")
+		cmdline = strings.TrimSpace(output)
+		g.Expect(cmdline).NotTo(BeEmpty())
+	}, e2eConfig.GetIntervals("default", "wait-connect-ssh")...).Should(Succeed())
 
-	cmdline := strings.TrimSpace(output)
 	Logf("IPA kernel command line: %s", cmdline)
 
 	// Sanity check: verify that the custom marker we set in

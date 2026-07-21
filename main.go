@@ -17,6 +17,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"crypto/tls"
 	"errors"
 	"flag"
@@ -59,9 +60,20 @@ const (
 )
 
 type TLSOptions struct {
-	TLSMaxVersion   string
-	TLSMinVersion   string
-	TLSCipherSuites string
+	TLSMaxVersion       string
+	TLSMinVersion       string
+	TLSCipherSuites     string
+	TLSCurvePreferences string
+}
+
+// Supported TLS Curves mapping for go1.25, make sure to update it
+// when go version is updated.
+var supportedTLSCurvesPreferences = map[string]tls.CurveID{
+	"X25519":         tls.X25519,
+	"CurveP256":      tls.CurveP256,
+	"CurveP384":      tls.CurveP384,
+	"CurveP521":      tls.CurveP521,
+	"X25519MLKEM768": tls.X25519MLKEM768,
 }
 
 var (
@@ -94,7 +106,7 @@ func init() {
 
 func printVersion() {
 	setupLog.Info("Go Version: " + runtime.Version())
-	setupLog.Info(fmt.Sprintf("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH))
+	setupLog.Info("Go OS/Arch", "goos", runtime.GOOS, "goarch", runtime.GOARCH)
 	setupLog.Info("Git commit: " + version.Commit)
 	setupLog.Info("Build time: " + version.BuildTime)
 	setupLog.Info("Component: " + version.String)
@@ -125,7 +137,7 @@ func setupWebhookReadinessCheck(mgr ctrl.Manager) {
 	}
 }
 
-func setupWebhooks(mgr ctrl.Manager) {
+func setupWebhooks(ctx context.Context, mgr ctrl.Manager) {
 	if err := (&webhooks.BareMetalHost{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "BareMetalHost")
 		os.Exit(1)
@@ -138,6 +150,11 @@ func setupWebhooks(mgr ctrl.Manager) {
 
 	if err := (&webhooks.HostClaimWebhook{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "HostClaim")
+		os.Exit(1)
+	}
+
+	if err := (&webhooks.HostNetworkAttachment{}).SetupWebhookWithManager(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "HostNetworkAttachment")
 		os.Exit(1)
 	}
 }
@@ -157,6 +174,10 @@ func main() {
 	var leaseDurationSeconds string
 	var renewDeadlineSeconds string
 	var retryPeriodSeconds string
+	var supportedTLSCurvesNames = make([]string, 0, len(supportedTLSCurvesPreferences))
+	for name := range supportedTLSCurvesPreferences {
+		supportedTLSCurvesNames = append(supportedTLSCurvesNames, name)
+	}
 
 	// From CAPI point of view, BMO should be able to watch all namespaces
 	// in case of a deployment that is not multi-tenant. If the deployment
@@ -201,6 +222,10 @@ func main() {
 			"If omitted, the default Go cipher suites will be used. \n"+
 			"Preferred values: "+strings.Join(tlsCipherPreferredValues, ", ")+". \n"+
 			"Insecure values: "+strings.Join(tlsCipherInsecureValues, ", ")+".")
+	flag.StringVar(&tlsOptions.TLSCurvePreferences, "tls-curve-preferences", "",
+		"Comma-separated list of curve/group preferences for the webhook and metrics servers. "+
+			"If omitted, the default Go curve preferences will be used. "+
+			"Possible values: "+strings.Join(supportedTLSCurvesNames, ", ")+".")
 	flag.IntVar(&controllerConcurrency, "controller-concurrency", 0,
 		"Number of CRs of each type to process simultaneously")
 
@@ -500,13 +525,15 @@ func main() {
 
 	setupChecks(mgr)
 
+	ctx := ctrl.SetupSignalHandler()
+
 	if enableWebhook {
 		setupWebhookReadinessCheck(mgr)
-		setupWebhooks(mgr)
+		setupWebhooks(ctx, mgr)
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
@@ -562,7 +589,7 @@ func GetTLSOptionOverrideFuncs(options TLSOptions) ([]func(*tls.Config), error) 
 		for _, cipher := range tlsCipherSuites {
 			for _, insecureCipherName := range insecureCipherValues {
 				if insecureCipherName == cipher {
-					setupLog.Info(fmt.Sprintf("warning: use of insecure cipher '%s' detected.", cipher))
+					setupLog.Info("warning: use of insecure cipher detected", "cipher", cipher)
 				}
 			}
 		}
@@ -571,12 +598,28 @@ func GetTLSOptionOverrideFuncs(options TLSOptions) ([]func(*tls.Config), error) 
 		})
 	}
 
+	if options.TLSCurvePreferences != "" {
+		curveNames := strings.Split(options.TLSCurvePreferences, ",")
+		curves := make([]tls.CurveID, 0, len(curveNames))
+		for _, name := range curveNames {
+			name = strings.TrimSpace(name)
+			curveID, exists := supportedTLSCurvesPreferences[name]
+			if !exists {
+				return nil, fmt.Errorf("unrecognized TLS curve preference %q", name)
+			}
+			curves = append(curves, curveID)
+		}
+		tlsOptions = append(tlsOptions, func(cfg *tls.Config) {
+			cfg.CurvePreferences = curves
+		})
+	}
+
 	return tlsOptions, nil
 }
 
 func getMaxConcurrentReconciles(controllerConcurrency int) (int, error) {
 	if controllerConcurrency > 0 {
-		ctrl.Log.Info(fmt.Sprintf("controller concurrency will be set to %d according to command line flag", controllerConcurrency))
+		ctrl.Log.Info("controller concurrency set from command line flag", "concurrency", controllerConcurrency)
 		return controllerConcurrency, nil
 	} else if controllerConcurrency < 0 {
 		return 0, fmt.Errorf("controller concurrency value: %d is invalid", controllerConcurrency)
@@ -594,13 +637,13 @@ func getMaxConcurrentReconciles(controllerConcurrency int) (int, error) {
 			return 0, fmt.Errorf("BMO_CONCURRENCY value: %s is invalid: %w", mcrEnv, err)
 		}
 		if mcr > 0 {
-			ctrl.Log.Info(fmt.Sprintf("BMO_CONCURRENCY of %d is set via an environment variable", mcr))
+			ctrl.Log.Info("controller concurrency set from environment variable", "concurrency", mcr)
 			maxConcurrentReconciles = mcr
 		} else {
-			ctrl.Log.Info(fmt.Sprintf("Invalid BMO_CONCURRENCY value. Operator Concurrency will be set to a default value of %d", maxConcurrentReconciles))
+			ctrl.Log.Info("invalid BMO_CONCURRENCY value, using default", "default", maxConcurrentReconciles)
 		}
 	} else {
-		ctrl.Log.Info(fmt.Sprintf("Operator Concurrency will be set to a default value of %d", maxConcurrentReconciles))
+		ctrl.Log.Info("using default controller concurrency", "concurrency", maxConcurrentReconciles)
 	}
 	return maxConcurrentReconciles, nil
 }

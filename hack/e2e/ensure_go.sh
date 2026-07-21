@@ -2,7 +2,7 @@
 
 set -eu
 
-MINIMUM_GO_VERSION=go1.25.11
+MINIMUM_GO_VERSION=go1.25.12
 
 # Verify mode turned off by default
 VERIFY_ONLY="${VERIFY_ONLY:-false}"
@@ -18,13 +18,20 @@ verify_go_version() {
         fi
         if [[ "${OSTYPE}" == "linux-gnu" ]]; then
             echo "go not found, installing"
+            local GO_TARBALL="${MINIMUM_GO_VERSION}.linux-amd64.tar.gz"
+            for attempt in 1 2 3; do
+                echo "Downloading Go (attempt ${attempt}/3)"
+                if curl -fsSL -o "/tmp/${GO_TARBALL}" "https://go.dev/dl/${GO_TARBALL}" && \
+                    curl -fsSL -o "/tmp/${GO_TARBALL}.sha256" "https://dl.google.com/go/${GO_TARBALL}.sha256" && \
+                    echo "$(cat "/tmp/${GO_TARBALL}.sha256")  /tmp/${GO_TARBALL}" | sha256sum --check --quiet; then
+                    break
+                fi
+                rm -f "/tmp/${GO_TARBALL}" "/tmp/${GO_TARBALL}.sha256"
+            done
+            [[ -f "/tmp/${GO_TARBALL}" ]] || { echo "ERROR: failed to download valid Go archive"; return 2; }
             set -x
-            curl -sL \
-                -o "/tmp/${MINIMUM_GO_VERSION}.linux-amd64.tar.gz" \
-                "https://go.dev/dl/${MINIMUM_GO_VERSION}.linux-amd64.tar.gz"
-            sudo tar \
-                -C /usr/local \
-                -xzf "/tmp/${MINIMUM_GO_VERSION}.linux-amd64.tar.gz"
+            sudo tar -C /usr/local -xzf "/tmp/${GO_TARBALL}"
+            rm -f "/tmp/${GO_TARBALL}" "/tmp/${GO_TARBALL}.sha256"
             set +x
             export PATH="${PATH}:/usr/local/go/bin"
             GO="$(command -v go)"

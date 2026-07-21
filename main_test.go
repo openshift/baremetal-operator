@@ -42,7 +42,9 @@ func TestTLSInsecureCiperSuite(t *testing.T) {
 		klog.LogToStderr(false) // this is important, because klog by default logs to stderr only
 		_, err := GetTLSOptionOverrideFuncs(tlsMockOptions)
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(bufWriter.String()).Should(ContainSubstring("use of insecure cipher 'TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256' detected."))
+		// Check for structured log format: key=value pairs
+		g.Expect(bufWriter.String()).Should(ContainSubstring("use of insecure cipher detected"))
+		g.Expect(bufWriter.String()).Should(ContainSubstring("TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256"))
 	})
 }
 
@@ -142,5 +144,101 @@ func TestTLSOptions(t *testing.T) {
 		}
 		_, err := GetTLSOptionOverrideFuncs(tlsMockOptions)
 		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+}
+
+func TestTLSCurvePreferences(t *testing.T) {
+	t.Run("valid curve preferences should be parsed correctly", func(t *testing.T) {
+		g := NewWithT(t)
+		tlsMockOptions := TLSOptions{
+			TLSMinVersion:       "TLS12",
+			TLSMaxVersion:       "TLS13",
+			TLSCurvePreferences: "X25519,CurveP256,CurveP384",
+		}
+		tlsOptionOverrides, err := GetTLSOptionOverrideFuncs(tlsMockOptions)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		var tlsConfig tls.Config
+		for _, apply := range tlsOptionOverrides {
+			apply(&tlsConfig)
+		}
+
+		g.Expect(tlsConfig.CurvePreferences).To(Equal([]tls.CurveID{
+			tls.X25519,
+			tls.CurveP256,
+			tls.CurveP384,
+		}))
+	})
+	t.Run("all supported curve names should be accepted", func(t *testing.T) {
+		g := NewWithT(t)
+		tlsMockOptions := TLSOptions{
+			TLSMinVersion:       "TLS12",
+			TLSMaxVersion:       "TLS13",
+			TLSCurvePreferences: "X25519,CurveP256,CurveP384,CurveP521,X25519MLKEM768",
+		}
+		tlsOptionOverrides, err := GetTLSOptionOverrideFuncs(tlsMockOptions)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		var tlsConfig tls.Config
+		for _, apply := range tlsOptionOverrides {
+			apply(&tlsConfig)
+		}
+
+		g.Expect(tlsConfig.CurvePreferences).To(Equal([]tls.CurveID{
+			tls.X25519,
+			tls.CurveP256,
+			tls.CurveP384,
+			tls.CurveP521,
+			tls.X25519MLKEM768,
+		}))
+	})
+	t.Run("empty curve preferences should have no effect", func(t *testing.T) {
+		g := NewWithT(t)
+		tlsMockOptions := TLSOptions{
+			TLSMinVersion: "TLS12",
+			TLSMaxVersion: "TLS13",
+		}
+		tlsOptionOverrides, err := GetTLSOptionOverrideFuncs(tlsMockOptions)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		var tlsConfig tls.Config
+		for _, apply := range tlsOptionOverrides {
+			apply(&tlsConfig)
+		}
+
+		g.Expect(tlsConfig.CurvePreferences).To(BeNil())
+	})
+	t.Run("invalid curve name should return error", func(t *testing.T) {
+		g := NewWithT(t)
+		tlsMockOptions := TLSOptions{
+			TLSMinVersion:       "TLS12",
+			TLSMaxVersion:       "TLS13",
+			TLSCurvePreferences: "X25519,InvalidCurve",
+		}
+		_, err := GetTLSOptionOverrideFuncs(tlsMockOptions)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("unrecognized TLS curve preference"))
+		g.Expect(err.Error()).To(ContainSubstring("InvalidCurve"))
+	})
+	t.Run("whitespace around names should be tolerated", func(t *testing.T) {
+		g := NewWithT(t)
+		tlsMockOptions := TLSOptions{
+			TLSMinVersion:       "TLS12",
+			TLSMaxVersion:       "TLS13",
+			TLSCurvePreferences: "X25519, CurveP256, CurveP384",
+		}
+		tlsOptionOverrides, err := GetTLSOptionOverrideFuncs(tlsMockOptions)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		var tlsConfig tls.Config
+		for _, apply := range tlsOptionOverrides {
+			apply(&tlsConfig)
+		}
+
+		g.Expect(tlsConfig.CurvePreferences).To(Equal([]tls.CurveID{
+			tls.X25519,
+			tls.CurveP256,
+			tls.CurveP384,
+		}))
 	})
 }
