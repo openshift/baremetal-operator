@@ -256,7 +256,7 @@ k8s.io/kube-openapi/pkg/validation/spec
 k8s.io/utils/internal/third_party/forked/golang/net
 k8s.io/utils/net
 k8s.io/utils/ptr
-# sigs.k8s.io/cluster-api/test v1.13.3
+# sigs.k8s.io/cluster-api/test v1.13.4
 ## explicit; go 1.25.0
 sigs.k8s.io/cluster-api/test/framework/exec
 # sigs.k8s.io/controller-tools v0.16.5
