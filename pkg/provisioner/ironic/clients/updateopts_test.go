@@ -468,7 +468,7 @@ func TestSanitisedValue(t *testing.T) {
 		"foo":               "bar",
 		"password":          "secret",
 		"ipmi_password":     "secret",
-		"image_pull_secret": "dXNlcjpwYXNz",
+		"image_pull_secret": "user:pass",
 	}
 	safe := map[string]any{
 		"foo":               "bar",

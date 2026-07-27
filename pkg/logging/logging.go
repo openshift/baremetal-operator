@@ -14,21 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package logging
 
 // Log verbosity levels for structured logging.
-// Use VerbosityLevelDebug for key decision points and important state changes.
-// Use VerbosityLevelTrace for detailed step-by-step flow tracing (function entry/exit).
 //
 // TODO: Review all existing info.log.Info() calls to determine if they should be:
-// - V(VerbosityLevelDebug) for key decision points (state changes, important branches)
+// - V(VerbosityLevelDebug) for minor decision points of little interest to operators
 // - V(VerbosityLevelTrace) for function entry/exit and detailed flow
-// - Left as Info() for critical operational messages visible by default
+// - Left as Info() for important operational messages visible by default
 //
 // Guidelines for log levels:
-// - Info() (level 0): Critical operational messages, errors, state transitions
+// - Info() (level 0): Important operational messages, major decision points, errors, state transitions
 // - V(1-3): Reserved for controller-runtime internal use
-// - V(VerbosityLevelDebug=4): Decision points, important branches, config changes
+// - V(VerbosityLevelDebug=4): Minor decision points and branches, config changes
 // - V(VerbosityLevelTrace=5): Function entry/exit, detailed flow tracing.
 const (
 	VerbosityLevelDebug = 4
@@ -206,4 +204,7 @@ const (
 
 	// LogFieldStatusConditionStatus is the status of a condition.
 	LogFieldStatusConditionStatus = "conditionStatus"
+
+	// LogFieldDifference is a difference between some values.
+	LogFieldDifference = "difference"
 )
