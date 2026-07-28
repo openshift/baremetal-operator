@@ -170,7 +170,7 @@ func (r *BareMetalHostReconciler) performNetworkInterfaceValidation(ctx context.
 	// Update validation status based on results
 	if len(invalidInterfaces) > 0 {
 		reason := "InvalidInterfaceNames"
-		availableNames := r.getAvailableNICNames(host.Status.HardwareDetails.NIC)
+		availableNames := r.getAvailableNICNames(nics)
 		var message string
 		if len(availableNames) == 0 {
 			message = fmt.Sprintf("Invalid interface names: %s. No such network interfaces.",
