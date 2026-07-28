@@ -11,6 +11,7 @@ import (
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
 	promutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1484,7 +1485,7 @@ func TestHandleAvailableBlocksProvisioningWhenNIInvalid(t *testing.T) {
 	assert.Equal(t, metal3api.StateAvailable, hsm.NextState, "should remain in Available when NI validation is False")
 
 	cond := meta.FindStatusCondition(theHost.Status.Conditions, metal3api.NetworkInterfacesValidCondition)
-	assert.NotNil(t, cond)
+	require.NotNil(t, cond)
 	assert.Equal(t, metav1.ConditionFalse, cond.Status)
 	assert.Equal(t, "AttachmentNotFound", cond.Reason)
 }

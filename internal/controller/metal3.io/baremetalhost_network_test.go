@@ -209,11 +209,11 @@ func TestValidateNetworkInterfaces(t *testing.T) {
 
 			cond := meta.FindStatusCondition(tc.host.Status.Conditions, metal3api.NetworkInterfacesValidCondition)
 			if tc.expectedValidationPass {
-				assert.NotNil(t, cond)
+				require.NotNil(t, cond)
 				assert.Equal(t, metav1.ConditionTrue, cond.Status)
 				assert.Equal(t, tc.expectedReason, cond.Reason)
 			} else if tc.expectedReason != "" {
-				assert.NotNil(t, cond)
+				require.NotNil(t, cond)
 				assert.Equal(t, metav1.ConditionFalse, cond.Status)
 				assert.Equal(t, tc.expectedReason, cond.Reason)
 			}
