@@ -34,6 +34,7 @@ import (
 	metal3iocontroller "github.com/metal3-io/baremetal-operator/internal/controller/metal3.io"
 	webhooks "github.com/metal3-io/baremetal-operator/internal/webhooks/metal3.io/v1alpha1"
 	ppicontroller "github.com/metal3-io/baremetal-operator/pkg/controllers"
+	"github.com/metal3-io/baremetal-operator/pkg/hostclaim"
 	"github.com/metal3-io/baremetal-operator/pkg/imageprovider"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/fixture"
@@ -164,7 +165,7 @@ func main() {
 	var metricsBindAddr string
 	var enableLeaderElection bool
 	var preprovImgEnable bool
-	var hostClaimEnable bool
+	var hostClaimsEnable bool
 	var devLogging bool
 	var provisionerName string
 	var webhookPort int
@@ -191,7 +192,7 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&preprovImgEnable, "build-preprov-image", false, "enable integration with the PreprovisioningImage API")
-	flag.BoolVar(&hostClaimEnable, "enable-hostclaim", false, "enable integration with the HostClaim API")
+	flag.BoolVar(&hostClaimsEnable, "hostclaims", false, "enable HostClaims controller")
 	flag.BoolVar(&devLogging, "dev", false, "enable developer logging")
 	flag.StringVar(&provisionerName, "provisioner", defaultProvisionerName,
 		"Name of the provisioner plugin to load. Resolves to "+
@@ -413,11 +414,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	var allowedHNANamespaces []string
+	if v := os.Getenv("HNA_ALLOWED_NAMESPACES"); v != "" {
+		for _, ns := range strings.Split(v, ",") {
+			ns = strings.TrimSpace(ns)
+			if ns != "" {
+				allowedHNANamespaces = append(allowedHNANamespaces, ns)
+			}
+		}
+		setupLog.Info("restricting HNA references to specified namespaces", "namespaces", allowedHNANamespaces)
+	}
+
 	if err = (&metal3iocontroller.BareMetalHostReconciler{
-		Client:             mgr.GetClient(),
-		Log:                ctrl.Log.WithName("controllers").WithName("BareMetalHost"),
-		ProvisionerFactory: provisionerFactory,
-		APIReader:          mgr.GetAPIReader(),
+		Client:               mgr.GetClient(),
+		Log:                  ctrl.Log.WithName("controllers").WithName("BareMetalHost"),
+		ProvisionerFactory:   provisionerFactory,
+		APIReader:            mgr.GetAPIReader(),
+		AllowedHNANamespaces: allowedHNANamespaces,
 	}).SetupWithManager(mgr, preprovImgEnable, maxConcurrency); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BareMetalHost")
 		os.Exit(1)
@@ -438,15 +451,20 @@ func main() {
 			}
 		}
 	}
-	if hostClaimEnable {
+
+	if hostClaimsEnable {
 		if err = (&metal3iocontroller.HostClaimReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:              mgr.GetClient(),
+			Log:                 ctrl.Log.WithName("controllers").WithName("HostClaim"),
+			Scheme:              mgr.GetScheme(),
+			APIReader:           mgr.GetAPIReader(),
+			NewHostClaimManager: hostclaim.NewManager,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "HostClaim")
 			os.Exit(1)
 		}
 	}
+
 	// +kubebuilder:scaffold:builder
 
 	if err = (&metal3iocontroller.HostFirmwareSettingsReconciler{

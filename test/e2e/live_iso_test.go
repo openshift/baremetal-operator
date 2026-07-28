@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Live-ISO", Label("required", "live-iso"), func() {
+var _ = Describe("Live-ISO", Label("required", "live-iso", "ironic"), func() {
 	var (
 		specName      = "live-iso-ops"
 		namespace     *corev1.Namespace

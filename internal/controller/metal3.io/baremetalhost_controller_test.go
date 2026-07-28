@@ -3564,10 +3564,8 @@ func TestGetImageAuthSecret_OCIImageWithValidSecret(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, credentials, "expected non-empty credentials")
 
-	// Verify credentials are base64 encoded and in correct format
-	decoded, err := base64.StdEncoding.DecodeString(credentials)
-	require.NoError(t, err)
-	assert.Equal(t, "testuser:testpass", string(decoded))
+	// Verify credentials are in plain text username:password format
+	assert.Equal(t, "testuser:testpass", credentials)
 }
 
 // TestGetImageAuthSecret_OCIImageWithoutSecret tests that no error occurs

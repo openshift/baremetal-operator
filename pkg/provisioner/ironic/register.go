@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"regexp"
+	"slices"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/baremetal/v1/nodes"
-	"github.com/gophercloud/gophercloud/v2/openstack/baremetal/v1/ports"
 	metal3api "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/metal3-io/baremetal-operator/pkg/hardwareutils/bmc"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
@@ -144,6 +145,10 @@ func (p *ironicProvisioner) Register(ctx context.Context, data provisioner.Manag
 
 		// The updater only updates disable_power_off if it has changed
 		updater.SetTopLevelOpt("disable_power_off", data.DisablePowerOff, ironicNode.DisablePowerOff)
+
+		if p.config.enableNetworking {
+			updater.SetTopLevelOpt("network_interface", p.config.networkInterface, ironicNode.NetworkInterface)
+		}
 
 		// Update cpu_arch in Properties if specified.
 		// This is important for multi-arch deployments to ensure the correct
@@ -279,6 +284,10 @@ func (p *ironicProvisioner) enrollNode(ctx context.Context, data provisioner.Man
 		},
 	}
 
+	if p.config.enableNetworking {
+		nodeCreateOpts.NetworkInterface = p.config.networkInterface
+	}
+
 	ironicNode, err = nodes.Create(ctx, p.client, nodeCreateOpts).Extract()
 	if err == nil {
 		p.publisher("Registered", "Registered new host")
@@ -303,32 +312,39 @@ func (p *ironicProvisioner) createPortsForNode(ctx context.Context, ironicNode *
 		return nil
 	}
 
-	ironicNodePorts, err := p.getPorts(ctx, ironicNode.UUID, "")
+	ironicNodePorts, err := p.getPorts(ctx, ironicNode.UUID, "", false)
 	if err != nil {
 		return err
 	}
 
-	ironicNodePortsList := map[string]ports.Port{}
+	// Build a map tracking which MAC addresses are already present in Ironic
+	ironicNodePortsList := map[string]bool{}
 	for _, port := range ironicNodePorts {
-		ironicNodePortsList[port.Address] = port
+		ironicNodePortsList[port.Address] = true
 	}
 
-	// Mac/PXE status map
-	portMacsToCreate := map[string]bool{}
+	// Build a map of ports to create from NICs in the hardware data that
+	// currently are not in Ironic.
+	portsToCreate := make(map[string]metal3api.NIC)
 	for _, nic := range nics {
 		if _, ok := ironicNodePortsList[nic.MAC]; nic.MAC != "" && !ok {
-			portMacsToCreate[nic.MAC] = nic.PXE
+			portsToCreate[nic.MAC] = nic
 		}
 	}
 
 	if _, ok := ironicNodePortsList[p.bootMACAddress]; p.bootMACAddress != "" && !ok {
-		portMacsToCreate[p.bootMACAddress] = true
+		if _, ok := portsToCreate[p.bootMACAddress]; !ok {
+			portsToCreate[p.bootMACAddress] = metal3api.NIC{
+				MAC: p.bootMACAddress,
+				PXE: true,
+			}
+		}
 	}
 
-	p.log.Info("creating ports for node", "nodeUUID", ironicNode.UUID, "MACs", portMacsToCreate)
+	p.log.Info("creating ports for node", "nodeUUID", ironicNode.UUID, "MACs", slices.Collect(maps.Keys(portsToCreate)))
 
-	for mac, pxe := range portMacsToCreate {
-		err := p.createNodePort(ctx, ironicNode.UUID, mac, pxe)
+	for _, nic := range portsToCreate {
+		err = p.createNodePort(ctx, ironicNode.UUID, nic)
 		if err != nil {
 			return err
 		}

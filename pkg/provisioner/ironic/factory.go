@@ -15,6 +15,7 @@ import (
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/baremetal/v1/drivers"
 	"github.com/gophercloud/gophercloud/v2/pagination"
+	. "github.com/metal3-io/baremetal-operator/pkg/logging"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/ironic/clients"
 	"github.com/metal3-io/baremetal-operator/pkg/secretutils"
@@ -173,9 +174,9 @@ func (f ironicProvisionerFactory) refreshCache(ctx context.Context, createClient
 			return f.cache.clientIronic, f.cache.availableFeatures, nil // cache is up-to-date
 		}
 
-		f.log.Info("client cache expired, refreshing", "TTL", f.cacheTTL, "HasGlobalClient", f.ironicName == "")
+		f.log.V(VerbosityLevelDebug).Info("client cache expired, refreshing", "TTL", f.cacheTTL, "HasGlobalClient", f.ironicName == "")
 	} else {
-		f.log.V(1).Info("creating and verifying a client (cache disabled)", "HasGlobalClient", f.ironicName == "")
+		f.log.V(VerbosityLevelDebug).Info("creating and verifying a client (cache disabled)", "HasGlobalClient", f.ironicName == "")
 	}
 
 	newClient, err := createClient()
@@ -306,6 +307,7 @@ func (f ironicProvisionerFactory) ironicProvisioner(ctx context.Context, hostDat
 		nodeID:                  hostData.ProvisionerID,
 		bmcCreds:                hostData.BMCCredentials,
 		bmcAddress:              hostData.BMCAddress,
+		portConfigs:             hostData.PortConfigs,
 		disableCertVerification: hostData.DisableCertificateVerification,
 		bootMACAddress:          hostData.BootMACAddress,
 		client:                  clientIronic,
@@ -378,7 +380,17 @@ func loadConfigFromEnv(havePreprovImgBuilder bool) (ironicConfig, error) {
 		}
 	}
 
-	c.provNetDisabled = strings.ToLower(os.Getenv("PROVISIONING_NETWORK_DISABLED")) == "true"
+	const envTrue = "true"
+
+	c.provNetDisabled = strings.ToLower(os.Getenv("PROVISIONING_NETWORK_DISABLED")) == envTrue
+
+	// Enable management of switch ports if networking is enabled
+	c.enableNetworking = strings.ToLower(os.Getenv("IRONIC_NETWORKING_ENABLED")) == envTrue
+
+	c.networkInterface = os.Getenv("IRONIC_NETWORK_INTERFACE")
+	if c.networkInterface == "" && c.enableNetworking {
+		c.networkInterface = "ironic-networking"
+	}
 
 	return c, nil
 }

@@ -1642,7 +1642,7 @@ func TestGetUpdateOptsForNodeOCIWithPullSecret(t *testing.T) {
 	provData := provisioner.ProvisionData{
 		Image:           *host.Spec.Image,
 		BootMode:        metal3api.DefaultBootMode,
-		ImagePullSecret: "dXNlcjpwYXNz",
+		ImagePullSecret: "user:pass",
 	}
 	patches := prov.getInstanceUpdateOpts(ironicNode, provData).Updates
 
@@ -1658,7 +1658,7 @@ func TestGetUpdateOptsForNodeOCIWithPullSecret(t *testing.T) {
 		},
 		{
 			Path:  "/instance_info/image_pull_secret",
-			Value: "dXNlcjpwYXNz",
+			Value: "user:pass",
 		},
 	}
 
@@ -1733,7 +1733,7 @@ func TestGetUpdateOptsForNodeOCIClearPullSecret(t *testing.T) {
 	ironicNode := &nodes.Node{
 		InstanceInfo: map[string]any{
 			"image_source":      "oci://quay.io/test/old-image:v1",
-			"image_pull_secret": "b2xkLXNlY3JldA==",
+			"image_pull_secret": "old-user:old-pass",
 		},
 	}
 

@@ -31,6 +31,7 @@ import (
 	"github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1/profile"
 	"github.com/metal3-io/baremetal-operator/pkg/hardwareutils/bmc"
 	"github.com/metal3-io/baremetal-operator/pkg/imageprovider"
+	. "github.com/metal3-io/baremetal-operator/pkg/logging"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
 	"github.com/metal3-io/baremetal-operator/pkg/secretutils"
 	"github.com/prometheus/client_golang/prometheus"
@@ -66,10 +67,11 @@ const (
 // BareMetalHostReconciler reconciles a BareMetalHost object.
 type BareMetalHostReconciler struct {
 	client.Client
-	Log                logr.Logger
-	ProvisionerFactory provisioner.Factory
-	APIReader          client.Reader
-	Recorder           record.EventRecorder
+	Log                  logr.Logger
+	ProvisionerFactory   provisioner.Factory
+	APIReader            client.Reader
+	Recorder             record.EventRecorder
+	AllowedHNANamespaces []string
 }
 
 // Instead of passing a zillion arguments to the action of a phase,
@@ -83,6 +85,7 @@ type reconcileInfo struct {
 	preprovisioningNetworkDataSecret *corev1.Secret
 	events                           []corev1.Event
 	postSaveCallbacks                []func()
+	portConfigs                      map[string]*provisioner.PortConfig
 }
 
 // match the provisioner.EventPublisher interface.
@@ -96,6 +99,7 @@ func (info *reconcileInfo) publishEvent(reason, message string) {
 // +kubebuilder:rbac:groups=metal3.io,resources=preprovisioningimages,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=metal3.io,resources=hardwaredata,verbs=get;list;watch;create;delete;patch;update
 // +kubebuilder:rbac:groups=metal3.io,resources=hardware/finalizers,verbs=update
+// +kubebuilder:rbac:groups=metal3.io,resources=hostnetworkattachments,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;update;patch
 
@@ -237,7 +241,27 @@ func (r *BareMetalHostReconciler) Reconcile(ctx context.Context, request ctrl.Re
 		preprovisioningNetworkDataSecret: preprovisioningNetworkDataSecret,
 	}
 
-	prov, err := r.ProvisionerFactory.NewProvisioner(ctx, provisioner.BuildHostData(*host, *bmcCreds), info.publishEvent)
+	// Build host data with all necessary information
+	provisionerHostData := provisioner.BuildHostData(*host, *bmcCreds)
+
+	// Resolve port configs early so they are available to the provisioner
+	// throughout the reconcile loop.  Needed in port registration code and
+	// in the reconciler.
+	if len(host.Spec.NetworkInterfaces) > 0 {
+		var portConfigs map[string]*provisioner.PortConfig
+		var nics []metal3api.NIC
+		if hardwareData != nil && hardwareData.Spec.HardwareDetails != nil {
+			nics = hardwareData.Spec.HardwareDetails.NIC
+		}
+		portConfigs, err = r.resolvePortConfigs(ctx, host, nics)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to resolve port configs: %w", err)
+		}
+		provisionerHostData.PortConfigs = portConfigs
+		info.portConfigs = portConfigs
+	}
+
+	prov, err := r.ProvisionerFactory.NewProvisioner(ctx, provisionerHostData, info.publishEvent)
 	if err != nil {
 		if errors.Is(err, provisioner.ErrNotReady) {
 			provisionerNotReady.Inc()
@@ -689,7 +713,7 @@ func (r *BareMetalHostReconciler) detachHost(ctx context.Context, prov provision
 		info.host.Status.ErrorCount = 0
 	}
 	if info.host.SetOperationalStatus(metal3api.OperationalStatusDetached) {
-		info.log.V(VerbosityLevelDebug).Info("host is detached, removed from provisioner")
+		info.log.Info("host is detached, removed from provisioner")
 		return actionUpdate{slowPoll}
 	}
 	return slowPoll
@@ -895,7 +919,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 
 	credsChanged := !info.host.Status.TriedCredentials.Match(*info.bmcCredsSecret)
 	if credsChanged {
-		info.log.V(VerbosityLevelDebug).Info("new credentials detected",
+		info.log.Info("new credentials detected",
 			"newVersion", info.bmcCredsSecret.ResourceVersion)
 		info.host.UpdateTriedCredentials(*info.bmcCredsSecret)
 		info.postSaveCallbacks = append(info.postSaveCallbacks, updatedCredentials.Inc)
@@ -1281,6 +1305,13 @@ func getUpdatesDifference(specUpdates []metal3api.FirmwareUpdate, statusUpdates 
 
 func (r *BareMetalHostReconciler) actionPreparing(ctx context.Context, prov provisioner.Provisioner, info *reconcileInfo) actionResult {
 	info.log.V(VerbosityLevelTrace).Info("actionPreparing started")
+
+	// Update switch port configs before other actions
+	if actResult := r.managePortConfigs(ctx, prov, info); actResult != nil {
+		if _, isContinue := actResult.(actionContinue); !isContinue {
+			return actResult
+		}
+	}
 
 	bmhDirty, newStatus, err := getHostProvisioningSettings(info.host, info)
 	if err != nil {
@@ -1687,7 +1718,7 @@ func (r *BareMetalHostReconciler) manageHostPower(ctx context.Context, prov prov
 	}
 
 	if hwState.PoweredOn != nil && *hwState.PoweredOn != info.host.Status.PoweredOn {
-		info.log.V(VerbosityLevelDebug).Info("updating power status",
+		info.log.Info("updating power status",
 			LogFieldPoweredOn, *hwState.PoweredOn)
 		info.host.Status.PoweredOn = *hwState.PoweredOn
 		if info.host.Status.OperationalStatus == metal3api.OperationalStatusError && info.host.Status.ErrorType == metal3api.PowerManagementError {
@@ -1757,7 +1788,7 @@ func (r *BareMetalHostReconciler) manageHostPower(ctx context.Context, prov prov
 		return steadyStateResult
 	}
 
-	info.log.V(VerbosityLevelDebug).Info("power state change needed",
+	info.log.Info("power state change needed",
 		"expected", desiredPowerOnState,
 		"actual", info.host.Status.PoweredOn,
 		"rebootMode", desiredRebootMode,
@@ -1887,7 +1918,7 @@ func (r *BareMetalHostReconciler) handleDataImageActions(ctx context.Context, pr
 	if deleteDataImage {
 		info.log.V(VerbosityLevelDebug).Info("DataImage requested for deletion")
 		if isImageAttached {
-			info.log.V(VerbosityLevelDebug).Info("detaching DataImage as its deletion has been requested")
+			info.log.Info("detaching DataImage as its deletion has been requested")
 			err := r.detachDataImage(ctx, prov, info, dataImage)
 			if err != nil {
 				return actionError{fmt.Errorf("failed to detach, %w", err)}
@@ -1905,7 +1936,7 @@ func (r *BareMetalHostReconciler) handleDataImageActions(ctx context.Context, pr
 	if requestedURL != attachedURL {
 		info.log.V(VerbosityLevelDebug).Info("DataImage change detected")
 		if attachedURL != "" {
-			info.log.V(VerbosityLevelDebug).Info("detaching DataImage")
+			info.log.Info("detaching DataImage as its URL has changed")
 			err := r.detachDataImage(ctx, prov, info, dataImage)
 			if err != nil {
 				return actionError{fmt.Errorf("failed to detach, %w", err)}
@@ -1917,7 +1948,7 @@ func (r *BareMetalHostReconciler) handleDataImageActions(ctx context.Context, pr
 			return actionContinue{dataImageRetryBackoff}
 		}
 		if requestedURL != "" {
-			info.log.V(VerbosityLevelDebug).Info("attaching DataImage",
+			info.log.Info("attaching DataImage",
 				LogFieldDataImage, requestedURL)
 			err := r.attachDataImage(ctx, prov, info, dataImage)
 			if err != nil {
@@ -2091,7 +2122,7 @@ func saveHostProvisioningSettings(host *metal3api.BareMetalHost, info *reconcile
 		}
 	}
 	if !reflect.DeepEqual(host.Status.Provisioning.RAID, specRAID) {
-		info.log.V(VerbosityLevelDebug).Info("RAID settings have changed",
+		info.log.Info("RAID settings have changed",
 			"old", host.Status.Provisioning.RAID,
 			"new", specRAID)
 		host.Status.Provisioning.RAID = specRAID
@@ -2297,7 +2328,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareSettings(ctx context.Context, i
 		return false, nil, fmt.Errorf("hostFirmwareSettings not ready yet: %w", err)
 	}
 	if !valid {
-		info.log.V(VerbosityLevelDebug).Info("hostFirmwareSettings not valid",
+		info.log.Info("hostFirmwareSettings not valid",
 			LogFieldNamespace, info.request.NamespacedName)
 		return false, hfs, nil
 	}
@@ -2308,7 +2339,7 @@ func (r *BareMetalHostReconciler) getHostFirmwareSettings(ctx context.Context, i
 			return false, nil, errors.New("host firmware status settings not available")
 		}
 
-		info.log.V(VerbosityLevelDebug).Info("hostFirmwareSettings indicating ChangeDetected",
+		info.log.Info("hostFirmwareSettings indicating ChangeDetected",
 			LogFieldNamespace, info.request.NamespacedName)
 		return true, hfs, nil
 	}
@@ -2339,12 +2370,12 @@ func (r *BareMetalHostReconciler) getHostFirmwareComponents(ctx context.Context,
 		return false, nil, fmt.Errorf("hostFirmwareComponents not ready yet: %w", err)
 	}
 	if !valid {
-		info.log.V(VerbosityLevelDebug).Info("hostFirmwareComponents not valid",
+		info.log.Info("hostFirmwareComponents not valid",
 			LogFieldNamespace, info.request.NamespacedName)
 		return false, hfc, nil
 	}
 	if changed {
-		info.log.V(VerbosityLevelDebug).Info("hostFirmwareComponents indicating ChangeDetected",
+		info.log.Info("hostFirmwareComponents indicating ChangeDetected",
 			LogFieldNamespace, info.request.NamespacedName)
 		return true, hfc, nil
 	}
@@ -2621,7 +2652,7 @@ func (r *BareMetalHostReconciler) publishEvent(ctx context.Context, request ctrl
 		"message", event.Message)
 	err := r.Create(ctx, &event)
 	if err != nil {
-		reqLogger.V(VerbosityLevelDebug).Info("failed to record event, ignoring",
+		reqLogger.Info("failed to record event, ignoring",
 			LogFieldReason, event.Reason,
 			"message", event.Message,
 			LogFieldError, err)
@@ -2714,7 +2745,7 @@ func (r *BareMetalHostReconciler) reconcileHostData(ctx context.Context, host *m
 		objStatus, err := r.getHostStatusFromAnnotation(host)
 
 		if err == nil && objStatus != nil {
-			reqLogger.V(VerbosityLevelDebug).Info("reconstructing Status from hardwareData and annotation")
+			reqLogger.Info("reconstructing Status from hardwareData and annotation")
 			// hardwareData takes predence over statusAnnotation data
 			if hardwareData.Spec.HardwareDetails != nil && objStatus.HardwareDetails != hardwareData.Spec.HardwareDetails {
 				objStatus.HardwareDetails = hardwareData.Spec.HardwareDetails

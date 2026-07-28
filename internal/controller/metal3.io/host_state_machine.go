@@ -6,7 +6,9 @@ import (
 
 	"github.com/go-logr/logr"
 	metal3api "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
+	. "github.com/metal3-io/baremetal-operator/pkg/logging"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -113,7 +115,7 @@ func (hsm *hostStateMachine) updateHostStateFrom(ctx context.Context, initialSta
 		default:
 		}
 
-		info.log.V(VerbosityLevelDebug).Info("changing provisioning state",
+		info.log.Info("changing provisioning state",
 			"old", initialState,
 			"new", hsm.NextState)
 		now := metav1.Now()
@@ -363,7 +365,7 @@ func (hsm *hostStateMachine) ensureRegistered(ctx context.Context, info *reconci
 	default:
 		if hsm.Host.Status.ErrorType == metal3api.RegistrationError ||
 			!hsm.Host.Status.GoodCredentials.Match(*info.bmcCredsSecret) {
-			info.log.V(VerbosityLevelDebug).Info("retrying registration",
+			info.log.Info("retrying registration",
 				"lastError", hsm.Host.Status.ErrorMessage)
 			recordStateBegin(hsm.Host, metal3api.StateRegistering, metav1.Now())
 		}
@@ -466,9 +468,29 @@ func (hsm *hostStateMachine) handlePreparing(ctx context.Context, info *reconcil
 }
 
 func (hsm *hostStateMachine) handleAvailable(ctx context.Context, info *reconcileInfo) actionResult {
+	// TODO(alegacy):  Need to understand the externally provisioned case better.
+	// Are we ignoring switchport configs altogether here?  IBI?
+
 	if hsm.Host.Spec.ExternallyProvisioned {
 		hsm.NextState = metal3api.StateExternallyProvisioned
 		clearHostProvisioningSettings(info.host)
+		return actionComplete{}
+	}
+
+	// Re-validate network interfaces before checking port configs so
+	// that portConfigsNeedUpdate sees the current condition state.
+	if len(hsm.Host.Spec.NetworkInterfaces) > 0 {
+		if dirty, err := hsm.Reconciler.validateNetworkInterfaces(ctx, info.host, hardwareDetailsFromInfo(info)); err != nil {
+			return actionError{err}
+		} else if dirty {
+			return actionUpdate{}
+		}
+	}
+
+	// Check if port configs have changed before any other action since those
+	// other actions may depend on the network settings being adjusted.
+	if hsm.Reconciler.portConfigsNeedUpdate(info.host, info) {
+		hsm.NextState = metal3api.StatePreparing
 		return actionComplete{}
 	}
 
@@ -503,6 +525,15 @@ func (hsm *hostStateMachine) handleAvailable(ctx context.Context, info *reconcil
 	// ErrorCount is cleared when appropriate inside actionManageAvailable
 	actResult := hsm.Reconciler.actionManageAvailable(ctx, hsm.Provisioner, info)
 	if _, complete := actResult.(actionComplete); complete {
+		// Block provisioning if network interfaces are specified but not valid
+		if len(hsm.Host.Spec.NetworkInterfaces) > 0 {
+			cond := meta.FindStatusCondition(hsm.Host.Status.Conditions, metal3api.NetworkInterfacesValidCondition)
+			if cond != nil && cond.Status == metav1.ConditionFalse {
+				info.log.Info("waiting for network interfaces to become valid before provisioning",
+					"reason", cond.Reason, "message", cond.Message)
+				return actResult
+			}
+		}
 		hsm.NextState = metal3api.StateProvisioning
 	}
 	return actResult
