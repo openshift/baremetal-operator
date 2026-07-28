@@ -26,6 +26,9 @@ func buildLocalLinkFromConfig(config *metal3api.SwitchPortIdentifier) map[string
 	if config.SwitchSystemName != "" {
 		llc["switch_info"] = config.SwitchSystemName
 	}
+	if len(llc) == 0 {
+		return nil
+	}
 	return llc
 }
 
