@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/baremetal/v1/nodes"
@@ -320,22 +321,24 @@ func (p *ironicProvisioner) createPortsForNode(ctx context.Context, ironicNode *
 	// Build a map tracking which MAC addresses are already present in Ironic
 	ironicNodePortsList := map[string]bool{}
 	for _, port := range ironicNodePorts {
-		ironicNodePortsList[port.Address] = true
+		ironicNodePortsList[strings.ToLower(port.Address)] = true
 	}
 
 	// Build a map of ports to create from NICs in the hardware data that
 	// currently are not in Ironic.
 	portsToCreate := make(map[string]metal3api.NIC)
 	for _, nic := range nics {
-		if _, ok := ironicNodePortsList[nic.MAC]; nic.MAC != "" && !ok {
-			portsToCreate[nic.MAC] = nic
+		mac := strings.ToLower(nic.MAC)
+		if _, ok := ironicNodePortsList[mac]; mac != "" && !ok {
+			portsToCreate[mac] = nic
 		}
 	}
 
-	if _, ok := ironicNodePortsList[p.bootMACAddress]; p.bootMACAddress != "" && !ok {
-		if _, ok := portsToCreate[p.bootMACAddress]; !ok {
-			portsToCreate[p.bootMACAddress] = metal3api.NIC{
-				MAC: p.bootMACAddress,
+	bootMACAddress := strings.ToLower(p.bootMACAddress)
+	if _, ok := ironicNodePortsList[bootMACAddress]; bootMACAddress != "" && !ok {
+		if _, ok := portsToCreate[bootMACAddress]; !ok {
+			portsToCreate[bootMACAddress] = metal3api.NIC{
+				MAC: bootMACAddress,
 				PXE: true,
 			}
 		}
