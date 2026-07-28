@@ -150,14 +150,18 @@ func (p *ironicProvisioner) updatePort(ctx context.Context, existingPort ports.P
 
 	// Add switch port config if available; otherwise remove
 	if portConfig != nil {
-		// Compare new config with existing to avoid unnecessary updates
-		equal, err := switchPortConfigsEqual(existingPort.Extra["switchport"], &portConfig.SwitchPortConfig)
-		if err != nil {
-			return fmt.Errorf("failed to parse switchport config for port %s: %w", existingPort.UUID, err)
+		existing, exists := existingPort.Extra["switchport"]
+		equal := false
+		if exists && existing != nil {
+			var err error
+			equal, err = switchPortConfigsEqual(existing, &portConfig.SwitchPortConfig)
+			if err != nil {
+				return fmt.Errorf("failed to parse switchport config for port %s: %w", existingPort.UUID, err)
+			}
 		}
 		if !equal {
 			op := ports.AddOp
-			if _, exists := existingPort.Extra["switchport"]; exists {
+			if exists {
 				op = ports.ReplaceOp
 			}
 			updateOpts = append(updateOpts, ports.UpdateOperation{
