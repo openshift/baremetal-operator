@@ -241,8 +241,12 @@ func buildAppliedPortConfigs(info *reconcileInfo) []metal3api.AppliedPortConfig 
 	applied := make([]metal3api.AppliedPortConfig, 0, len(info.portConfigs))
 
 	for mac, config := range info.portConfigs {
+		name := macToName[mac]
+		if name == "" {
+			name = mac
+		}
 		appliedPortConfig := metal3api.AppliedPortConfig{
-			Name: macToName[mac],
+			Name: name,
 			SwitchPortConfig: metal3api.SwitchPortConfig{
 				Mode:         config.SwitchPortConfig.Mode,
 				NativeVLAN:   config.SwitchPortConfig.NativeVLAN,
