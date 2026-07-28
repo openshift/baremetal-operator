@@ -519,7 +519,7 @@ golang.org/x/tools/internal/versions
 # gomodules.xyz/jsonpatch/v2 v2.5.0
 ## explicit; go 1.20
 gomodules.xyz/jsonpatch/v2
-# google.golang.org/protobuf v1.36.11
+# google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 ## explicit; go 1.23
 google.golang.org/protobuf/encoding/protodelim
 google.golang.org/protobuf/encoding/prototext
@@ -564,7 +564,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# k8s.io/api v0.35.6
+# k8s.io/api v0.35.7
 ## explicit; go 1.25.0
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
@@ -630,7 +630,7 @@ k8s.io/api/storagemigration/v1beta1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
-# k8s.io/apimachinery v0.35.6
+# k8s.io/apimachinery v0.35.7
 ## explicit; go 1.25.0
 k8s.io/apimachinery/pkg/api/apitesting
 k8s.io/apimachinery/pkg/api/apitesting/fuzzer
@@ -700,7 +700,7 @@ k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/apiserver v0.35.6
 ## explicit; go 1.25.0
 k8s.io/apiserver/pkg/storage/names
-# k8s.io/client-go v0.35.6
+# k8s.io/client-go v0.35.7
 ## explicit; go 1.25.0
 k8s.io/client-go/applyconfigurations/admissionregistration/v1
 k8s.io/client-go/applyconfigurations/admissionregistration/v1alpha1
@@ -981,7 +981,7 @@ k8s.io/client-go/util/workqueue
 ## explicit; go 1.25.0
 k8s.io/cluster-bootstrap/token/api
 k8s.io/cluster-bootstrap/token/util
-# k8s.io/component-base v0.35.6
+# k8s.io/component-base v0.35.7
 ## explicit; go 1.25.0
 k8s.io/component-base/featuregate
 k8s.io/component-base/metrics
@@ -1020,10 +1020,10 @@ k8s.io/utils/lru
 k8s.io/utils/net
 k8s.io/utils/ptr
 k8s.io/utils/trace
-# libvirt.org/go/libvirt v1.12003.0
+# libvirt.org/go/libvirt v1.12005.0
 ## explicit; go 1.11
 libvirt.org/go/libvirt
-# sigs.k8s.io/cluster-api v1.13.3
+# sigs.k8s.io/cluster-api v1.13.4
 ## explicit; go 1.25.0
 sigs.k8s.io/cluster-api/api/addons/v1beta2
 sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta2
@@ -1079,7 +1079,7 @@ sigs.k8s.io/cluster-api/util/secret
 sigs.k8s.io/cluster-api/util/version
 sigs.k8s.io/cluster-api/util/yaml
 sigs.k8s.io/cluster-api/version
-# sigs.k8s.io/cluster-api/test v1.13.3
+# sigs.k8s.io/cluster-api/test v1.13.4
 ## explicit; go 1.25.0
 sigs.k8s.io/cluster-api/test/framework
 sigs.k8s.io/cluster-api/test/framework/bootstrap

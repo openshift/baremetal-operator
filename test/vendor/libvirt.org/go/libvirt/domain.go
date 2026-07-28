@@ -78,6 +78,16 @@ const (
 	DOMAIN_VCPU_MAXIMUM      = DomainVcpuFlags(C.VIR_DOMAIN_VCPU_MAXIMUM)
 	DOMAIN_VCPU_GUEST        = DomainVcpuFlags(C.VIR_DOMAIN_VCPU_GUEST)
 	DOMAIN_VCPU_HOTPLUGGABLE = DomainVcpuFlags(C.VIR_DOMAIN_VCPU_HOTPLUGGABLE)
+	DOMAIN_VCPU_ASYNC_UNPLUG = DomainVcpuFlags(C.VIR_DOMAIN_VCPU_ASYNC_UNPLUG)
+)
+
+type DomainSetVcpuFlags uint
+
+const (
+	VIR_DOMAIN_SETVCPU_AFFECT_CURRENT = DomainSetVcpuFlags(C.VIR_DOMAIN_SETVCPU_AFFECT_CURRENT)
+	VIR_DOMAIN_SETVCPU_AFFECT_LIVE    = DomainSetVcpuFlags(C.VIR_DOMAIN_SETVCPU_AFFECT_LIVE)
+	VIR_DOMAIN_SETVCPU_AFFECT_CONFIG  = DomainSetVcpuFlags(C.VIR_DOMAIN_SETVCPU_AFFECT_CONFIG)
+	VIR_DOMAIN_SETVCPU_ASYNC_UNPLUG   = DomainSetVcpuFlags(C.VIR_DOMAIN_SETVCPU_ASYNC_UNPLUG)
 )
 
 type DomainModificationImpact int
@@ -230,6 +240,21 @@ const (
 
 	// UNIX socket path
 	DOMAIN_EVENT_GRAPHICS_ADDRESS_UNIX = DomainEventGraphicsAddressType(C.VIR_DOMAIN_EVENT_GRAPHICS_ADDRESS_UNIX)
+)
+
+type DomainEventChannelLifecycleState int
+
+const (
+	DOMAIN_EVENT_CHANNEL_LIFECYCLE_STATE_CONNECTED    = DomainEventChannelLifecycleReason(C.VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_STATE_CONNECTED)
+	DOMAIN_EVENT_CHANNEL_LIFECYCLE_STATE_DISCONNECTED = DomainEventChannelLifecycleReason(C.VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_STATE_DISCONNECTED)
+)
+
+type DomainEventChannelLifecycleReason int
+
+const (
+	DOMAIN_EVENT_CHANNEL_LIFECYCLE_REASON_CHANNEL        = DomainEventChannelLifecycleState(C.VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_REASON_CHANNEL)
+	DOMAIN_EVENT_CHANNEL_LIFECYCLE_REASON_DOMAIN_STARTED = DomainEventChannelLifecycleState(C.VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_REASON_DOMAIN_STARTED)
+	DOMAIN_EVENT_CHANNEL_LIFECYCLE_REASON_UNKNOWN        = DomainEventChannelLifecycleReason(C.VIR_CONNECT_DOMAIN_EVENT_CHANNEL_LIFECYCLE_REASON_UNKNOWN)
 )
 
 type DomainBlockJobType int
@@ -5008,7 +5033,7 @@ func (d *Domain) SetGuestVcpus(cpus []bool, state bool, flags uint32) error {
 }
 
 // See also https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainSetVcpu
-func (d *Domain) SetVcpu(cpus []bool, state bool, flags uint32) error {
+func (d *Domain) SetVcpu(cpus []bool, state bool, flags DomainSetVcpuFlags) error {
 	cpumap := ""
 	for i := 0; i < len(cpus); i++ {
 		if cpus[i] {
@@ -6000,6 +6025,61 @@ func (d *Domain) SetThrottleGroup(group string, params *DomainBlockIoTuneParamet
 	var err C.virError
 	cgroup := C.CString(group)
 	ret := C.virDomainSetThrottleGroupWrapper(d.ptr, cgroup, cparams, cnparams, C.uint(flags), &err)
+	if ret == -1 {
+		return makeError(&err)
+	}
+
+	return nil
+}
+
+type DomainAnnounceInterfaceParameters struct {
+	InitialSet bool
+	Initial    uint
+	MaxSet     bool
+	Max        uint
+	RoundsSet  bool
+	Rounds     uint
+	StepSet    bool
+	Step       uint
+}
+
+func getDomainAnnounceInterfaceParametersFieldInfo(params *DomainAnnounceInterfaceParameters) map[string]typedParamsFieldInfo {
+	return map[string]typedParamsFieldInfo{
+		C.VIR_DOMAIN_ANNOUNCE_INTERFACE_INITIAL: typedParamsFieldInfo{
+			set: &params.InitialSet,
+			ui:  &params.Initial,
+		},
+		C.VIR_DOMAIN_ANNOUNCE_INTERFACE_MAX: typedParamsFieldInfo{
+			set: &params.MaxSet,
+			ui:  &params.Max,
+		},
+		C.VIR_DOMAIN_ANNOUNCE_INTERFACE_ROUNDS: typedParamsFieldInfo{
+			set: &params.RoundsSet,
+			ui:  &params.Rounds,
+		},
+		C.VIR_DOMAIN_ANNOUNCE_INTERFACE_STEP: typedParamsFieldInfo{
+			set: &params.StepSet,
+			ui:  &params.Step,
+		},
+	}
+}
+
+func (d *Domain) AnnounceInterface(device string, params *DomainAnnounceInterfaceParameters, flags uint32) error {
+	cdevice := C.CString(device)
+	defer C.free(unsafe.Pointer(cdevice))
+
+	info := getDomainAnnounceInterfaceParametersFieldInfo(params)
+
+	cparams, cnparams, gerr := typedParamsPackNew(info)
+	if gerr != nil {
+		return gerr
+	}
+
+	defer C.virTypedParamsFreeWrapper(cparams, cnparams)
+
+	var err C.virError
+	ret := C.virDomainAnnounceInterfaceWrapper(d.ptr, cdevice, cparams, cnparams, C.uint(flags), &err)
+
 	if ret == -1 {
 		return makeError(&err)
 	}
