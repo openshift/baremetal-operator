@@ -261,6 +261,10 @@ func buildAppliedPortConfigs(info *reconcileInfo) []metal3api.AppliedPortConfig 
 		applied = append(applied, appliedPortConfig)
 	}
 
+	if len(applied) == 0 {
+		return nil
+	}
+
 	sort.Slice(applied, func(i, j int) bool {
 		return applied[i].Name < applied[j].Name
 	})
