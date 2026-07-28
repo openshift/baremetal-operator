@@ -38,11 +38,9 @@ import (
 )
 
 type MockHostManager struct {
-	countSetFinalizer            int
-	countUnsetFinalizer          int
-	countSetConditionHostToFalse int
-	countSetConditionHostToTrue  int
-	countAssociate               int
+	countSetFinalizer   int
+	countUnsetFinalizer int
+	countAssociate      int
 	countDelete                  int
 	countUpdate                  int
 	isProvisioned                bool
