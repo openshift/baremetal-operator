@@ -311,7 +311,7 @@ func (p *ironicProvisioner) createNodePort(ctx context.Context, uuid string, nic
 	if p.config.enableNetworking {
 		if portConfig, found := p.portConfigs[macAddress]; found {
 			createOpts.Extra = map[string]interface{}{
-				"switchport": portConfig.SwitchPortConfig,
+				"switchport": buildSwitchPortFromConfig(&portConfig.SwitchPortConfig),
 			}
 			if portConfig.LocalLinkConnection != nil {
 				createOpts.LocalLinkConnection = buildLocalLinkFromConfig(portConfig.LocalLinkConnection)
