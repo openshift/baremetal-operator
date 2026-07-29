@@ -24,6 +24,15 @@ var ErrNotReady = errors.New("provisioner is not ready")
 // with provisioning.
 type EventPublisher func(reason, message string)
 
+// PortConfig represents the configuration attributes to be applied to node
+// ports.
+type PortConfig struct {
+	SwitchPortConfig metal3api.SwitchPortConfig
+	// SwitchPortIdentifier is only provided if the user has provided an
+	// override for what could be provided by LLDP during node inspection.
+	SwitchPortIdentifier *metal3api.SwitchPortIdentifier
+}
+
 type HostData struct {
 	ObjectMeta                     metav1.ObjectMeta
 	BMCAddress                     string
@@ -89,6 +98,21 @@ type ManagementAccessData struct {
 	DisablePowerOff            bool
 	CPUArchitecture            string
 	HardwareData               *metal3api.HardwareData
+	PortConfigs                map[string]*PortConfig
+}
+
+// IsActiveOperation returns true when the given provisioning state
+// indicates an active operation where port modifications should not
+// be performed.
+func IsActiveOperation(state metal3api.ProvisioningState) bool {
+	switch state {
+	case metal3api.StateProvisioning, metal3api.StateProvisioned,
+		metal3api.StateDeprovisioning, metal3api.StatePoweringOffBeforeDelete,
+		metal3api.StateDeleting:
+		return true
+	default:
+		return false
+	}
 }
 
 type AdoptData struct {
