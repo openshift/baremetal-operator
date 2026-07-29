@@ -284,6 +284,9 @@ func expandVLANRanges(entries []string) ([]int, error) {
 			return nil, fmt.Errorf("invalid VLAN entry %q: %w", entry, err)
 		}
 		if !hasRange {
+			if start < 1 || start > 4094 {
+				return nil, fmt.Errorf("invalid VLAN ID %q: must be within 1-4094", entry)
+			}
 			result = append(result, start)
 			continue
 		}

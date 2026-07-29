@@ -910,6 +910,21 @@ func TestExpandVLANRanges(t *testing.T) {
 			input:   []string{"100-abc"},
 			wantErr: true,
 		},
+		{
+			name:    "single VLAN below minimum",
+			input:   []string{"0"},
+			wantErr: true,
+		},
+		{
+			name:    "single VLAN above maximum",
+			input:   []string{"4095"},
+			wantErr: true,
+		},
+		{
+			name:    "single negative VLAN",
+			input:   []string{"-5"},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
