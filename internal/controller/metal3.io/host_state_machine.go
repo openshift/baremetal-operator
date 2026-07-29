@@ -508,9 +508,13 @@ func (hsm *hostStateMachine) handleAvailable(ctx context.Context, info *reconcil
 		// Block provisioning if network interfaces are specified but not valid
 		if len(hsm.Host.Spec.NetworkInterfaces) > 0 {
 			cond := meta.FindStatusCondition(hsm.Host.Status.Conditions, metal3api.NetworkInterfacesValidCondition)
-			if cond != nil && cond.Status == metav1.ConditionFalse {
+			if cond == nil || cond.Status != metav1.ConditionTrue {
+				reason, message := "Pending", "validation has not run yet"
+				if cond != nil {
+					reason, message = cond.Reason, cond.Message
+				}
 				info.log.Info("waiting for network interfaces to become valid before provisioning",
-					"reason", cond.Reason, "message", cond.Message)
+					"reason", reason, "message", message)
 				return actResult
 			}
 		}

@@ -169,6 +169,71 @@ func TestProvisioningCapacity(t *testing.T) {
 	}
 }
 
+func TestNetworkInterfacesProvisioningGate(t *testing.T) {
+	dummyNICs := []metal3api.NetworkInterface{{Name: "eno1"}}
+
+	testCases := []struct {
+		Scenario                  string
+		Host                      *metal3api.BareMetalHost
+		ExpectedProvisioningState metal3api.ProvisioningState
+	}{
+		{
+			Scenario: "no-network-interfaces-provisions",
+			Host:     host(metal3api.StateAvailable).SaveHostProvisioningSettings().build(),
+			ExpectedProvisioningState: metal3api.StateProvisioning,
+		},
+		{
+			Scenario: "valid-condition-true-provisions",
+			Host: host(metal3api.StateAvailable).SaveHostProvisioningSettings().
+				SetNetworkInterfaces(dummyNICs).
+				SetHardwareDetails(&metal3api.HardwareDetails{
+					NIC: []metal3api.NIC{{Name: "eno1", MAC: "aa:bb:cc:dd:ee:ff"}},
+				}).
+				SetCondition(metal3api.NetworkInterfacesValidCondition, metav1.ConditionTrue,
+					"AllInterfacesValid", "All network interfaces and attachments are valid").
+				build(),
+			ExpectedProvisioningState: metal3api.StateProvisioning,
+		},
+		{
+			Scenario: "valid-condition-false-blocks",
+			Host: host(metal3api.StateAvailable).SaveHostProvisioningSettings().
+				SetNetworkInterfaces(dummyNICs).
+				SetCondition(metal3api.NetworkInterfacesValidCondition, metav1.ConditionFalse, "Invalid", "bad config").
+				build(),
+			ExpectedProvisioningState: metal3api.StateAvailable,
+		},
+		{
+			Scenario: "valid-condition-unknown-blocks",
+			Host: host(metal3api.StateAvailable).SaveHostProvisioningSettings().
+				SetNetworkInterfaces(dummyNICs).
+				SetCondition(metal3api.NetworkInterfacesValidCondition, metav1.ConditionUnknown, "Pending", "validating").
+				build(),
+			ExpectedProvisioningState: metal3api.StateAvailable,
+		},
+		{
+			Scenario: "missing-condition-blocks",
+			Host: host(metal3api.StateAvailable).SaveHostProvisioningSettings().
+				SetNetworkInterfaces(dummyNICs).
+				build(),
+			ExpectedProvisioningState: metal3api.StateAvailable,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Scenario, func(t *testing.T) {
+			prov := newMockProvisioner()
+			prov.setHasCapacity(true)
+			reconciler := testNewReconciler(tc.Host)
+			hsm := newHostStateMachine(tc.Host, reconciler, prov, true)
+			info := makeDefaultReconcileInfo(tc.Host)
+
+			hsm.ReconcileState(t.Context(), info)
+
+			assert.Equal(t, tc.ExpectedProvisioningState, tc.Host.Status.Provisioning.State)
+		})
+	}
+}
+
 //nolint:dupl
 func TestDeprovisioningCapacity(t *testing.T) {
 	testCases := []struct {
@@ -1254,6 +1319,26 @@ func (hb *hostBuilder) setDetached(val string) *hostBuilder {
 		hb.Annotations = make(map[string]string, 1)
 	}
 	hb.Annotations[metal3api.DetachedAnnotation] = val
+	return hb
+}
+
+func (hb *hostBuilder) SetNetworkInterfaces(nics []metal3api.NetworkInterface) *hostBuilder {
+	hb.Spec.NetworkInterfaces = nics
+	return hb
+}
+
+func (hb *hostBuilder) SetHardwareDetails(details *metal3api.HardwareDetails) *hostBuilder {
+	hb.Status.HardwareDetails = details
+	return hb
+}
+
+func (hb *hostBuilder) SetCondition(condType string, status metav1.ConditionStatus, reason, message string) *hostBuilder {
+	meta.SetStatusCondition(&hb.Status.Conditions, metav1.Condition{
+		Type:    condType,
+		Status:  status,
+		Reason:  reason,
+		Message: message,
+	})
 	return hb
 }
 
