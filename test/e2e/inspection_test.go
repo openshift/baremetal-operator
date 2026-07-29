@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Inspection", Label("required", "inspection"), func() {
+var _ = Describe("Inspection", Label("required", "inspection", "ironic"), func() {
 	var (
 		specName      = "inspection"
 		namespace     *corev1.Namespace

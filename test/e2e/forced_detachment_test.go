@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Start provisioning, force detachment, delete and recreate, provision, detach again and delete", Label("required", "provision", "detach", "force-detach"),
+var _ = Describe("Forced Detachment", Label("required", "provision", "detach", "force-detach", "ironic"),
 	func() {
 		var (
 			specName      = "force-detach"

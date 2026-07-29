@@ -5,13 +5,15 @@ resources:
 - ./automated-cleaning
 - ./baremetalswitch
 - ./basic-ops
+- ./networking
 - ./external-inspection
 - ./externally-provisioned
+- ./firmware-components
 - ./firmware-settings
 - ./force-detach
 - ./inspection
 - ./live-iso-ops
-- ./pp-network-data
+- ./network-data
 - ./provisioning-ops
 - ./re-inspection
 - ./upgrade-bmo

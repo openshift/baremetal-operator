@@ -45,18 +45,11 @@ func runCredentialsTest(t *testing.T, tc credentialsTestCase) {
 		return
 	}
 
-	// Verify credentials are base64 encoded.
-	decoded, decodeErr := base64.StdEncoding.DecodeString(result)
-	if decodeErr != nil {
-		t.Errorf("credentials are not valid base64: %v", decodeErr)
-		return
-	}
-
-	// Verify credentials contain username:password format.
+	// Verify credentials are in plain text username:password format.
 	const credentialParts = 2
-	parts := strings.SplitN(string(decoded), ":", credentialParts)
+	parts := strings.SplitN(result, ":", credentialParts)
 	if len(parts) != credentialParts {
-		t.Errorf("expected credentials in username:password format, got: %s", string(decoded))
+		t.Errorf("expected credentials in username:password format, got: %s", result)
 	}
 }
 

@@ -1,7 +1,6 @@
 package secretutils
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,9 +14,8 @@ import (
 // ExtractRegistryCredentials extracts the registry credentials from a Kubernetes secret
 // for the registry associated with the given image URL.
 // It supports both kubernetes.io/dockerconfigjson and kubernetes.io/dockercfg secret types.
-// Returns ONLY the minimal credential in the format expected by Ironic:
-// base64-encoded "username:password" (NOT the entire Docker config JSON).
-// This is what Ironic accepts in instance_info[image_pull_secret].
+// Returns credentials as plain text "username:password", which is the format
+// Ironic expects in instance_info[image_pull_secret].
 func ExtractRegistryCredentials(secret *corev1.Secret, imageURL string) (string, error) {
 	if secret == nil {
 		return "", errors.New("secret is nil")
@@ -60,9 +58,7 @@ func ExtractRegistryCredentials(secret *corev1.Secret, imageURL string) (string,
 		return "", fmt.Errorf("registry %s not found in auth config", registryHost)
 	}
 
-	// Return credentials in the format expected by Ironic (base64-encoded "username:password")
-	credentials := fmt.Sprintf("%s:%s", username, password)
-	return base64.StdEncoding.EncodeToString([]byte(credentials)), nil
+	return fmt.Sprintf("%s:%s", username, password), nil
 }
 
 // extractRegistryHost extracts the registry hostname from an OCI image URL.

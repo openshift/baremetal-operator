@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("basic", Label("required", "basic"), func() {
+var _ = Describe("basic", Label("required", "basic", "ironic"), func() {
 	var (
 		specName      = "basic-ops"
 		namespace     *corev1.Namespace

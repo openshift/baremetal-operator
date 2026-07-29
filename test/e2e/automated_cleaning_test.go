@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Automated cleaning", Label("required", "automated-cleaning"), func() {
+var _ = Describe("Automated cleaning", Label("required", "automated-cleaning", "ironic"), func() {
 	var (
 		specName      = "automated-cleaning"
 		namespace     *corev1.Namespace
@@ -200,6 +200,12 @@ var _ = Describe("Automated cleaning", Label("required", "automated-cleaning"), 
 		output, err = executeSSHCommand(client, "ls -la /mnt/data/test_file_vdb.txt 2>/dev/null || echo 'file not found'")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(ContainSubstring("file not found"), "Test file /mnt/data/test_file_vdb.txt should have been cleaned")
+
+		By("Disabling cleaning to allow quick deletion")
+		helper, err = patch.NewHelper(&bmh, clusterProxy.GetClient())
+		Expect(err).NotTo(HaveOccurred())
+		bmh.Spec.AutomatedCleaningMode = metal3api.CleaningModeDisabled
+		Expect(helper.Patch(ctx, &bmh)).To(Succeed())
 
 	})
 	AfterEach(func() {
