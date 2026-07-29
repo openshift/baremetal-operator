@@ -8,6 +8,7 @@ import (
 	metal3api "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	. "github.com/metal3-io/baremetal-operator/pkg/logging"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -498,6 +499,15 @@ func (hsm *hostStateMachine) handleAvailable(ctx context.Context, info *reconcil
 	// ErrorCount is cleared when appropriate inside actionManageAvailable
 	actResult := hsm.Reconciler.actionManageAvailable(ctx, hsm.Provisioner, info)
 	if _, complete := actResult.(actionComplete); complete {
+		// Block provisioning if network interfaces are specified but not valid
+		if len(hsm.Host.Spec.NetworkInterfaces) > 0 {
+			cond := meta.FindStatusCondition(hsm.Host.Status.Conditions, metal3api.NetworkInterfacesValidCondition)
+			if cond != nil && cond.Status == metav1.ConditionFalse {
+				info.log.Info("waiting for network interfaces to become valid before provisioning",
+					"reason", cond.Reason, "message", cond.Message)
+				return actResult
+			}
+		}
 		hsm.NextState = metal3api.StateProvisioning
 	}
 	return actResult

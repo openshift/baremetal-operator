@@ -67,10 +67,11 @@ const (
 // BareMetalHostReconciler reconciles a BareMetalHost object.
 type BareMetalHostReconciler struct {
 	client.Client
-	Log                logr.Logger
-	ProvisionerFactory provisioner.Factory
-	APIReader          client.Reader
-	Recorder           record.EventRecorder
+	Log                  logr.Logger
+	ProvisionerFactory   provisioner.Factory
+	APIReader            client.Reader
+	Recorder             record.EventRecorder
+	AllowedHNANamespaces []string
 }
 
 // Instead of passing a zillion arguments to the action of a phase,
@@ -84,6 +85,7 @@ type reconcileInfo struct {
 	preprovisioningNetworkDataSecret *corev1.Secret
 	events                           []corev1.Event
 	postSaveCallbacks                []func()
+	portConfigs                      map[string]*provisioner.PortConfig
 }
 
 // match the provisioner.EventPublisher interface.
@@ -97,6 +99,7 @@ func (info *reconcileInfo) publishEvent(reason, message string) {
 // +kubebuilder:rbac:groups=metal3.io,resources=preprovisioningimages,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=metal3.io,resources=hardwaredata,verbs=get;list;watch;create;delete;patch;update
 // +kubebuilder:rbac:groups=metal3.io,resources=hardware/finalizers,verbs=update
+// +kubebuilder:rbac:groups=metal3.io,resources=hostnetworkattachments,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;update;patch
 
@@ -943,6 +946,31 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		return recordActionFailure(info, metal3api.RegistrationError, fmt.Sprintf("failed to read preprovisioningNetworkData: %v", err))
 	}
 
+	// Resolve and validate port configs before Register so the
+	// provisioner only receives validated configurations.
+	if len(info.host.Spec.NetworkInterfaces) > 0 {
+		portConfigs, resolveErr := r.resolvePortConfigs(ctx, info.host, nicsFromInfo(info))
+		if resolveErr != nil {
+			return actionError{fmt.Errorf("failed to resolve port configs: %w", resolveErr)}
+		}
+		if validDirty, valErr := r.validateNetworkInterfaces(ctx, info.host, hardwareDetailsFromInfo(info)); valErr != nil {
+			return actionError{valErr}
+		} else if validDirty {
+			dirty = true
+		}
+		cond := meta.FindStatusCondition(info.host.Status.Conditions, metal3api.NetworkInterfacesValidCondition)
+		if cond == nil || cond.Status != metav1.ConditionFalse {
+			info.portConfigs = portConfigs
+		}
+	} else {
+		if clearDirty, _ := r.clearNetworkInterfaceValidation(info.host); clearDirty {
+			dirty = true
+		}
+		if len(info.host.Status.AppliedPortConfigs) > 0 {
+			info.portConfigs = make(map[string]*provisioner.PortConfig)
+		}
+	}
+
 	provResult, provID, err := prov.Register(
 		ctx,
 		provisioner.ManagementAccessData{
@@ -957,6 +985,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 			DisablePowerOff:            info.host.Spec.DisablePowerOff,
 			CPUArchitecture:            getHostArchitecture(info.host),
 			HardwareData:               info.hardwareData,
+			PortConfigs:                info.portConfigs,
 		},
 		credsChanged,
 		info.host.Status.ErrorType == metal3api.RegistrationError)
@@ -1054,6 +1083,19 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 	if info.host.Status.ErrorType == metal3api.RegistrationError || registeredNewCreds {
 		info.log.V(VerbosityLevelDebug).Info("clearing previous error message")
 		dirty = clearError(info.host)
+	}
+
+	// Sync AppliedPortConfigs with resolved port configs.
+	// portConfigs is nil when validation failed (preserve existing),
+	// empty map when NI was removed (clean up), or populated (apply).
+	// Only update during states where the provisioner can actually
+	// modify Ironic ports so status reflects what is applied.
+	if info.portConfigs != nil && !provisioner.IsActiveOperation(info.host.Status.Provisioning.State) {
+		desired := buildAppliedPortConfigs(info)
+		if !reflect.DeepEqual(desired, info.host.Status.AppliedPortConfigs) {
+			info.host.Status.AppliedPortConfigs = desired
+			dirty = true
+		}
 	}
 
 	if dirty {

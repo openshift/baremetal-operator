@@ -424,11 +424,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	var allowedHNANamespaces []string
+	if watchNamespace != "" {
+		for _, ns := range strings.Split(watchNamespace, ",") {
+			ns = strings.TrimSpace(ns)
+			if ns != "" {
+				allowedHNANamespaces = append(allowedHNANamespaces, ns)
+			}
+		}
+		setupLog.Info("restricting HNA references to watched namespaces", "namespaces", allowedHNANamespaces)
+	}
+
 	if err = (&metal3iocontroller.BareMetalHostReconciler{
-		Client:             mgr.GetClient(),
-		Log:                ctrl.Log.WithName("controllers").WithName("BareMetalHost"),
-		ProvisionerFactory: provisionerFactory,
-		APIReader:          mgr.GetAPIReader(),
+		Client:               mgr.GetClient(),
+		Log:                  ctrl.Log.WithName("controllers").WithName("BareMetalHost"),
+		ProvisionerFactory:   provisionerFactory,
+		APIReader:            mgr.GetAPIReader(),
+		AllowedHNANamespaces: allowedHNANamespaces,
 	}).SetupWithManager(mgr, preprovImgEnable, maxConcurrency); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BareMetalHost")
 		os.Exit(1)
