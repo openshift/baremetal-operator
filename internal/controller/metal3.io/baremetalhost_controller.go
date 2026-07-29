@@ -895,7 +895,7 @@ func (r *BareMetalHostReconciler) getPreprovImage(ctx context.Context, info *rec
 func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisioner.Provisioner, info *reconcileInfo) actionResult {
 	info.log.V(VerbosityLevelTrace).Info("registerHost started",
 		LogFieldCredentials, info.host.Status.TriedCredentials)
-	dirty := false
+	var dirty, networkDirty bool
 
 	credsChanged := !info.host.Status.TriedCredentials.Match(*info.bmcCredsSecret)
 	if credsChanged {
@@ -950,6 +950,8 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 
 	// Resolve and validate port configs before Register so the
 	// provisioner only receives validated configurations.
+	// Network validation dirty state is tracked separately to avoid
+	// being overwritten by matchProfile's unconditional dirty assignment.
 	if len(info.host.Spec.NetworkInterfaces) > 0 {
 		portConfigs, resolveErr := r.resolvePortConfigs(ctx, info.host, nicsFromInfo(info))
 		if resolveErr != nil {
@@ -958,7 +960,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		if validDirty, valErr := r.validateNetworkInterfaces(ctx, info.host, hardwareDetailsFromInfo(info)); valErr != nil {
 			return actionError{valErr}
 		} else if validDirty {
-			dirty = true
+			networkDirty = true
 		}
 		cond := meta.FindStatusCondition(info.host.Status.Conditions, metal3api.NetworkInterfacesValidCondition)
 		if cond == nil || cond.Status != metav1.ConditionFalse {
@@ -966,7 +968,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		}
 	} else {
 		if clearDirty, _ := r.clearNetworkInterfaceValidation(info.host); clearDirty {
-			dirty = true
+			networkDirty = true
 		}
 		if len(info.host.Status.AppliedPortConfigs) > 0 {
 			info.portConfigs = make(map[string]*provisioner.PortConfig)
@@ -1101,7 +1103,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		}
 	}
 
-	if dirty {
+	if dirty || networkDirty {
 		return actionComplete{}
 	}
 	return nil
