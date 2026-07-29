@@ -425,13 +425,10 @@ func main() {
 	}
 
 	var allowedHNANamespaces []string
-	if watchNamespace != "" {
-		for _, ns := range strings.Split(watchNamespace, ",") {
-			ns = strings.TrimSpace(ns)
-			if ns != "" {
-				allowedHNANamespaces = append(allowedHNANamespaces, ns)
-			}
-		}
+	for ns := range watchNamespaces {
+		allowedHNANamespaces = append(allowedHNANamespaces, ns)
+	}
+	if len(allowedHNANamespaces) > 0 {
 		setupLog.Info("restricting HNA references to watched namespaces", "namespaces", allowedHNANamespaces)
 	}
 
