@@ -79,7 +79,7 @@ export GINKGO_FOCUS="basic should control power"
 
 A special tag `ironic` can be used to run all tests that exercise the Ironic
 provisioner (as opposed to only BMO itself).
-
+yes, 
 Additionally, if you wish to run multiple different tests, just maually
 add another `--focus=` with string to the root Makefile's `test-e2e`
 target.
@@ -155,6 +155,9 @@ both redfish and ipmi protocols in CI.
   live-ISO image.
 - Automated cleaning: Check that when automated cleaning is enabled the disks are
   cleaned after deprovision.
+- Networking: Check that switch port configurations specified via NetworkInterfaces
+  and HostNetworkAttachments are correctly resolved, validated, and applied to
+  Ironic ports during registration.
 
 **Optional tests:**
 
