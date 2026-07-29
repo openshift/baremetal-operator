@@ -34,7 +34,7 @@ const (
 	hfsTestNewValue3  = "ABCDEF"
 )
 
-var _ = Describe("Host Firmware Settings", Label("required", "firmware"), func() {
+var _ = Describe("Host Firmware Settings", Label("required", "firmware", "ironic"), func() {
 	var (
 		specName      = "firmware-settings"
 		namespace     *corev1.Namespace

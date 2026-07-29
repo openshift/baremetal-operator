@@ -4,4 +4,4 @@ resources:
 - ../roles-rolebindings
 - namespace.yaml
 
-namespace: pp-network-data
+namespace: firmware-components

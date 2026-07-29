@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Create as externally provisioned, deprovision", Label("required", "provision", "deprovision"),
+var _ = Describe("External Provisioning", Label("required", "provision", "deprovision", "ironic"),
 	func() {
 		var (
 			specName      = "externally-provisioned"
