@@ -1727,7 +1727,10 @@ func (r *BareMetalHostReconciler) manageHostPower(ctx context.Context, prov prov
 		}
 	}
 
-	servicingAllowed := isProvisioned && !info.host.Status.PoweredOn && desiredPowerOnState
+	// OpenShift: service annotation - allow servicing while host is online
+	hasService := hasServiceAnnotation(info)
+	servicingAllowed := isProvisioned && desiredPowerOnState && (hasService || !info.host.Status.PoweredOn)
+	// End OpenShift
 	if servicingAllowed || info.host.Status.OperationalStatus == metal3api.OperationalStatusServicing || info.host.Status.ErrorType == metal3api.ServicingError {
 		var hup *metal3api.HostUpdatePolicy
 		hup, err = r.acquireHostUpdatePolicy(ctx, info)
@@ -1742,6 +1745,17 @@ func (r *BareMetalHostReconciler) manageHostPower(ctx context.Context, prov prov
 			return result
 		}
 	}
+
+	// OpenShift: service annotation - clear base annotation after servicing
+	if hasService && isProvisioned {
+		if clearServiceAnnotations(info.host) {
+			if err = r.Update(ctx, info.host); err != nil {
+				return actionError{fmt.Errorf("failed to remove service annotation from host: %w", err)}
+			}
+			return actionContinue{}
+		}
+	}
+	// End OpenShift
 
 	desiredReboot, desiredRebootMode := hasRebootAnnotation(info, !isProvisioned)
 
