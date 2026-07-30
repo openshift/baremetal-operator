@@ -107,10 +107,10 @@ mkdir -p "${IMAGE_DIR}"
 
 ## Download disk images
 if [[ ! -f "${IMAGE_DIR}/${IMAGE_FILE}" ]]; then
-    wget --quiet -P "${IMAGE_DIR}/" https://artifactory.nordix.org/artifactory/metal3/images/iso/"${IMAGE_FILE}"
+    wget --no-verbose -P "${IMAGE_DIR}/" https://artifactory.nordix.org/artifactory/metal3/images/iso/"${IMAGE_FILE}"
 fi
 if [[ ! -f "${IMAGE_DIR}/${ISO_FILE}" ]]; then
-    wget --quiet -P "${IMAGE_DIR}/" https://artifactory.nordix.org/artifactory/metal3/images/sysrescue/"${ISO_FILE}"
+    wget --no-verbose -P "${IMAGE_DIR}/" https://artifactory.nordix.org/artifactory/metal3/images/sysrescue/"${ISO_FILE}"
 fi
 
 ## Download IPA (Ironic Python Agent) image
@@ -120,7 +120,7 @@ fi
 IPA_FILE="ipa-centos9-master.tar.gz"
 IPA_BASEURI=https://artifactory.nordix.org/artifactory/openstack-remote/ironic-python-agent/dib/
 if [[ ! -f "${IMAGE_DIR}/${IPA_FILE}" ]]; then
-    wget --quiet -P "${IMAGE_DIR}/" "${IPA_BASEURI}/${IPA_FILE}"
+    wget --no-verbose -P "${IMAGE_DIR}/" "${IPA_BASEURI}/${IPA_FILE}"
 fi
 
 # shellcheck disable=SC2016
@@ -201,7 +201,7 @@ pub_ssh_key=$(cut -d " " -f "1,2" "${IMAGE_DIR}/ssh_testkey.pub")
 # We use the systemrescue ISO and their script for customizing it.
 if [[ ! -f "${IMAGE_DIR}/sysrescue-out.iso" ]];then
     pushd "${IMAGE_DIR}"
-    wget -O sysrescue-customize https://gitlab.com/systemrescue/systemrescue-sources/-/raw/main/airootfs/usr/share/sysrescue/bin/sysrescue-customize?inline=false
+    wget --no-verbose -O sysrescue-customize https://gitlab.com/systemrescue/systemrescue-sources/-/raw/main/airootfs/usr/share/sysrescue/bin/sysrescue-customize?inline=false
     chmod +x sysrescue-customize
 
     mkdir -p recipe/iso_add/sysrescue.d

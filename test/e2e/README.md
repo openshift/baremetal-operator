@@ -36,7 +36,7 @@ the e2e Makefile target directly with `make test-e2e`, you may need to adjust yo
 
 Currently there are two sets of tests, which cannot be ran together in the same
 cluster. One is the "optional" set, currently consists of only the
-[upgrade tests](upgrade_test.go), and the "main" set, which are the ones
+upgrade tests (`upgrade_*_test.go`), and the "main" set, which are the ones
 required to run in every BMO PR. One can switch between these sets by
 manipulating the `GINKGO_FOCUS` and `GINKGO_SKIP` env vars. In the default
 setting, the script sets `GINKGO_SKIP` to `upgrade`.
@@ -76,6 +76,9 @@ Could be used with:
 ```bash
 export GINKGO_FOCUS="basic should control power"
 ```
+
+A special tag `ironic` can be used to run all tests that exercise the Ironic
+provisioner (as opposed to only BMO itself).
 
 Additionally, if you wish to run multiple different tests, just maually
 add another `--focus=` with string to the root Makefile's `test-e2e`

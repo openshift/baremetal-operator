@@ -167,15 +167,9 @@ func TestValidate_ValidDockerConfigJSON(t *testing.T) {
 		t.Error("expected credentials to be populated")
 	}
 
-	// Verify credentials are base64 encoded.
-	decoded, err := base64.StdEncoding.DecodeString(credentials)
-	if err != nil {
-		t.Fatalf("credentials are not valid base64: %v", err)
-	}
-
-	// Verify credentials contain username:password format.
-	if string(decoded) != "testuser:testpass" {
-		t.Errorf("expected credentials to be 'testuser:testpass', got '%s'", string(decoded))
+	// Verify credentials are in plain text username:password format.
+	if credentials != "testuser:testpass" {
+		t.Errorf("expected credentials to be 'testuser:testpass', got '%s'", credentials)
 	}
 
 	// No event should be emitted on success (validator only emits warnings).
@@ -374,13 +368,7 @@ func TestIntegration_ValidateAndExtractCredentials(t *testing.T) {
 		t.Fatal("expected credentials to be populated")
 	}
 
-	// Verify the credentials can be decoded.
-	decoded, err := base64.StdEncoding.DecodeString(credentials)
-	if err != nil {
-		t.Fatalf("failed to decode credentials: %v", err)
-	}
-
-	if string(decoded) != "myuser:mypassword" {
-		t.Errorf("expected decoded credentials to be 'myuser:mypassword', got '%s'", string(decoded))
+	if credentials != "myuser:mypassword" {
+		t.Errorf("expected credentials to be 'myuser:mypassword', got '%s'", credentials)
 	}
 }

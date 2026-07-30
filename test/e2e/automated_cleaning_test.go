@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Automated cleaning", Label("required", "automated-cleaning"), func() {
+var _ = Describe("Automated cleaning", Label("required", "automated-cleaning", "ironic"), func() {
 	var (
 		specName      = "automated-cleaning"
 		namespace     *corev1.Namespace

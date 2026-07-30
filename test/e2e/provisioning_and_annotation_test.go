@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Provision, detach, recreate from status and deprovision", Label("required", "provision", "detach", "status", "deprovision"),
+var _ = Describe("Provisioning and Detachment", Label("required", "provision", "detach", "status", "deprovision", "ironic"),
 	func() {
 		var (
 			specName      = "provisioning-ops"
