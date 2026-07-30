@@ -67,14 +67,16 @@ type TLSOptions struct {
 	TLSCurvePreferences string
 }
 
-// Supported TLS Curves mapping for go1.25, make sure to update it
+// Supported TLS Curves mapping for go1.26, make sure to update it
 // when go version is updated.
 var supportedTLSCurvesPreferences = map[string]tls.CurveID{
-	"X25519":         tls.X25519,
-	"CurveP256":      tls.CurveP256,
-	"CurveP384":      tls.CurveP384,
-	"CurveP521":      tls.CurveP521,
-	"X25519MLKEM768": tls.X25519MLKEM768,
+	"X25519":             tls.X25519,
+	"CurveP256":          tls.CurveP256,
+	"CurveP384":          tls.CurveP384,
+	"CurveP521":          tls.CurveP521,
+	"X25519MLKEM768":     tls.X25519MLKEM768,
+	"SecP256r1MLKEM768":  tls.SecP256r1MLKEM768,
+	"SecP384r1MLKEM1024": tls.SecP384r1MLKEM1024,
 }
 
 var (
@@ -156,6 +158,16 @@ func setupWebhooks(ctx context.Context, mgr ctrl.Manager) {
 
 	if err := (&webhooks.HostNetworkAttachment{}).SetupWebhookWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "HostNetworkAttachment")
+		os.Exit(1)
+	}
+
+	if err := (&webhooks.DataImage{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "DataImage")
+		os.Exit(1)
+	}
+
+	if err := (&webhooks.HostFirmwareComponents{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "HostFirmwareComponents")
 		os.Exit(1)
 	}
 }
