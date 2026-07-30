@@ -975,13 +975,22 @@ func (p *ironicProvisioner) getNewFirmwareSettings(actualFirmwareSettings metal3
 
 // getFirmwareComponentsUpdates extract the updates in a format that ironic accepts  [{"component":"...", "url":"..."}, {"component":"...","url":".."}].
 func (p *ironicProvisioner) getFirmwareComponentsUpdates(targetFirmwareComponents []metal3api.FirmwareUpdate) (newUpdates []map[string]string) {
+	// OpenShift: send BMC updates first so Ironic processes them out-of-band
+	// before rebooting for non-BMC components
+	var nonBMC []map[string]string
 	for _, update := range targetFirmwareComponents {
-		newComponentUpdate := map[string]string{
+		entry := map[string]string{
 			"component": update.Component,
 			"url":       update.URL,
 		}
-		newUpdates = append(newUpdates, newComponentUpdate)
+		if update.Component == "bmc" {
+			newUpdates = append(newUpdates, entry)
+		} else {
+			nonBMC = append(nonBMC, entry)
+		}
 	}
+	newUpdates = append(newUpdates, nonBMC...)
+	// End OpenShift
 	return newUpdates
 }
 
