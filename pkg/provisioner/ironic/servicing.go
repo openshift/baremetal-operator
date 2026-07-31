@@ -39,14 +39,20 @@ func (p *ironicProvisioner) buildServiceSteps(bmcAccess bmc.AccessDetails, data 
 	newUpdates := p.getFirmwareComponentsUpdates(data.TargetFirmwareComponents)
 	if len(newUpdates) != 0 {
 		p.log.Info("Applying Firmware Update clean steps", "settings", newUpdates)
+		fwArgs := map[string]any{
+			"settings": newUpdates,
+		}
+		// OpenShift: batch non-BMC updates into a single reboot
+		if data.AllowGroupingReboots {
+			fwArgs["allow_grouping_reboots"] = true
+		}
+		// End OpenShift
 		serviceSteps = append(
 			serviceSteps,
 			nodes.ServiceStep{
 				Interface: nodes.InterfaceFirmware,
 				Step:      "update",
-				Args: map[string]any{
-					"settings": newUpdates,
-				},
+				Args:      fwArgs,
 			},
 		)
 	}
