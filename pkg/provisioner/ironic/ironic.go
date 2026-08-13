@@ -1273,7 +1273,12 @@ func (p *ironicProvisioner) Provision(ctx context.Context, data provisioner.Prov
 				return retryAfterDelay(0)
 			}
 			p.log.Info("found error", "msg", ironicNode.LastError)
-			return operationFailed("Image provisioning failed: " + ironicNode.LastError)
+			checksum, _, _ := data.Image.GetChecksum()
+			imageInfo := "url: " + data.Image.URL
+			if checksum != "" {
+				imageInfo += ", checksum: " + checksum
+			}
+			return operationFailed(fmt.Sprintf("Image provisioning failed (%s): %s", imageInfo, ironicNode.LastError))
 		}
 		p.log.Info("recovering from previous failure")
 		if provResult, err = p.setUpForProvisioning(ctx, ironicNode, data); err != nil || provResult.Dirty || provResult.ErrorMessage != "" {
