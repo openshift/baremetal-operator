@@ -87,8 +87,10 @@ If new CRDs are found, you must follow the process documented in the [README](RE
 Before creating a PR, ensure:
 - Code compiles: `make build`
 - Tests pass: `make test`
+- Linters pass: `make lint`
 
 You might run into bugs related to changes in Golang version.  Try to fix the bug and commit the changes.
+Similarly, downstream changes may need adjustment for new golangci-lint versions or changed rules in `.golangci.yaml`.
 
 ## 6. Push
 
