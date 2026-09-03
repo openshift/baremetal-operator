@@ -1545,7 +1545,8 @@ func (r *BareMetalHostReconciler) actionDeprovisioning(ctx context.Context, prov
 	return actionComplete{}
 }
 
-func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov provisioner.Provisioner, info *reconcileInfo, hup *metal3api.HostUpdatePolicy) (result actionResult) {
+// OpenShift: serviceRequested indicates the service annotation triggered this flow
+func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov provisioner.Provisioner, info *reconcileInfo, hup *metal3api.HostUpdatePolicy, serviceRequested bool) (result actionResult) {
 	info.log.V(VerbosityLevelTrace).Info("doServiceIfNeeded started")
 	servicingData := provisioner.ServicingData{}
 
@@ -1603,6 +1604,12 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 
 		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfc != nil && len(hfc.Spec.Updates) > 0)
 	}
+
+	// OpenShift: batch firmware updates when triggered via service annotation
+	if serviceRequested && len(servicingData.TargetFirmwareComponents) > 1 {
+		servicingData.AllowGroupingReboots = true
+	}
+	// End OpenShift
 
 	hasChanges := fwDirty || hfsDirty || hfcDirty
 
@@ -1728,7 +1735,10 @@ func (r *BareMetalHostReconciler) manageHostPower(ctx context.Context, prov prov
 		}
 	}
 
-	servicingAllowed := isProvisioned && !info.host.Status.PoweredOn && desiredPowerOnState
+	// OpenShift: service annotation - allow servicing while host is online
+	hasService := hasServiceAnnotation(info)
+	servicingAllowed := isProvisioned && desiredPowerOnState && (hasService || !info.host.Status.PoweredOn)
+	// End OpenShift
 	if servicingAllowed || info.host.Status.OperationalStatus == metal3api.OperationalStatusServicing || info.host.Status.ErrorType == metal3api.ServicingError {
 		var hup *metal3api.HostUpdatePolicy
 		hup, err = r.acquireHostUpdatePolicy(ctx, info)
@@ -1738,11 +1748,22 @@ func (r *BareMetalHostReconciler) manageHostPower(ctx context.Context, prov prov
 			return actionError{fmt.Errorf("failed setting owner reference on hostUpdatePolicy: %w", err)}
 		}
 
-		result := r.doServiceIfNeeded(ctx, prov, info, hup)
+		result := r.doServiceIfNeeded(ctx, prov, info, hup, hasService)
 		if result != nil {
 			return result
 		}
 	}
+
+	// OpenShift: service annotation - clear base annotation after servicing
+	if hasService && isProvisioned {
+		if clearServiceAnnotations(info.host) {
+			if err = r.Update(ctx, info.host); err != nil {
+				return actionError{fmt.Errorf("failed to remove service annotation from host: %w", err)}
+			}
+			return actionContinue{}
+		}
+	}
+	// End OpenShift
 
 	desiredReboot, desiredRebootMode := hasRebootAnnotation(info, !isProvisioned)
 
