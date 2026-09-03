@@ -129,6 +129,9 @@ type ServicingData struct {
 	// True if any firmware spec exists (settings, components, or legacy FirmwareConfig),
 	// used to distinguish "no updates" from "user cleared spec".
 	HasFirmwareSpec bool
+	// OpenShift: when true, Ironic will batch non-BMC firmware updates
+	// into a single host reboot instead of rebooting per component.
+	AllowGroupingReboots bool
 }
 
 type ProvisionData struct {
