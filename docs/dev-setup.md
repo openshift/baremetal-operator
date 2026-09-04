@@ -34,7 +34,7 @@ is the easiest way to iterate without installing a C toolchain.
 1. Install cert-manager
 
     ```bash
-    kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.19.2/cert-manager.yaml
     ```
 
 1. Verify that it is deployed correctly. Note: don't move to the
@@ -95,6 +95,11 @@ There is a script available that will run a set of containers locally using
 
 See `tools/run_local_ironic.sh`.
 
+> **⚠️ Development use only.** This script runs Ironic without TLS or
+> basic-auth by default. It is not suitable for production or shared
+> environments. If you need authentication, export `IRONIC_USERNAME` and
+> `IRONIC_PASSWORD` before running the script (see below).
+
 Note that this script may need customizations to some of the `podman run`
 commands, to include environment variables that configure the containers for
 your environment. All ironic related environment variables are set by default
@@ -112,7 +117,11 @@ The following environment variables can be passed to configure the ironic:
 - DEPLOY_KERNEL_URL - the URL of the kernel to deploy ironic-python-agent
 - DEPLOY_RAMDISK_URL - the URL of the ramdisk to deploy ironic-python-agent
 - IRONIC_ENDPOINT - the endpoint of the ironic
-- CACHEURL - the URL of the cached images
+- CACHEURL - the URL of the cached images. Defaults to
+  `http://${PROVISIONING_IP}/images` (typically `http://172.22.0.1/images`).
+  This points to a local HTTP server on the host itself. In production
+  deployments where the cache server is on a different host or network
+  segment, consider using HTTPS to protect image integrity in transit.
 - IRONIC_FAST_TRACK - whether to enable fast_track provisioning or not
   (default true)
 - IRONIC_KERNEL_PARAMS - Kernel parameters to pass to IPA (default console=ttyS0)
@@ -134,6 +143,9 @@ The following environment variables can be passed to configure the ironic:
   the IPA archive is located. This variable is handled by BMO. The variable
   should contain an arbitrary path pointing to the
   directory that contains the `ironic-python-agent.tar`.
+  (default `/opt/metal3-dev-env/dib`). The path must not be world-writable.
+  If an `ironic-python-agent.tar.sha256sum` file exists alongside the archive,
+  its integrity will be verified before extraction.
 
 **NOTES**
 In case both `IPA_DOWNLOAD_ENABLED` and `USE_LOCAL_IPA` are set to true then
@@ -201,7 +213,7 @@ kind create cluster --name bmo
 **Install Cert-Manager**:
 
 ```sh
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.2/cert-manager.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.19.2/cert-manager.yaml
 ```
 
 **Launch Tilt**:
@@ -268,6 +280,14 @@ The `make-virt-host` utility can be used to generate a YAML file for
 registering a host. It takes as input the name of the `virsh` domain
 and produces as output the basic YAML to register that host properly,
 with the boot MAC address and BMC address filled in.
+
+> **⚠️ Security note:** This tool generates manifests with hard-coded HTTP
+> image URLs and MD5 checksum references (co-located on the same HTTP
+> server). This is acceptable for local development with virtual machines
+> but provides **no integrity guarantee** against network-level attackers.
+> Do not copy this pattern into production deployments. For production,
+> use HTTPS image URLs with inline SHA-256/SHA-512 checksums or OCI image
+> references pinned by digest.
 
 ```bash
 $ go run cmd/make-virt-host/main.go openshift_worker_1

@@ -1,7 +1,6 @@
 package bmc
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 )
@@ -49,12 +48,16 @@ func (a *redfishAccessDetails) Type() string {
 	return a.bmcType
 }
 
-// NeedsMAC returns true when the host is going to need a separate
-// port created rather than having it discovered.
+// NeedsMAC returns false because the Redfish driver in Ironic can
+// pre-populate MAC addresses during inspection, so a BootMACAddress is not
+// required up front regardless of the boot method. This matches the existing
+// behaviour of the plain IPMI driver, which also boots via iPXE yet already
+// returns false: agent-based inspection reports the MACs back to Ironic
+// rather than relying on a pre-created port. When inspection is disabled a
+// MAC is still required, but that requirement is enforced by the callers via
+// host.InspectionDisabled(), not by this driver-level flag.
 func (a *redfishAccessDetails) NeedsMAC() bool {
-	// For the inspection to work, we need a MAC address
-	// https://github.com/metal3-io/baremetal-operator/pull/284#discussion_r317579040
-	return true
+	return false
 }
 
 func (a *redfishAccessDetails) Driver() string {
@@ -134,19 +137,16 @@ func (a *redfishAccessDetails) SupportsSecureBoot() bool {
 	return true
 }
 
+func (a *redfishAccessDetails) InspectInterface() string {
+	return redfish
+}
+
 func (a *redfishAccessDetails) SupportsISOPreprovisioningImage() bool {
 	return false
 }
 
 func (a *redfishAccessDetails) RequiresProvisioningNetwork() bool {
 	return true
-}
-
-func (a *redfishAccessDetails) BuildBIOSSettings(firmwareConfig *FirmwareConfig) (settings []map[string]string, err error) {
-	if firmwareConfig != nil {
-		return nil, fmt.Errorf("firmware settings for %s are not supported", a.Driver())
-	}
-	return nil, nil
 }
 
 // iDrac Redfish Overrides.
@@ -166,6 +166,11 @@ func (a *redfishiDracAccessDetails) FirmwareInterface() string {
 	return redfish
 }
 
+func (a *redfishiDracAccessDetails) InspectInterface() string {
+	// FIXME(dtantsur): this should be using idracRedfish, but it's not currently enabled in ironic-image.
+	return redfish
+}
+
 func (a *redfishiDracAccessDetails) ManagementInterface() string {
 	return idracRedfish
 }
@@ -181,11 +186,4 @@ func (a *redfishiDracAccessDetails) RAIDInterface() string {
 func (a *redfishiDracAccessDetails) VendorInterface() string {
 	// NOTE(dtantsur): the idrac hardware type defaults to WSMAN vendor, we need to use the Redfish implementation.
 	return idracRedfish
-}
-
-func (a *redfishiDracAccessDetails) BuildBIOSSettings(firmwareConfig *FirmwareConfig) (settings []map[string]string, err error) {
-	if firmwareConfig != nil {
-		return nil, fmt.Errorf("firmware settings for %s are not supported", a.Driver())
-	}
-	return nil, nil
 }

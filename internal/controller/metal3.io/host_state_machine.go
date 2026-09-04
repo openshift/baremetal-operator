@@ -227,7 +227,14 @@ func (hsm *hostStateMachine) checkInitiateDelete(log logr.Logger) bool {
 		return false
 	}
 
-	if hsm.NextState != metal3api.StateDeleting && hsm.Host.OperationalStatus() == metal3api.OperationalStatusDetached {
+	// A host is treated as detached for deletion purposes as soon as the
+	// detached annotation is present, not only once the operational status has
+	// caught up. Otherwise a delete requested in the window before the status
+	// flips falls through to deprovisioning, which talks to the provisioner the
+	// detach was meant to avoid and stalls the delete behind the 10-minute
+	// detached slow poll (issue #3213).
+	if hsm.NextState != metal3api.StateDeleting &&
+		(hsm.Host.OperationalStatus() == metal3api.OperationalStatusDetached || hasDetachedAnnotation(hsm.Host)) {
 		if delayDeleteForDetachedHost(hsm.Host) {
 			log.Info("delaying detached host deletion")
 			deleteDelayedForDetached.Inc()
@@ -501,6 +508,14 @@ func (hsm *hostStateMachine) handleAvailable(ctx context.Context, info *reconcil
 		return actionComplete{}
 	}
 
+	if info.host.Spec.Image == nil || info.host.Spec.Image.URL == "" {
+		if info.host.Status.ProvisioningFailCount > 0 {
+			info.log.Info("host is available with no image requested, resetting provisioning fail count")
+			info.host.Status.ProvisioningFailCount = 0
+			info.host.Status.LastAttemptedImage = nil
+		}
+	}
+
 	// ErrorCount is cleared when appropriate inside actionManageAvailable
 	actResult := hsm.Reconciler.actionManageAvailable(ctx, hsm.Provisioner, info)
 	if _, complete := actResult.(actionComplete); complete {
@@ -549,14 +564,27 @@ func (hsm *hostStateMachine) imageProvisioningCancelled() bool {
 
 func (hsm *hostStateMachine) handleProvisioning(ctx context.Context, info *reconcileInfo) actionResult {
 	if hsm.Host.Status.ErrorType != "" || hsm.provisioningCancelled() {
+		if hsm.Host.Status.ErrorType != "" {
+			hsm.Host.Status.ProvisioningFailCount++
+			info.log.Info("provisioning failed, incrementing fail count",
+				"provisioningFailCount", hsm.Host.Status.ProvisioningFailCount)
+		}
 		hsm.NextState = metal3api.StateDeprovisioning
 		return actionComplete{}
+	}
+
+	// Snapshot the image spec before invoking the provisioner so that
+	// LastAttemptedImage reflects what was actually attempted, not what
+	// the spec contains when a prior error is processed on a later reconcile.
+	if hsm.Host.Spec.Image != nil {
+		hsm.Host.Status.LastAttemptedImage = hsm.Host.Spec.Image.DeepCopy()
 	}
 
 	actResult := hsm.Reconciler.actionProvisioning(ctx, hsm.Provisioner, info)
 	if _, complete := actResult.(actionComplete); complete {
 		hsm.NextState = metal3api.StateProvisioned
 		hsm.Host.Status.ErrorCount = 0
+		hsm.Host.Status.ProvisioningFailCount = 0
 	}
 	return actResult
 }

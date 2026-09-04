@@ -94,6 +94,8 @@ type ManagementAccessData struct {
 	DisablePowerOff            bool
 	CPUArchitecture            string
 	HardwareData               *metal3api.HardwareData
+	DisableInspection          bool
+	InspectionMode             metal3api.InspectionMode
 }
 
 type AdoptData struct {
@@ -103,11 +105,9 @@ type AdoptData struct {
 type InspectData struct {
 	BootMode        metal3api.BootMode
 	CPUArchitecture string
+	InspectionMode  metal3api.InspectionMode
 }
 
-// FirmwareConfig and FirmwareSettings are used for implementation of similar functionality
-// FirmwareConfig contains a small subset of common names/values for the BIOS settings and the BMC
-// driver converts them to vendor specific name/values.
 // ActualFirmwareSettings are the complete settings retrieved from the BMC, the names and
 // values are vendor specific.
 // TargetFirmwareSettings contains values that the user has changed.
@@ -115,18 +115,16 @@ type PrepareData struct {
 	TargetRAIDConfig         *metal3api.RAIDConfig
 	ActualRAIDConfig         *metal3api.RAIDConfig
 	RootDeviceHints          *metal3api.RootDeviceHints
-	FirmwareConfig           *metal3api.FirmwareConfig
 	TargetFirmwareSettings   metal3api.DesiredSettingsMap
 	ActualFirmwareSettings   metal3api.SettingsMap
 	TargetFirmwareComponents []metal3api.FirmwareUpdate
 }
 
 type ServicingData struct {
-	FirmwareConfig           *metal3api.FirmwareConfig
 	TargetFirmwareSettings   metal3api.DesiredSettingsMap
 	ActualFirmwareSettings   metal3api.SettingsMap
 	TargetFirmwareComponents []metal3api.FirmwareUpdate
-	// True if any firmware spec exists (settings, components, or legacy FirmwareConfig),
+	// True if any firmware spec exists (settings or components),
 	// used to distinguish "no updates" from "user cleared spec".
 	HasFirmwareSpec bool
 }

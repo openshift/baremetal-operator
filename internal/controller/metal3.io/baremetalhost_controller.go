@@ -67,10 +67,11 @@ const (
 // BareMetalHostReconciler reconciles a BareMetalHost object.
 type BareMetalHostReconciler struct {
 	client.Client
-	Log                logr.Logger
-	ProvisionerFactory provisioner.Factory
-	APIReader          client.Reader
-	Recorder           record.EventRecorder
+	Log                    logr.Logger
+	ProvisionerFactory     provisioner.Factory
+	APIReader              client.Reader
+	Recorder               record.EventRecorder
+	MaxProvisioningRetries int
 }
 
 // Instead of passing a zillion arguments to the action of a phase,
@@ -111,7 +112,7 @@ func (info *reconcileInfo) publishEvent(reason, message string) {
 // +kubebuilder:rbac:groups=metal3.io,resources=dataimages/status,verbs=get;update;patch
 
 // Allow for updating hostupdatepolicies
-// +kubebuilder:rbac:groups=metal3.io,resources=hostupdatepolicies,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=metal3.io,resources=hostupdatepolicies,verbs=get;list;watch;update;patch;delete
 
 // Allow reading Ironic resources
 // +kubebuilder:rbac:groups=ironic.metal3.io,resources=ironics,verbs=get;list;watch
@@ -922,6 +923,11 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		if info.host.Spec.AutomatedCleaningMode == metal3api.CleaningModeDisabled {
 			preprovImgFormats = nil
 		}
+	case metal3api.StateInspecting:
+		// Fast inspection uses the BMC directly, no ramdisk needed
+		if info.host.Spec.InspectionMode == metal3api.InspectionModeFast {
+			preprovImgFormats = nil
+		}
 	default:
 	}
 
@@ -960,6 +966,8 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 			DisablePowerOff:            info.host.Spec.DisablePowerOff,
 			CPUArchitecture:            getHostArchitecture(info.host),
 			HardwareData:               info.hardwareData,
+			DisableInspection:          info.host.InspectionDisabled(),
+			InspectionMode:             info.host.Spec.InspectionMode,
 		},
 		credsChanged,
 		info.host.Status.ErrorType == metal3api.RegistrationError)
@@ -968,7 +976,16 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		preprovImgFormats != nil {
 		if preprovImg == nil {
 			waitingForPreprovImage.Inc()
-			return actionContinue{preprovImageRetryDelay}
+			result := actionContinue{preprovImageRetryDelay}
+			if dirty {
+				// Persist any pending changes (e.g. newly detected
+				// credentials) even though registration cannot complete
+				// yet. Otherwise they are re-detected and re-applied on
+				// every reconcile while waiting for the image, producing
+				// confusing repeated log output.
+				return actionUpdate{result}
+			}
+			return result
 		}
 		return recordActionFailure(info, metal3api.RegistrationError,
 			"Preprovisioning Image is not acceptable to provisioner")
@@ -1117,6 +1134,7 @@ func (r *BareMetalHostReconciler) actionInspecting(ctx context.Context, prov pro
 		provisioner.InspectData{
 			BootMode:        info.host.Status.Provisioning.BootMode,
 			CPUArchitecture: getHostArchitecture(info.host),
+			InspectionMode:  info.host.Spec.InspectionMode,
 		},
 		info.host.Status.ErrorType == metal3api.InspectionError,
 		refresh,
@@ -1292,7 +1310,6 @@ func (r *BareMetalHostReconciler) actionPreparing(ctx context.Context, prov prov
 		TargetRAIDConfig: newStatus.Provisioning.RAID.DeepCopy(),
 		ActualRAIDConfig: info.host.Status.Provisioning.RAID.DeepCopy(),
 		RootDeviceHints:  newStatus.Provisioning.RootDeviceHints.DeepCopy(),
-		FirmwareConfig:   newStatus.Provisioning.Firmware.DeepCopy(),
 	}
 	// When manual cleaning fails, we think that the existing RAID configuration
 	// is invalid and needs to be reconfigured.
@@ -1552,7 +1569,6 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 	// (NOTE)janders: since Servicing is an opt-in feature that requires HostUpdatePolicy to be created and set to onReboot
 	// set below booleans to false by default and change to true based on policy settings
 
-	var fwDirty bool
 	var hfsDirty bool
 	var hfcDirty bool
 	var hfc *metal3api.HostFirmwareComponents
@@ -1564,13 +1580,6 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 	}
 
 	if liveFirmwareSettingsAllowed {
-		// handling pre-HFS FirmwareSettings here
-		if !reflect.DeepEqual(info.host.Status.Provisioning.Firmware, info.host.Spec.Firmware) {
-			servicingData.FirmwareConfig = info.host.Spec.Firmware
-			fwDirty = true
-		}
-		servicingData.HasFirmwareSpec = fwDirty && info.host.Spec.Firmware != nil
-
 		// handling HFS based FirmwareSettings here
 		var hfs *metal3api.HostFirmwareSettings
 		var err error
@@ -1583,7 +1592,7 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 			servicingData.TargetFirmwareSettings = hfs.Spec.Settings
 		}
 
-		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfs != nil && len(hfs.Spec.Settings) > 0)
+		servicingData.HasFirmwareSpec = hfs != nil && len(hfs.Spec.Settings) > 0
 	}
 
 	if liveFirmwareUpdatesAllowed {
@@ -1604,7 +1613,7 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 		servicingData.HasFirmwareSpec = servicingData.HasFirmwareSpec || (hfc != nil && len(hfc.Spec.Updates) > 0)
 	}
 
-	hasChanges := fwDirty || hfsDirty || hfcDirty
+	hasChanges := hfsDirty || hfcDirty
 
 	// Even if settings are clean, we need to check the result of the current servicing.
 	if !hasChanges && info.host.Status.OperationalStatus != metal3api.OperationalStatusServicing && info.host.Status.ErrorType != metal3api.ServicingError {
@@ -1641,11 +1650,6 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 	}
 
 	dirty := clearErrorWithStatus(info.host, metal3api.OperationalStatusServicing)
-
-	if started && fwDirty {
-		info.host.Status.Provisioning.Firmware = info.host.Spec.Firmware.DeepCopy()
-		dirty = true
-	}
 
 	if hfcDirty && started {
 		hfcDirty, err = r.saveHostFirmwareComponents(ctx, prov, info, hfc)
@@ -2046,6 +2050,23 @@ func (r *BareMetalHostReconciler) actionManageSteadyState(ctx context.Context, p
 func (r *BareMetalHostReconciler) actionManageAvailable(ctx context.Context, prov provisioner.Provisioner, info *reconcileInfo) actionResult {
 	info.log.V(VerbosityLevelTrace).Info("actionManageAvailable started")
 	if info.host.NeedsProvisioning() {
+		if !reflect.DeepEqual(info.host.Spec.Image, info.host.Status.LastAttemptedImage) {
+			if info.host.Status.ProvisioningFailCount > 0 {
+				info.log.Info("image spec changed, resetting provisioning fail count")
+			}
+			info.host.Status.ProvisioningFailCount = 0
+		}
+
+		limit := r.MaxProvisioningRetries
+		if limit > 0 && info.host.Status.ProvisioningFailCount >= limit {
+			info.log.Info("provisioning retry limit reached, not retrying",
+				"failCount", info.host.Status.ProvisioningFailCount,
+				"limit", limit)
+			return recordActionFailure(info, metal3api.ProvisioningError,
+				fmt.Sprintf("provisioning failed %d times, retry limit (%d) reached; change image or reset provisioningFailCount to retry",
+					info.host.Status.ProvisioningFailCount, limit))
+		}
+
 		clearError(info.host)
 		return actionComplete{}
 	}
@@ -2096,13 +2117,6 @@ func saveHostProvisioningSettings(host *metal3api.BareMetalHost, info *reconcile
 			"old", host.Status.Provisioning.RAID,
 			"new", specRAID)
 		host.Status.Provisioning.RAID = specRAID
-		dirty = true
-	}
-
-	// Copy BIOS settings
-	if !reflect.DeepEqual(host.Status.Provisioning.Firmware, host.Spec.Firmware) {
-		host.Status.Provisioning.Firmware = host.Spec.Firmware
-		info.log.V(VerbosityLevelDebug).Info("firmware settings have changed")
 		dirty = true
 	}
 

@@ -81,6 +81,11 @@ const (
 
 	// InspectionModeAgent runs standard agent-based inspection.
 	InspectionModeAgent InspectionMode = "agent"
+
+	// InspectionModeFast runs out-of-band inspection via the BMC (e.g.
+	// Redfish) without booting a ramdisk. It completes in seconds but
+	// may return fewer details than agent-based inspection.
+	InspectionModeFast InspectionMode = "fast"
 )
 
 // RootDeviceHints holds the hints for specifying the storage location
@@ -252,7 +257,7 @@ const (
 )
 
 // OperationalStatusAllowed represents the allowed values of OperationalStatus.
-var OperationalStatusAllowed = []string{"", string(OperationalStatusOK), string(OperationalStatusDiscovered), string(OperationalStatusError), string(OperationalStatusDelayed), string(OperationalStatusDetached)}
+var OperationalStatusAllowed = []string{"", string(OperationalStatusOK), string(OperationalStatusDiscovered), string(OperationalStatusError), string(OperationalStatusDelayed), string(OperationalStatusDetached), string(OperationalStatusServicing)}
 
 // ErrorType indicates the class of problem that has caused the Host resource
 // to enter an error state.
@@ -287,7 +292,7 @@ const (
 )
 
 // ErrorTypeAllowed represents the allowed values of ErrorType.
-var ErrorTypeAllowed = []string{"", string(ProvisionedRegistrationError), string(RegistrationError), string(InspectionError), string(PreparationError), string(ProvisioningError), string(PowerManagementError)}
+var ErrorTypeAllowed = []string{"", string(ProvisionedRegistrationError), string(RegistrationError), string(InspectionError), string(PreparationError), string(ProvisioningError), string(PowerManagementError), string(DetachError), string(ServicingError)}
 
 // ProvisioningState defines the states the provisioner will report
 // the host has having.
@@ -466,7 +471,7 @@ type FirmwareConfig struct {
 // SwitchPort defines the attributes required to identify a switch port.
 type SwitchPort struct {
 	// SwitchID is expected to be the management MAC address of the switch
-	// +kubebuilder:validation:Pattern=`[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}`
+	// +kubebuilder:validation:Pattern=`^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$`
 	SwitchID string `json:"switchID"`
 
 	// PortID is expected to be the configuration name of the port in the
@@ -488,7 +493,7 @@ type NetworkInterface struct {
 	// of a NIC discovered during inspection (see HardwareData resource).
 	// Mutually exclusive with Name.
 	// +optional
-	// +kubebuilder:validation:Pattern=`[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}`
+	// +kubebuilder:validation:Pattern=`^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$`
 	MACAddress string `json:"macAddress,omitempty"`
 
 	// HostNetworkAttachment references the HostNetworkAttachment for this interface
@@ -507,12 +512,10 @@ type NetworkInterface struct {
 
 // BareMetalHostSpec defines the desired state of BareMetalHost.
 type BareMetalHostSpec struct {
-	// Important: Run "make generate manifests" to regenerate code
-	// after modifying this file
-
 	// Taints is the full, authoritative list of taints to apply to
-	// the corresponding Machine. This list will overwrite any
-	// modifications made to the Machine on an ongoing basis.
+	// the corresponding Machine.
+	//
+	// Deprecated: the Taints field was never actually implemented.
 	// +optional
 	Taints []corev1.Taint `json:"taints,omitempty"`
 
@@ -527,10 +530,9 @@ type BareMetalHostSpec struct {
 	// time.
 	RAID *RAIDConfig `json:"raid,omitempty"`
 
-	// Firmware (BIOS) configuration for bare metal server. If set, the
-	// requested settings will be applied before the host is provisioned.
+	// Firmware (BIOS) configuration for bare metal server.
 	//
-	// Deprecated: no longer supported by any driver. An alternative is to
+	// Deprecated: no longer implemented. An alternative is to
 	// use HostFirmwareSettings resources that allow changing arbitrary
 	// values and support the generic Redfish-based drivers.
 	Firmware *FirmwareConfig `json:"firmware,omitempty"`
@@ -642,8 +644,9 @@ type BareMetalHostSpec struct {
 	// Specifies the mode for host inspection.
 	// "disabled" - no inspection will be performed
 	// "agent" - normal agent-based inspection will run
+	// "fast" - out-of-band inspection via BMC (Redfish), no ramdisk boot
 	// +optional
-	// +kubebuilder:validation:Enum=disabled;agent
+	// +kubebuilder:validation:Enum=disabled;agent;fast
 	InspectionMode InspectionMode `json:"inspectionMode,omitempty"`
 
 	// NetworkInterfaces defines the network configuration for each interface.
@@ -824,7 +827,7 @@ type BareMetalHostStatus struct {
 
 	// ErrorType indicates the type of failure encountered when the
 	// OperationalStatus is OperationalStatusError
-	// +kubebuilder:validation:Enum=provisioned registration error;registration error;inspection error;preparation error;provisioning error;power management error;servicing error
+	// +kubebuilder:validation:Enum=provisioned registration error;registration error;inspection error;preparation error;provisioning error;power management error;detach error;servicing error
 	ErrorType ErrorType `json:"errorType,omitempty"`
 
 	// LastUpdated identifies when this status was last observed.
@@ -865,6 +868,19 @@ type BareMetalHostStatus struct {
 	// +kubebuilder:default:=0
 	ErrorCount int `json:"errorCount"`
 
+	// ProvisioningFailCount records how many times provisioning has failed
+	// consecutively for the current image. Unlike ErrorCount, it is not reset
+	// on deprovisioning and is only cleared on successful provisioning or when
+	// a new image is specified.
+	// +kubebuilder:default:=0
+	ProvisioningFailCount int `json:"provisioningFailCount"`
+
+	// LastAttemptedImage stores the full image spec of the last provisioning
+	// attempt, used to detect user-initiated image changes (URL, checksum,
+	// format, etc.) that should reset the provisioning retry limit counter.
+	// +optional
+	LastAttemptedImage *Image `json:"lastAttemptedImage,omitempty"`
+
 	// Conditions defines current service state of the BareMetalHost.
 	// +optional
 	// +listType=map
@@ -897,6 +913,8 @@ type ProvisionStatus struct {
 	RAID *RAIDConfig `json:"raid,omitempty"`
 
 	// The firmware settings that have been applied.
+	//
+	// Deprecated: no longer implemented and is always empty.
 	Firmware *FirmwareConfig `json:"firmware,omitempty"`
 
 	// Custom deploy procedure applied to the host.
