@@ -22,7 +22,7 @@ import (
 	"os"
 
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
+	pkgerrors "github.com/pkg/errors"
 	kindv1 "sigs.k8s.io/kind/pkg/apis/config/v1alpha4"
 	kind "sigs.k8s.io/kind/pkg/cluster"
 	"sigs.k8s.io/kind/pkg/cmd"
@@ -88,6 +88,13 @@ func WithExtraPortMappings(mappings []kindv1.PortMapping) KindClusterOption {
 	})
 }
 
+// WithOwnerReferencesPermissionEnforcementDisabled implements a New Option that disables the OwnerReferencesPermissionEnforcement admission controller.
+func WithOwnerReferencesPermissionEnforcementDisabled() KindClusterOption {
+	return kindClusterOptionAdapter(func(k *KindClusterProvider) {
+		k.disableOwnerReferencesPermissionEnforcement = true
+	})
+}
+
 // LogFolder implements a New Option that instruct the kindClusterProvider to dump bootstrap logs in a folder in case of errors.
 func LogFolder(path string) KindClusterOption {
 	return kindClusterOptionAdapter(func(k *KindClusterProvider) {
@@ -117,6 +124,8 @@ type KindClusterProvider struct {
 	ipFamily          kindv1.ClusterIPFamily
 	logFolder         string
 	extraPortMappings []kindv1.PortMapping
+
+	disableOwnerReferencesPermissionEnforcement bool
 }
 
 // Create a Kubernetes cluster using kind.
@@ -137,8 +146,20 @@ func (k *KindClusterProvider) Create(ctx context.Context) {
 // - use a dedicated kubeconfig file (test should not alter the user environment)
 // - if required, mount /var/run/docker.sock.
 func (k *KindClusterProvider) createKindCluster() {
-	kindCreateOptions := []kind.CreateOption{
+	kindCreateOptions := []kind.CreateOption{ //nolint:prealloc // Not all paths append
 		kind.CreateWithKubeconfigPath(k.kubeconfigPath),
+	}
+
+	var kubeadmConfigPatches []string
+	if !k.disableOwnerReferencesPermissionEnforcement {
+		// We enable the OwnerReferencesPermissionEnforcement admission plugin to detect potential
+		// RBAC issues when applying owner references with blockOwnerDeletion.
+		const ownerReferencesPermissionEnforcementPatch = `kind: ClusterConfiguration
+apiServer:
+  extraArgs:
+    enable-admission-plugins: OwnerReferencesPermissionEnforcement
+`
+		kubeadmConfigPatches = append(kubeadmConfigPatches, ownerReferencesPermissionEnforcementPatch)
 	}
 
 	cfg := &kindv1.Cluster{
@@ -148,6 +169,7 @@ func (k *KindClusterProvider) createKindCluster() {
 				ExtraPortMappings: k.extraPortMappings,
 			},
 		},
+		KubeadmConfigPatches: kubeadmConfigPatches,
 	}
 
 	if k.ipFamily == kindv1.IPv6Family {
@@ -189,7 +211,7 @@ func (k *KindClusterProvider) createKindCluster() {
 		errStr := fmt.Sprintf("Failed to create kind cluster %q: %v", k.name, err)
 		// Extract the details of the RunError, if the cluster creation was triggered by a RunError.
 		var runErr *exec.RunError
-		if errors.As(err, &runErr) {
+		if pkgerrors.As(err, &runErr) {
 			errStr += "\n" + string(runErr.Output)
 		}
 		Expect(err).ToNot(HaveOccurred(), errStr)

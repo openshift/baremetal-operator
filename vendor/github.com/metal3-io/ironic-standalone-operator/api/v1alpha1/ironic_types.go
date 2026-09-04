@@ -30,10 +30,9 @@ const (
 
 var (
 	VersionLatest = Version{}
+	Version380    = Version{Major: 38, Minor: 0}
 	Version370    = Version{Major: 37, Minor: 0}
 	Version350    = Version{Major: 35, Minor: 0}
-	Version340    = Version{Major: 34, Minor: 0}
-	Version330    = Version{Major: 33, Minor: 0}
 )
 
 // SupportedVersions is a mapping of supported versions to container image tags.
@@ -43,10 +42,9 @@ var (
 // expectations.
 var SupportedVersions = map[Version]string{
 	VersionLatest: "latest",
+	Version380:    "release-38.0",
 	Version370:    "release-37.0",
 	Version350:    "release-35.0",
-	Version340:    "release-34.0",
-	Version330:    "release-33.0",
 }
 
 // Inspection defines inspection settings.
@@ -62,13 +60,42 @@ type Inspection struct {
 	VLANInterfaces []string `json:"vlanInterfaces,omitempty"`
 }
 
+// DHCPRange defines a single additional DHCP address range with per-range options.
+// Each range is assigned an auto-generated dnsmasq tag `range_N`, where N is
+// its 1-based position in the extraRanges list.
+type DHCPRange struct {
+	// NetworkCIDR is the CIDR of the provisioning network for this range.
+	NetworkCIDR string `json:"networkCIDR"`
+
+	// RangeBegin is the first IP that can be given to hosts. Must be inside NetworkCIDR.
+	RangeBegin string `json:"rangeBegin"`
+
+	// RangeEnd is the last IP that can be given to hosts. Must be inside NetworkCIDR.
+	RangeEnd string `json:"rangeEnd"`
+
+	// GatewayAddress is the IPv4 gateway advertised to clients in this range.
+	// When unset, no router is advertised to this range. Must be inside
+	// NetworkCIDR when set. IPv6 gateways are not supported here.
+	// +optional
+	GatewayAddress string `json:"gatewayAddress,omitempty"`
+}
+
 type DHCP struct {
 	// DNSAddress is the IP address of the DNS server to pass to hosts via DHCP.
 	// Must not be set together with ServeDNS.
 	// +optional
 	DNSAddress string `json:"dnsAddress,omitempty"`
 
+	// ExtraRanges is a list of additional DHCP address ranges served alongside
+	// the main range, e.g. for subnets reached via a DHCP relay. When set, the
+	// main networkCIDR/rangeBegin/rangeEnd fields become optional: leave them
+	// unset to serve only these ranges. Requires Ironic 37.0 or newer.
+	// +optional
+	ExtraRanges []DHCPRange `json:"extraRanges,omitempty"`
+
 	// GatewayAddress is the IP address of the gateway to pass to hosts via DHCP.
+	// It only applies to the main range: each ExtraRanges entry advertises a
+	// router only when its own gatewayAddress is set.
 	// +optional
 	GatewayAddress string `json:"gatewayAddress,omitempty"`
 
@@ -84,13 +111,20 @@ type DHCP struct {
 	// +optional
 	Ignore []string `json:"ignore,omitempty"`
 
-	// NetworkCIDR is a CIDR of the provisioning network. Required.
+	// NetworkCIDR is a CIDR of the provisioning network. Required unless
+	// extraRanges is set, in which case it must be set together with
+	// rangeBegin and rangeEnd or left unset to serve only extraRanges.
+	// +optional
 	NetworkCIDR string `json:"networkCIDR,omitempty"`
 
 	// RangeBegin is the first IP that can be given to hosts. Must be inside NetworkCIDR.
+	// Required unless extraRanges is set. Must be set together with networkCIDR and rangeEnd.
+	// +optional
 	RangeBegin string `json:"rangeBegin,omitempty"`
 
 	// RangeEnd is the last IP that can be given to hosts. Must be inside NetworkCIDR.
+	// Required unless extraRanges is set. Must be set together with networkCIDR and rangeBegin.
+	// +optional
 	RangeEnd string `json:"rangeEnd,omitempty"`
 
 	// ServeDNS is set to true to pass the provisioning host as the DNS server on the provisioning network.
@@ -163,25 +197,48 @@ type Networking struct {
 	APIPort int32 `json:"apiPort,omitempty"`
 
 	// BindInterface makes Ironic API bound to only one interface.
+	// Requires DisableHostNetwork to be false.
 	// +optional
 	BindInterface bool `json:"bindInterface,omitempty"`
 
 	// DHCP is a configuration of DHCP for the network boot service (dnsmasq).
 	// The service is only deployed when this is set.
 	// This setting is currently incompatible with the highly available architecture.
+	// Requires DisableHostNetwork to be false.
 	DHCP *DHCP `json:"dhcp,omitempty"`
 
+	// DisableHostNetwork disables the use of host networking for Ironic pods.
+	// Disabling host networking makes network boot impossible.
+	// This should only be used with virtual media deployments.
+	// +kubebuilder:default=false
+	// +optional
+	DisableHostNetwork bool `json:"disableHostNetwork,omitempty"`
+
+	// ExternalCallbackURL for Ironic API server.
+	// Set this option when your Ironic API server is not directly accessible.
+	// Setting this option, will override URL set by networking.ingress.host.
+	// Must be set together with networking.imageServerExternalURL or networking.ingress
+	// This should only be used with virtual media deployments.
+	// Cannot be set at the same time with networking.externalIP.
+	// +kubebuilder:validation:Format=uri
+	// +optional
+	ExternalCallbackURL string `json:"externalCallbackURL,omitempty"`
+
 	// ExternalIP is used for accessing API and the image server from remote hosts.
-	// This settings only applies to virtual media deployments. The IP will not be accessed from the cluster itself.
-	// Cannot be set at the same time with networking.ingress.
+	// This setting only applies to virtual media deployments. The IP will not be accessed from the cluster itself.
+	// Cannot be set at the same time with networking.ingress, networking.externalCallbackURL, or networking.imageServerExternalURL.
 	// +optional
 	ExternalIP string `json:"externalIP,omitempty"`
 
-	// Configure Ingress resource for Ironic services.
-	// Set this option when you are planning to deploy Ironic in a public cluster and willing to use Ingress instead of IP address and NodePort.
+	// ImageServerExternalURL is to set external HTTP URL for Image server.
+	// Set this option when your image server is not directly accessible.
+	// Setting this option, will override URL set by networking.ingress.host.
+	// Must be set together with networking.externalCallbackURL or networking.ingress
 	// Cannot be set at the same time with networking.externalIP.
+	// This should only be used with virtual media deployments.
+	// +kubebuilder:validation:Format=uri
 	// +optional
-	Ingress *Ingress `json:"ingress,omitempty"`
+	ImageServerExternalURL string `json:"imageServerExternalURL,omitempty"`
 
 	// ImageServerPort is the public port used for serving images.
 	// +kubebuilder:default=6180
@@ -195,13 +252,23 @@ type Networking struct {
 	// +optional
 	ImageServerTLSPort int32 `json:"imageServerTLSPort,omitempty"`
 
+	// Configure Ingress resource for Ironic services.
+	// Set this option when you are planning to deploy Ironic in a public cluster and willing to use Ingress instead of IP address on the Host Network.
+	// The API and the image server will be accessible via the hostname specified in the ingress configuration.
+	// This should only be used with virtual media deployments.
+	// Cannot be set at the same time with networking.externalIP.
+	// +optional
+	Ingress *Ingress `json:"ingress,omitempty"`
+
 	// Interface is a Linux network device to listen on.
 	// Detected from IPAddress if missing.
+	// Requires DisableHostNetwork to be false.
 	// +optional
 	Interface string `json:"interface,omitempty"`
 
 	// IPAddress is the main IP address to listen on and use for communication.
 	// Detected from Interface if missing. Cannot be provided for a highly available architecture.
+	// Requires DisableHostNetwork to be false.
 	// +optional
 	IPAddress string `json:"ipAddress,omitempty"`
 
@@ -219,12 +286,14 @@ type Networking struct {
 	// When enabled, a Keepalived container will be started to manage the main ipAddress
 	// on the main interface, plus any additional VIPs listed in additionalVIPs.
 	// Cannot be used together with ipAddressManager.
+	// Requires DisableHostNetwork to be false.
 	// Warning: keepalived is not compatible with the highly available architecture.
 	// +optional
 	Keepalived *KeepalivedConfig `json:"keepalived,omitempty"`
 
 	// MACAddresses can be provided to make the start script pick the interface matching any of these addresses.
 	// Only set if no other options can be used.
+	// Requires DisableHostNetwork to be false.
 	// +optional
 	MACAddresses []string `json:"macAddresses,omitempty"`
 
@@ -257,11 +326,13 @@ type AgentImages struct {
 	// Kernel is the URL of the IPA kernel image.
 	// Supported schemes: file://, http://, https://, oci://.
 	// file:// URLs must use absolute paths (e.g. "file:///shared/html/images/ironic-python-agent.kernel").
+	// +kubebuilder:validation:Format=uri
 	Kernel string `json:"kernel"`
 
 	// Initramfs is the URL of the IPA initramfs/ramdisk image.
 	// Supported schemes: file://, http://, https://, oci://.
 	// file:// URLs must use absolute paths (e.g. "file:///shared/html/images/ironic-python-agent.initramfs").
+	// +kubebuilder:validation:Format=uri
 	Initramfs string `json:"initramfs"`
 
 	// Architecture is the target CPU architecture.
@@ -509,6 +580,13 @@ type Overrides struct {
 	// Extra labels to add to each pod (including upgrade jobs).
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
+
+	// Volumes to add to the main Ironic pod (and upgrade jobs).
+	// Use this together with volumeMounts on overridden containers to mount
+	// additional ConfigMaps, Secrets or PersistentVolumeClaims.
+	// If a volume name matches an existing volume, the existing volume is replaced.
+	// +optional
+	Volumes []corev1.Volume `json:"volumes,omitempty"`
 }
 
 // PrometheusExporter defines configuration for Prometheus metrics export.
