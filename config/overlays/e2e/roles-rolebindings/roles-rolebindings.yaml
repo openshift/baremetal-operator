@@ -16,6 +16,7 @@ rules:
   resources:
   - secrets
   verbs:
+  - delete
   - get
   - list
   - update
@@ -81,6 +82,7 @@ rules:
   resources:
   - hostupdatepolicies
   verbs:
+  - delete
   - get
   - list
   - update

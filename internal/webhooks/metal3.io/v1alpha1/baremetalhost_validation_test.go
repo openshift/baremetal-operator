@@ -218,12 +218,12 @@ func TestValidateCreate(t *testing.T) {
 						VirtualizationEnabled: &enable,
 					},
 					BMC: metal3api.BMCDetails{
-						Address:         "ipmi://127.0.1.1",
+						Address:         "redfish://127.0.1.1",
 						CredentialsName: "test1",
 					},
 				}},
 			oldBMH:    nil,
-			wantedErr: "firmware settings for ipmi are not supported",
+			wantedErr: "the Firmware field is no longer supported, use HostFirmwareSettings resource instead",
 		},
 		{
 			name: "BootMACAddressRequiredWithoutBootMACAddress",
@@ -726,6 +726,51 @@ func TestValidateCreate(t *testing.T) {
 			wantedErr: "invalid operationalStatus 'NotOK' in the baremetalhost.metal3.io/status annotation",
 		},
 		{
+			name: "validStatusAnnotationServicing",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test-namespace",
+					Annotations: map[string]string{
+						metal3api.StatusAnnotation: `{"operationalStatus": "servicing"}`,
+					},
+				},
+			},
+			oldBMH:    nil,
+			wantedErr: "",
+		},
+		{
+			name: "validStatusAnnotationDetachError",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test-namespace",
+					Annotations: map[string]string{
+						metal3api.StatusAnnotation: `{"errorType":"detach error"}`,
+					},
+				},
+			},
+			oldBMH:    nil,
+			wantedErr: "",
+		},
+		{
+			name: "validStatusAnnotationServicingError",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test-namespace",
+					Annotations: map[string]string{
+						metal3api.StatusAnnotation: `{"errorType":"servicing error"}`,
+					},
+				},
+			},
+			oldBMH:    nil,
+			wantedErr: "",
+		},
+		{
 			name: "invalidErrtypeStatusAnnotation",
 			newBMH: &metal3api.BareMetalHost{
 				TypeMeta: tm,
@@ -1029,6 +1074,98 @@ func TestValidateCreate(t *testing.T) {
 				},
 			},
 			wantedErr: "",
+		},
+		{
+			name: "validInspectionModeFastRedfish",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta:   tm,
+				ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "redfish://192.168.122.1",
+						CredentialsName: "secretRefName",
+					},
+					InspectionMode: metal3api.InspectionModeFast,
+				},
+			},
+			wantedErr: "",
+		},
+		{
+			name: "validInspectionModeFastIDracRedfish",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta:   tm,
+				ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "idrac-redfish://192.168.122.1",
+						CredentialsName: "secretRefName",
+					},
+					InspectionMode: metal3api.InspectionModeFast,
+				},
+			},
+			wantedErr: "",
+		},
+		{
+			name: "validInspectionModeFastRedfishVirtualMedia",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta:   tm,
+				ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "redfish-virtualmedia://192.168.122.1",
+						CredentialsName: "secretRefName",
+					},
+					InspectionMode: metal3api.InspectionModeFast,
+				},
+			},
+			wantedErr: "",
+		},
+		{
+			name: "validInspectionModeFastIDracVirtualMedia",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta:   tm,
+				ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "idrac-virtualmedia://192.168.122.1",
+						CredentialsName: "secretRefName",
+					},
+					InspectionMode: metal3api.InspectionModeFast,
+				},
+			},
+			wantedErr: "",
+		},
+		{
+			name: "inspectionModeFastWithIPMI",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta:   tm,
+				ObjectMeta: om,
+				Spec: metal3api.BareMetalHostSpec{
+					BMC: metal3api.BMCDetails{
+						Address:         "ipmi://192.168.122.1:6233",
+						CredentialsName: "secretRefName",
+					},
+					InspectionMode: metal3api.InspectionModeFast,
+				},
+			},
+			wantedErr: "BMC driver ipmi does not support fast (out-of-band) inspection",
+		},
+		{
+			name: "inspectionModeFastAndAnnotationConflict",
+			newBMH: &metal3api.BareMetalHost{
+				TypeMeta: tm,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test-namespace",
+					Annotations: map[string]string{
+						metal3api.InspectAnnotationPrefix: "disabled",
+					},
+				},
+				Spec: metal3api.BareMetalHostSpec{
+					InspectionMode: metal3api.InspectionModeFast,
+				},
+			},
+			wantedErr: "inspect.metal3.io annotation and inspectionMode field have contradicting values",
 		},
 		{
 			name: "hardwareDetailsWithInspectionModeDisabled",

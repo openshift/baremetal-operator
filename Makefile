@@ -4,7 +4,7 @@ GO_TEST_FLAGS = $(TEST_FLAGS)
 DEBUG = --debug
 COVER_PROFILE = cover.out
 GO := $(shell type -P go)
-GO_VERSION ?= 1.26.5
+GO_VERSION ?= 1.26.6
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -240,12 +240,17 @@ deploy-cli:
 build-e2e:
 	cd test; go build --tags=e2e ./...
 
+# output path and ldflags for vbmctl binary. Overridable so the release
+# build can retarget the output (see release-vbmctl)
+VBMCTL_OUT ?= $(abspath $(BIN_DIR)/vbmctl)
+VBMCTL_LDFLAGS ?= "-X github.com/metal3-io/baremetal-operator/test/vbmctl/pkg/config.Version=${BUILD_VERSION}"
+
 .PHONY: build-vbmctl
 build-vbmctl:
-	cd test; go build --tags=e2e,vbmctl -ldflags $(LDFLAGS) -o $(abspath $(BIN_DIR)/vbmctl) ./vbmctl/cmd/vbmctl
+	cd test; CGO_ENABLED=1 go build --tags=e2e,vbmctl -ldflags $(VBMCTL_LDFLAGS) -o $(VBMCTL_OUT) ./vbmctl/cmd/vbmctl
 
 .PHONY: unit-vbmctl
-unit-vbmctl: ## Run vbmctl unit tests
+unit-vbmctl: # Run unit tests for vbmctl
 	cd test && go test --tags=e2e,vbmctl $(GO_TEST_FLAGS) ./vbmctl/...
 
 .PHONY: manifests
@@ -275,11 +280,6 @@ set-manifest-image-bmo: $(KUSTOMIZE) manifests
 set-manifest-image-ironic: $(KUSTOMIZE) manifests
 	$(info Updating container image for Ironic to use ${MANIFEST_IMG}:${MANIFEST_TAG})
 	cd ironic-deployment/base && $(abspath $(KUSTOMIZE)) edit set image quay.io/metal3-io/ironic=${MANIFEST_IMG}:${MANIFEST_TAG}
-
-.PHONY: set-manifest-image-mariadb
-set-manifest-image-mariadb: $(KUSTOMIZE) manifests
-	$(info Updating container image for Mariadb to use ${MANIFEST_IMG}:${MANIFEST_TAG})
-	cd ironic-deployment/components/mariadb && $(abspath $(KUSTOMIZE)) edit set image quay.io/metal3-io/mariadb=${MANIFEST_IMG}:${MANIFEST_TAG}
 
 .PHONY: set-manifest-image-keepalived
 set-manifest-image-keepalived: $(KUSTOMIZE) manifests
@@ -468,12 +468,19 @@ $(RELEASE_NOTES_DIR):
 	mkdir -p $(RELEASE_NOTES_DIR)/
 
 .PHONY: release-notes
-release-notes: $(RELEASE_NOTES_DIR) $(RELEASE_NOTES)
-	cd hack/tools && $(GO) run release/notes.go  --releaseTag=$(RELEASE_TAG) > $(realpath $(RELEASE_NOTES_DIR))/$(RELEASE_TAG).md
+release-notes: $(RELEASE_NOTES_DIR) $(TOOLS_DIR)/go.mod ## Generates release notes for the given tag
+	@echo "Generating release notes for $(RELEASE_TAG)..."
+	@cd $(TOOLS_DIR) && $(GO) build -tags=tools -o $(BIN_DIR)/release ./release
+	@$(TOOLS_BIN_DIR)/release --releaseTag="$(RELEASE_TAG)" --githubToken="$${GITHUB_TOKEN}" > $(RELEASE_NOTES_DIR)/$(RELEASE_TAG).md
+	@echo "Release notes written to $(realpath $(RELEASE_NOTES_DIR))/$(RELEASE_TAG).md"
 
 .PHONY: release-manifests
 release-manifests: $(KUSTOMIZE) $(RELEASE_DIR) ## Builds the manifests to publish with a release
 	$(KUSTOMIZE) build config > $(RELEASE_DIR)/baremetal-operator.yaml
+
+.PHONY: release-vbmctl
+release-vbmctl: $(RELEASE_DIR) ## Build vbmctl for the release into out/
+	$(MAKE) build-vbmctl VBMCTL_OUT=$(abspath $(RELEASE_DIR))/vbmctl-$(shell go env GOOS)-$(shell go env GOARCH)
 
 .PHONY: release
 release:
@@ -483,6 +490,7 @@ release:
 	MANIFEST_IMG=$(IMG) MANIFEST_TAG=$(RELEASE_TAG) $(MAKE) set-manifest-image-bmo
 	PULL_POLICY=IfNotPresent $(MAKE) set-manifest-pull-policy
 	$(MAKE) release-manifests
+	$(MAKE) release-vbmctl BUILD_VERSION=${RELEASE_TAG}
 	$(MAKE) release-notes
 
 go-version: ## Print the go version we use to compile our binaries and images

@@ -17,4 +17,4 @@ patches:
   patch: |-
     - op: replace
       path: /spec/version
-      value: "30.0"
+      value: "38.0"

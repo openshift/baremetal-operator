@@ -55,6 +55,13 @@ func (p *ironicProvisioner) Register(ctx context.Context, data provisioner.Manag
 		return result, "", err
 	}
 
+	if data.InspectionMode == metal3api.InspectionModeFast && bmcAccess.InspectInterface() == "" {
+		msg := fmt.Sprintf("BMC driver %s does not support fast (out-of-band) inspection", bmcAccess.Type())
+		p.log.Info(msg)
+		result, err = operationFailed(msg)
+		return result, "", err
+	}
+
 	if data.BootMode == metal3api.UEFISecureBoot && !bmcAccess.SupportsSecureBoot() {
 		msg := fmt.Sprintf("BMC driver %s does not support secure boot", bmcAccess.Type())
 		p.log.Info(msg)
@@ -94,9 +101,12 @@ func (p *ironicProvisioner) Register(ctx context.Context, data provisioner.Manag
 		return result, "", err
 	}
 
-	// Some BMC types require a MAC address, so ensure we have one
-	// when we need it. If not, place the host in an error state.
-	if bmcAccess.NeedsMAC() && p.bootMACAddress == "" {
+	// Some BMC types require a MAC address regardless of inspection (for
+	// example VirtualBMC), and any host requires one when inspection is
+	// disabled because the MAC cannot be discovered. Ensure we have one when
+	// we need it; if not, place the host in an error state. This mirrors the
+	// combined rule enforced by the validating webhook.
+	if (bmcAccess.NeedsMAC() || data.DisableInspection) && p.bootMACAddress == "" {
 		msg := fmt.Sprintf("BMC driver %s requires a BootMACAddress value", bmcAccess.Type())
 		p.log.Info(msg)
 		result, err = operationFailed(msg)
@@ -258,6 +268,15 @@ func (p *ironicProvisioner) Register(ctx context.Context, data provisioner.Manag
 	}
 }
 
+func inspectInterfaceForMode(mode metal3api.InspectionMode, bmcAccess bmc.AccessDetails) string {
+	if mode == metal3api.InspectionModeFast {
+		if iface := bmcAccess.InspectInterface(); iface != "" {
+			return iface
+		}
+	}
+	return defaultInspectInterface
+}
+
 func (p *ironicProvisioner) enrollNode(ctx context.Context, data provisioner.ManagementAccessData, bmcAccess bmc.AccessDetails, driverInfo map[string]any) (ironicNode *nodes.Node, retry bool, err error) {
 	nodeCreateOpts := nodes.CreateOpts{
 		Driver:              bmcAccess.Driver(),
@@ -267,7 +286,7 @@ func (p *ironicProvisioner) enrollNode(ctx context.Context, data provisioner.Man
 		DriverInfo:          driverInfo,
 		FirmwareInterface:   bmcAccess.FirmwareInterface(),
 		DeployInterface:     p.deployInterface(data),
-		InspectInterface:    defaultInspectInterface,
+		InspectInterface:    inspectInterfaceForMode(data.InspectionMode, bmcAccess),
 		ManagementInterface: bmcAccess.ManagementInterface(),
 		PowerInterface:      bmcAccess.PowerInterface(),
 		RAIDInterface:       bmcAccess.RAIDInterface(),

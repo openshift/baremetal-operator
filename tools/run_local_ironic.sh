@@ -45,7 +45,7 @@ IPXE_KEY_FILE="${IPXE_KEY_FILE:-}"
 # Variables used to configure IPA handling
 IPA_DOWNLOAD_ENABLED="${IPA_DOWNLOAD_ENABLED:-true}"
 USE_LOCAL_IPA="${USE_LOCAL_IPA:-false}"
-LOCAL_IPA_PATH="${LOCAL_IPA_PATH:-/tmp/dib}"
+LOCAL_IPA_PATH="${LOCAL_IPA_PATH:-/opt/metal3-dev-env/dib}"
 
 HTTP_PROXY="${HTTP_PROXY:-}"
 HTTPS_PROXY="${HTTPS_PROXY:-}"
@@ -164,8 +164,19 @@ sudo mkdir -p "$IRONIC_DATA_DIR/html/images"
 # Locally supplied IPA images are imported here when the environment variables are set accordingly.
 # Name of the IPA archive is expected to be "ironic-python-agent.tar" at all times.
 if ${USE_LOCAL_IPA} && ! ${IPA_DOWNLOAD_ENABLED}; then
-    sudo cp "${LOCAL_IPA_PATH}/ironic-python-agent.tar" "$IRONIC_DATA_DIR/html/images"
-    sudo tar --extract --file "$IRONIC_DATA_DIR/html/images/ironic-python-agent.tar" \
+    local_ipa_archive="${LOCAL_IPA_PATH}/ironic-python-agent.tar"
+
+    # Verify checksum if a .sha256sum file is provided alongside the archive.
+    if [ -f "${local_ipa_archive}.sha256sum" ]; then
+        echo "Verifying integrity of ${local_ipa_archive}..."
+        (cd "$(dirname "${local_ipa_archive}")" && sha256sum --check "$(basename "${local_ipa_archive}").sha256sum")
+    else
+        echo "WARNING: No checksum file found at ${local_ipa_archive}.sha256sum, skipping verification" >&2
+    fi
+
+    sudo cp "${local_ipa_archive}" "$IRONIC_DATA_DIR/html/images"
+    sudo tar --extract \
+        --file "$IRONIC_DATA_DIR/html/images/ironic-python-agent.tar" \
         --directory "$IRONIC_DATA_DIR/html/images"
 fi
 
@@ -176,8 +187,6 @@ fi
 # In other cases user has to store images beforehand.
 
 "$SCRIPTDIR/tools/remove_local_ironic.sh"
-
-IRONIC_MARIADB_PASSWORD=
 
 POD=""
 
@@ -201,7 +210,7 @@ if ${IPA_DOWNLOAD_ENABLED}; then
   sudo "${CONTAINER_RUNTIME}" wait ipa-downloader
 fi
 
-# Start dnsmasq, http, mariadb, and ironic containers using same image
+# Start dnsmasq, http, and ironic containers using same image
 
 # See this file for env vars you can set, like IP, DHCP_RANGE, INTERFACE
 # https://github.com/metal3-io/ironic-image/blob/main/scripts/rundnsmasq
@@ -218,16 +227,13 @@ sudo "${CONTAINER_RUNTIME}" run -d --net host --privileged --name httpd \
      --env-file "${IRONIC_DATA_DIR}/ironic-vars.env" \
      -v "${IRONIC_DATA_DIR}:/shared" --entrypoint /bin/runhttpd "${IRONIC_IMAGE}"
 
-# For database setup, use MariaDB Operator:
-# https://github.com/mariadb-operator/mariadb-operator
-
 # See this file for additional env vars you may want to pass, like IP and INTERFACE
 # https://github.com/metal3-io/ironic-image/blob/main/scripts/runironic
 # shellcheck disable=SC2086
 sudo "${CONTAINER_RUNTIME}" run -d --net host --privileged --name ironic \
      ${POD} ${CERTS_MOUNTS} ${BASIC_AUTH_MOUNTS} ${IRONIC_HTPASSWD_MOUNT} \
      --env-file "${IRONIC_DATA_DIR}/ironic-vars.env" \
-     ${IRONIC_MARIADB_PASSWORD} --entrypoint /bin/runironic \
+     --entrypoint /bin/runironic \
      -v "$IRONIC_DATA_DIR:/shared" "${IRONIC_IMAGE}"
 
 # Start ironic-endpoint-keepalived
