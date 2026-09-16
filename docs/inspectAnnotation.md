@@ -43,7 +43,9 @@ inspect.metal3.io/hardwaredetails: '{"systemVendor":{"manufacturer":"QEMU",
 "vendor":"QEMU","model":"QEMU HARDDISK","serialNumber":"drive-scsi0-0-0-0",
 "hctl":"6:0:0:0"}],"cpu":{"arch":"x86_64",
 "model":"Intel Xeon E3-12xx v2 (IvyBridge)","clockMegahertz":2494.224,
-"flags":["foo"],"count":4},"hostname":"hwdAnnotation-0"}'
+"flags":["foo"],"count":4},"hostname":"hwdAnnotation-0",
+"accelerators":[{"vendorID":"abcd","deviceID":"1234","type":"GPU",
+"deviceInfo":"example-vendor example-gpu-device","pciAddress":"0000:3b:00.0"}]}'
 ```
 
 ## Requesting re-inspection

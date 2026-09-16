@@ -13,7 +13,10 @@ import (
 )
 
 // GetHardwareDetails converts Ironic introspection data into BareMetalHost HardwareDetails.
-func GetHardwareDetails(data *nodes.InventoryData, logger logr.Logger) *metal3api.HardwareDetails {
+// properties is the node's properties map (as returned by the Ironic node API), used to
+// source data derived from inspection hooks that is stored on the node rather than in the
+// inventory data itself, such as accelerators.
+func GetHardwareDetails(data *nodes.InventoryData, properties map[string]any, logger logr.Logger) *metal3api.HardwareDetails {
 	ironicData, err := data.PluginData.AsStandardData()
 	if err != nil {
 		logger.Error(err, "cannot get plugin data from inventory, some fields will not be available")
@@ -27,6 +30,7 @@ func GetHardwareDetails(data *nodes.InventoryData, logger logr.Logger) *metal3ap
 	details.Storage = getStorageDetails(data.Inventory.Disks)
 	details.CPU = getCPUDetails(&data.Inventory.CPU)
 	details.Hostname = data.Inventory.Hostname
+	details.Accelerators = getAcceleratorDetails(properties, logger)
 	return details
 }
 
@@ -203,4 +207,58 @@ func getFirmwareDetails(firmwaredata inventory.SystemFirmwareType) metal3api.Fir
 			Date:    firmwaredata.BuildDate,
 		},
 	}
+}
+
+// getAcceleratorDetails extracts accelerator devices from the node's
+// properties, as populated by Ironic's accelerators inspection hook.
+//
+// Expected shape of properties["accelerators"] (a list of maps):
+//
+//	{"vendor_id": "abcd", "device_id": "1234", "type": "GPU",
+//	 "device_info": "Example Corp Accelerator X100", "pci_address": "0000:3b:00.0"}
+//
+// Any entry that doesn't match this shape is skipped (and logged) rather
+// than treated as fatal, since this data is best effort and sourced from
+// an inspection hook outside of BMO control.
+func getAcceleratorDetails(properties map[string]any, logger logr.Logger) []metal3api.Accelerator {
+	if properties == nil {
+		return nil
+	}
+
+	rawAccelerators, ok := properties["accelerators"]
+	if !ok {
+		return nil
+	}
+
+	accelerators, ok := rawAccelerators.([]any)
+	if !ok {
+		logger.Info("accelerators property is not a list, ignoring", "value", rawAccelerators)
+		return nil
+	}
+
+	var result []metal3api.Accelerator
+	for _, entry := range accelerators {
+		accelerator, ok := entry.(map[string]any)
+		if !ok {
+			logger.Info("accelerator entry is not a map, ignoring", "value", entry)
+			continue
+		}
+
+		result = append(result, metal3api.Accelerator{
+			VendorID:   stringField(accelerator, "vendor_id"),
+			DeviceID:   stringField(accelerator, "device_id"),
+			Type:       stringField(accelerator, "type"),
+			DeviceInfo: stringField(accelerator, "device_info"),
+			PCIAddress: stringField(accelerator, "pci_address"),
+		})
+	}
+
+	return result
+}
+
+// stringField returns m[key] as a string, or "" if the key is absent or not
+// a string. Used when decoding loosely-typed data from Ironic node properties.
+func stringField(m map[string]any, key string) string {
+	value, _ := m[key].(string)
+	return value
 }

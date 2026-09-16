@@ -68,7 +68,12 @@ func main() {
 		log.Fatalf("could not get inspection data: %s", err)
 	}
 
-	json, err := json.MarshalIndent(hardwaredetails.GetHardwareDetails(data, klog.NewKlogr()), "", "\t")
+	node, err := nodes.Get(context.TODO(), ironic, opts.NodeID).Extract()
+	if err != nil {
+		log.Fatalf("could not get node: %s", err)
+	}
+
+	json, err := json.MarshalIndent(hardwaredetails.GetHardwareDetails(data, node.Properties, klog.NewKlogr()), "", "\t")
 	if err != nil {
 		log.Fatalf("could not convert inspection data: %s", err)
 	}

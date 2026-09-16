@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/gophercloud/gophercloud/v2/openstack/baremetal/inventory"
 	metal3api "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
 	"github.com/stretchr/testify/assert"
@@ -474,4 +475,52 @@ func TestGetSystemVendorDetailsEmpty(t *testing.T) {
 	assert.Empty(t, vendor.Manufacturer)
 	assert.Empty(t, vendor.ProductName)
 	assert.Empty(t, vendor.SerialNumber)
+}
+
+func TestGetAcceleratorDetails(t *testing.T) {
+	properties := map[string]any{
+		"accelerators": []any{
+			map[string]any{
+				"vendor_id":   "abcd",
+				"device_id":   "1234",
+				"type":        "GPU",
+				"device_info": "Example Corp Accelerator X100",
+				"pci_address": "0000:3b:00.0",
+			},
+		},
+	}
+	accelerators := getAcceleratorDetails(properties, logr.Discard())
+	assert.Len(t, accelerators, 1)
+	assert.Equal(t, metal3api.Accelerator{
+		VendorID:   "abcd",
+		DeviceID:   "1234",
+		Type:       "GPU",
+		DeviceInfo: "Example Corp Accelerator X100",
+		PCIAddress: "0000:3b:00.0",
+	}, accelerators[0])
+}
+
+func TestGetAcceleratorDetailsMissing(t *testing.T) {
+	assert.Nil(t, getAcceleratorDetails(nil, logr.Discard()))
+	assert.Nil(t, getAcceleratorDetails(map[string]any{}, logr.Discard()))
+}
+
+func TestGetAcceleratorDetailsMalformed(t *testing.T) {
+	// accelerators is not a list
+	assert.Nil(t, getAcceleratorDetails(map[string]any{
+		"accelerators": "not-a-list",
+	}, logr.Discard()))
+
+	// an entry is not a map, it should be skipped rather than fail the whole list
+	accelerators := getAcceleratorDetails(map[string]any{
+		"accelerators": []any{
+			"not-a-map",
+			map[string]any{
+				"vendor_id": "abcd",
+				"device_id": "1234",
+			},
+		},
+	}, logr.Discard())
+	assert.Len(t, accelerators, 1)
+	assert.Equal(t, "abcd", accelerators[0].VendorID)
 }

@@ -819,6 +819,30 @@ spec:
                   This field will be removed in the next API version in favour of the
                   separate HardwareData resource.
                 properties:
+                  accelerators:
+                    description: List of accelerators discovered on the host.
+                    items:
+                      description: |-
+                        Accelerator describes an accelerator device (e.g. a GPU) discovered on
+                        the host via PCI device inspection.
+                      properties:
+                        deviceID:
+                          description: The PCI device ID of the device, e.g. "1234".
+                          type: string
+                        deviceInfo:
+                          description: A human readable description of the device.
+                          type: string
+                        pciAddress:
+                          description: The PCI address of the device, e.g. "0000:3b:00.0".
+                          type: string
+                        type:
+                          description: The type of the accelerator device, e.g. "GPU".
+                          type: string
+                        vendorID:
+                          description: The PCI vendor ID of the device, e.g. "abcd".
+                          type: string
+                      type: object
+                    type: array
                   cpu:
                     description: Details of the CPU(s) in the system.
                     properties:

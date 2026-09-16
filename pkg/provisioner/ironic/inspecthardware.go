@@ -151,7 +151,7 @@ func (p *ironicProvisioner) InspectHardware(ctx context.Context, data provisione
 	// Introspection is done
 	p.log.Info("inspection finished successfully", "data", response.Body)
 
-	details = hardwaredetails.GetHardwareDetails(introData, p.log)
+	details = hardwaredetails.GetHardwareDetails(introData, ironicNode.Properties, p.log)
 	p.publisher("InspectionComplete", "Hardware inspection completed")
 	result, err = operationComplete()
 	return result, started, details, err

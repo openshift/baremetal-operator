@@ -205,9 +205,30 @@ type HardwareSystemVendor struct {
 	SerialNumber string `json:"serialNumber,omitempty"`
 }
 
+// Accelerator describes an accelerator device (e.g. a GPU) discovered on
+// the host via PCI device inspection.
+type Accelerator struct {
+	// The PCI vendor ID of the device, e.g. "abcd".
+	VendorID string `json:"vendorID,omitempty"`
+
+	// The PCI device ID of the device, e.g. "1234".
+	DeviceID string `json:"deviceID,omitempty"`
+
+	// The type of the accelerator device, e.g. "GPU".
+	Type string `json:"type,omitempty"`
+
+	// A human readable description of the device.
+	DeviceInfo string `json:"deviceInfo,omitempty"`
+
+	// The PCI address of the device, e.g. "0000:3b:00.0".
+	PCIAddress string `json:"pciAddress,omitempty"`
+}
+
 // HardwareDetails collects all of the information about hardware
 // discovered on the host.
 type HardwareDetails struct {
+	// List of accelerators discovered on the host.
+	Accelerators []Accelerator `json:"accelerators,omitempty"`
 	// System vendor information.
 	SystemVendor HardwareSystemVendor `json:"systemVendor,omitempty"`
 	// System firmware information.

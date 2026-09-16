@@ -34,6 +34,8 @@ var (
 	longRetryDelay = time.Second * 10
 
 	softPowerOffTimeout = time.Second * 180
+
+	imageTypeWholeDisk = "whole-disk"
 )
 
 const (
@@ -583,6 +585,7 @@ func (p *ironicProvisioner) setLiveIsoUpdateOptsForNode(ironicNode *nodes.Node, 
 
 		// remove any image_source or checksum options
 		"image_source":        nil,
+		"image_type":          nil,
 		"image_os_hash_value": nil,
 		"image_os_hash_algo":  nil,
 		"image_checksum":      nil,
@@ -611,7 +614,11 @@ func (p *ironicProvisioner) setDirectDeployUpdateOptsForNode(ironicNode *nodes.N
 		// Remove any boot_iso field
 		"boot_iso":          nil,
 		"image_source":      imageData.URL,
+		"image_type":        nil,
 		"image_disk_format": imageData.DiskFormat,
+	}
+	if !imageData.IsOCI() {
+		optValues["image_type"] = imageTypeWholeDisk
 	}
 
 	// Set or clear image pull secret (clear removes a previously-set secret on reprovision)
@@ -663,6 +670,7 @@ func (p *ironicProvisioner) setCustomDeployUpdateOptsForNode(ironicNode *nodes.N
 				"boot_iso":            nil,
 				"image_checksum":      nil,
 				"image_source":        imageData.URL,
+				"image_type":          nil,
 				"image_os_hash_algo":  checksumType,
 				"image_os_hash_value": checksum,
 				"image_disk_format":   imageData.DiskFormat,
@@ -672,10 +680,14 @@ func (p *ironicProvisioner) setCustomDeployUpdateOptsForNode(ironicNode *nodes.N
 				"boot_iso":            nil,
 				"image_checksum":      nil,
 				"image_source":        imageData.URL,
+				"image_type":          nil,
 				"image_os_hash_algo":  nil,
 				"image_os_hash_value": nil,
 				"image_disk_format":   imageData.DiskFormat,
 			}
+		}
+		if !imageData.IsOCI() {
+			optValues["image_type"] = imageTypeWholeDisk
 		}
 		// Set or clear image pull secret (clear removes a previously-set secret on reprovision)
 		if imagePullSecret != "" {
@@ -689,6 +701,7 @@ func (p *ironicProvisioner) setCustomDeployUpdateOptsForNode(ironicNode *nodes.N
 			"boot_iso":            nil,
 			"image_checksum":      nil,
 			"image_source":        nil,
+			"image_type":          nil,
 			"image_os_hash_algo":  nil,
 			"image_os_hash_value": nil,
 			"image_disk_format":   nil,
@@ -800,6 +813,15 @@ func (p *ironicProvisioner) GetFirmwareComponents(ctx context.Context) ([]metal3
 			CurrentVersion:     fwc.CurrentVersion,
 			LastVersionFlashed: fwc.LastVersionFlashed,
 		}
+		if fwc.Vendor != nil {
+			component.Vendor = *fwc.Vendor
+		}
+		if fwc.Model != nil {
+			component.Model = *fwc.Model
+		}
+		if fwc.SerialNumber != nil {
+			component.SerialNumber = *fwc.SerialNumber
+		}
 		// Check if UpdatedAt is nil before adding it.
 		if fwc.UpdatedAt != nil {
 			component.UpdatedAt = metav1.Time{
@@ -807,7 +829,7 @@ func (p *ironicProvisioner) GetFirmwareComponents(ctx context.Context) ([]metal3
 			}
 		}
 		componentsInfo = append(componentsInfo, component)
-		p.log.V(1).Info("firmware component found for node", "component", fwc.Component, "node", p.nodeID)
+		p.log.V(1).Info("firmware component found for node", "component", fwc.Component, "vendor", component.Vendor, "model", component.Model, "serialNumber", component.SerialNumber, "node", p.nodeID)
 	}
 
 	return componentsInfo, err
@@ -1338,6 +1360,8 @@ func (p *ironicProvisioner) setMaintenanceFlag(ctx context.Context, ironicNode *
 	}
 
 	if err == nil {
+		// FIXME(dtantsur): this should be operationComplete because changing the maintenance flag is synchronous.
+		// However, a lot of callers rely on it returning a Dirty result.
 		result, err = operationContinuing(0)
 		p.cachedNode = nil
 	} else if gophercloud.ResponseCodeIs(err, http.StatusConflict) {
@@ -1352,12 +1376,12 @@ func (p *ironicProvisioner) setMaintenanceFlag(ctx context.Context, ironicNode *
 
 // syncAutomatedClean updates the Ironic node's automated_clean field if it doesn't match the desired state.
 // Returns true if an update was needed and applied.
-func (p *ironicProvisioner) syncAutomatedClean(ctx context.Context, ironicNode *nodes.Node, automatedCleaningMode metal3api.AutomatedCleaningMode) (updated bool, err error) {
+func (p *ironicProvisioner) syncAutomatedClean(ctx context.Context, ironicNode *nodes.Node, automatedCleaningMode metal3api.AutomatedCleaningMode) error {
 	desiredAutomatedClean := automatedCleaningMode != metal3api.CleaningModeDisabled
 
 	// Check if update is needed
 	if ironicNode.AutomatedClean != nil && *ironicNode.AutomatedClean == desiredAutomatedClean {
-		return false, nil
+		return nil
 	}
 
 	p.log.Info("synchronizing automatedClean before deprovisioning",
@@ -1369,11 +1393,11 @@ func (p *ironicProvisioner) syncAutomatedClean(ctx context.Context, ironicNode *
 
 	updatedNode, err := nodes.Update(ctx, p.client, ironicNode.UUID, updater.Updates).Extract()
 	if err != nil {
-		return false, fmt.Errorf("failed to update automatedClean: %w", err)
+		return fmt.Errorf("failed to update automatedClean: %w", err)
 	}
 
 	p.cachedNode = updatedNode
-	return true, nil
+	return nil
 }
 
 // Deprovision removes the host from the image. It may be called
@@ -1466,12 +1490,9 @@ func (p *ironicProvisioner) Deprovision(ctx context.Context, restartOnFailure bo
 		// Before starting deprovisioning, ensure Ironic's automated_clean matches the BMH spec.
 		// This prevents the PPI deletion race where the spec is changed right before deletion
 		// but Ironic hasn't been updated yet.
-		updated, err := p.syncAutomatedClean(ctx, ironicNode, automatedCleaningMode)
+		err := p.syncAutomatedClean(ctx, ironicNode, automatedCleaningMode)
 		if err != nil {
 			return transientError(err)
-		}
-		if updated {
-			return operationContinuing(0)
 		}
 
 		p.log.Info("starting deprovisioning", "automatedClean", ironicNode.AutomatedClean)
@@ -1599,7 +1620,8 @@ func (p *ironicProvisioner) realDelete(ctx context.Context, ironicNode *nodes.No
 		return transientError(fmt.Errorf("failed to remove host: %w", err))
 	}
 
-	return operationContinuing(0)
+	// Deletion is synchronous, proceed immediately
+	return operationComplete()
 }
 
 // Detach removes the host from the provisioning system.
@@ -1669,7 +1691,7 @@ func (p *ironicProvisioner) changePower(ctx context.Context, ironicNode *nodes.N
 		powerStateOpts)
 
 	if changeResult.Err == nil {
-		p.log.Info("power change OK")
+		p.log.Info("power change requested successfully", "target", powerStateOpts.Target)
 		event := map[nodes.TargetPowerState]struct{ Event, Reason string }{
 			nodes.PowerOn:      {Event: "PowerOn", Reason: "Host powered on"},
 			nodes.PowerOff:     {Event: "PowerOff", Reason: "Host powered off"},
@@ -1677,6 +1699,7 @@ func (p *ironicProvisioner) changePower(ctx context.Context, ironicNode *nodes.N
 		}[target]
 		p.publisher(event.Event, event.Reason)
 		p.cachedNode = nil
+		// FIXME(dtantsur): this should be a short delay instead, power actions are not immediate
 		return operationContinuing(0)
 	} else if gophercloud.ResponseCodeIs(changeResult.Err, http.StatusConflict) {
 		p.log.Info("host is locked, trying again after delay", "delay", shortRetryDelay)
