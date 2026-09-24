@@ -119,7 +119,7 @@ github.com/google/safetext/yamltemplate
 # github.com/google/uuid v1.6.0
 ## explicit
 github.com/google/uuid
-# github.com/gophercloud/gophercloud/v2 v2.14.1-0.20260917140216-806080c425a8
+# github.com/gophercloud/gophercloud/v2 v2.15.0
 ## explicit; go 1.25.0
 github.com/gophercloud/gophercloud/v2
 github.com/gophercloud/gophercloud/v2/openstack/baremetal/httpbasic
