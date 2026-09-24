@@ -7,10 +7,7 @@ require (
 	github.com/go-logr/logr v1.4.4
 	github.com/google/safetext v0.0.0-20230106111101-7156a760e523
 	github.com/google/uuid v1.6.0
-	// NOTE(dtantsur): temporary downstream change, remove when Gophercloud with
-	// https://github.com/gophercloud/gophercloud/pull/4011 and
-	// https://github.com/gophercloud/gophercloud/pull/4021 are pulled in by BMO
-	github.com/gophercloud/gophercloud/v2 v2.14.1-0.20260917140216-806080c425a8
+	github.com/gophercloud/gophercloud/v2 v2.15.0
 	github.com/metal3-io/baremetal-operator/apis v0.5.1
 	github.com/metal3-io/baremetal-operator/pkg/hardwareutils v0.5.1
 	github.com/metal3-io/ironic-standalone-operator/api v0.11.0
