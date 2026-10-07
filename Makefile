@@ -37,6 +37,11 @@ LDFLAGS = "-X $(VERSION_URI).Raw=${BUILD_VERSION} \
                 -X $(VERSION_URI).Commit=${SOURCE_GIT_COMMIT} \
                 -X $(VERSION_URI).BuildTime=$(shell date +%Y-%m-%dT%H:%M:%S%z)"
 
+# Lets a plugin be built from any directory. See hack/plugin-build-flags.sh
+# and docs/plugin-provisioners.md.
+MODULE_VERSION ?= $(BUILD_VERSION)
+PLUGIN_BUILD_FLAGS = $$($(ROOT_DIR)/hack/plugin-build-flags.sh $(ROOT_DIR) $(MODULE_VERSION))
+
 # Set some variables the operator expects to have in order to work
 # Those need to be the same as in config/default/ironic.env
 export OPERATOR_NAME=baremetal-operator
@@ -114,6 +119,7 @@ unit: ## Run unit tests
 	go test ./... $(GO_TEST_FLAGS) -coverprofile $(COVER_PROFILE)
 	cd apis/ && go test ./... $(GO_TEST_FLAGS) -coverprofile $(COVER_PROFILE)
 	cd pkg/hardwareutils && go test ./... $(GO_TEST_FLAGS) -coverprofile $(COVER_PROFILE)
+	$(MAKE) fuzz-run FUZZ_TIME=15s
 
 .PHONY: unit-cover
 unit-cover: ## Run unit tests with code coverage
@@ -137,11 +143,21 @@ fuzz: ## Run fuzz tests with seed corpus (no fuzzing, regression test only)
 .PHONY: fuzz-run
 fuzz-run: ## Run all fuzz tests sequentially with fuzzing enabled (use FUZZ_TIME=duration)
 	@echo "Discovering fuzz tests..."
-	@cd test/fuzz && go test -list='Fuzz.*' | grep '^Fuzz' | while read -r fuzz_test; do \
+	@cd test/fuzz || exit 1; \
+	go test -run='^Test' || exit 1; \
+	summary="" fail=0; \
+	for fuzz_test in $$(go test -list='Fuzz.*' | grep '^Fuzz'); do \
 		echo "Running $$fuzz_test for $(FUZZ_TIME)..."; \
-		go test -fuzz=$$fuzz_test -fuzztime='$(FUZZ_TIME)' || exit 1; \
-	done
-	@echo "All fuzz tests completed successfully!"
+		if go test -run="^$$fuzz_test$$" -fuzz="^$$fuzz_test$$" -fuzztime='$(FUZZ_TIME)'; then \
+			summary="$$summary\n  PASS  $$fuzz_test"; \
+		else \
+			summary="$$summary\n  FAIL  $$fuzz_test"; fail=1; \
+		fi; \
+	done; \
+	printf "\n===== Fuzz Test Summary ($(FUZZ_TIME) each) =====\n"; \
+	printf "$$summary\n"; \
+	if [ "$$fail" -eq 0 ]; then printf "\nAll fuzz tests passed!\n"; else printf "\nSome fuzz tests failed.\n"; exit 1; fi
+
 
 ARTIFACTS ?= ${ROOT_DIR}/test/e2e/_artifacts
 
@@ -177,7 +193,8 @@ $(GOLANGCI_LINT_BIN): $(GOLANGCI_LINT) ## Build a local copy of golangci-lint.
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) ./... --timeout=10m
 	cd apis; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) ./... --timeout=10m
-	cd test; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) ./... --timeout=10m
+	# DOWNSTREAM: skip test/ module lint - requires libvirt-dev headers not available in CI
+	# cd test; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) ./... --timeout=10m
 	cd pkg/hardwareutils; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) ./... --timeout=10m
 	cd hack/tools; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) ./... --timeout=10m
 	./hack/check-e2e.sh
@@ -198,20 +215,20 @@ manifest-lint: ## Run manifest validation
 build: generate manifests manager tools build-e2e ## Build everything
 
 .PHONY: manager
-manager: ## Build manager binary
-	go build -ldflags $(LDFLAGS) -o bin/$(OPERATOR_NAME) main.go
+manager: generate lint ironic-plugin demo-plugin ## Build manager binary and bundled provisioner plugins
+	go build $(PLUGIN_BUILD_FLAGS) -ldflags $(LDFLAGS) -o bin/$(OPERATOR_NAME) main.go
 
 .PHONY: run
-run: generate lint manifests ## Run against the configured Kubernetes cluster in ~/.kube/config
-	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -webhook-port=0 $(RUN_FLAGS)
+run: generate lint manifests ironic-plugin ## Run against the configured Kubernetes cluster in ~/.kube/config
+	PROVISIONER_PLUGIN_DIR=$(BIN_DIR) go run $(PLUGIN_BUILD_FLAGS) -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -provisioner=ironic -webhook-port=0 $(RUN_FLAGS)
 
 .PHONY: demo
-demo: generate lint manifests ## Run in demo mode
-	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -demo-mode -webhook-port=0 $(RUN_FLAGS)
+demo: generate lint manifests demo-plugin ## Run in demo mode
+	PROVISIONER_PLUGIN_DIR=$(BIN_DIR) go run $(PLUGIN_BUILD_FLAGS) -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -provisioner=demo -webhook-port=0 $(RUN_FLAGS)
 
 .PHONY: run-test-mode
 run-test-mode: generate lint manifests ## Run against the configured Kubernetes cluster in ~/.kube/config
-	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -test-mode -webhook-port=0 $(RUN_FLAGS)
+	go run $(PLUGIN_BUILD_FLAGS) -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -provisioner=fixture -webhook-port=0 $(RUN_FLAGS)
 
 .PHONY: install
 install: $(KUSTOMIZE) manifests ## Install CRDs into a cluster
@@ -305,6 +322,7 @@ docker: docker-build ## Alias for docker-build (for backwards compatibility)
 docker-build: generate manifests ## Build the docker image for controller-manager
 	$(CONTAINER_RUNTIME) build --platform=linux/$(ARCH) \
 	--build-arg ARCH=$(ARCH) \
+	--build-arg MODULE_VERSION=$(MODULE_VERSION) \
 	--build-arg http_proxy=$(http_proxy) \
 	--build-arg https_proxy=$(https_proxy) \
 	. -t ${IMG}-$(ARCH):${IMG_TAG}
@@ -317,6 +335,7 @@ docker-build: generate manifests ## Build the docker image for controller-manage
 docker-debug: generate manifests ## Build the docker image with debug info
 	$(CONTAINER_RUNTIME) build --platform=linux/$(ARCH) \
 	--build-arg ARCH=$(ARCH) \
+	--build-arg MODULE_VERSION= \
 	--build-arg http_proxy=$(http_proxy) \
 	--build-arg https_proxy=$(https_proxy) \
 	--build-arg LDFLAGS="" \
@@ -333,16 +352,17 @@ DEMO_PLUGIN_SO = bin/demo-provisioner.so
 
 .PHONY: ironic-plugin
 ironic-plugin: ## Build the ironic provisioner plugin .so locally
-	CGO_ENABLED=1 go build -buildmode=plugin -ldflags $(LDFLAGS) -o $(IRONIC_PLUGIN_SO) ./$(IRONIC_PLUGIN_DIR)/
+	CGO_ENABLED=1 go build -buildmode=plugin $(PLUGIN_BUILD_FLAGS) -ldflags $(LDFLAGS) -o $(IRONIC_PLUGIN_SO) ./$(IRONIC_PLUGIN_DIR)/
 
 .PHONY: demo-plugin
 demo-plugin: ## Build the demo provisioner plugin .so locally
-	CGO_ENABLED=1 go build -buildmode=plugin -ldflags $(LDFLAGS) -o $(DEMO_PLUGIN_SO) ./$(DEMO_PLUGIN_DIR)/
+	CGO_ENABLED=1 go build -buildmode=plugin $(PLUGIN_BUILD_FLAGS) -ldflags $(LDFLAGS) -o $(DEMO_PLUGIN_SO) ./$(DEMO_PLUGIN_DIR)/
 
 .PHONY: docker-build-sdk
 docker-build-sdk: ## Build the BMO SDK image for authoring custom provisioner plugins
 	$(CONTAINER_RUNTIME) build --platform=linux/$(ARCH) \
 	--build-arg ARCH=$(ARCH) \
+	--build-arg MODULE_VERSION=$(MODULE_VERSION) \
 	--build-arg http_proxy=$(http_proxy) \
 	--build-arg https_proxy=$(https_proxy) \
 	--target sdk \
@@ -352,6 +372,7 @@ docker-build-sdk: ## Build the BMO SDK image for authoring custom provisioner pl
 docker-build-plugin-test: ## Build the out-of-tree plugin compatibility test image
 	$(CONTAINER_RUNTIME) build --platform=linux/$(ARCH) \
 	--build-arg ARCH=$(ARCH) \
+	--build-arg MODULE_VERSION=$(MODULE_VERSION) \
 	--build-arg http_proxy=$(http_proxy) \
 	--build-arg https_proxy=$(https_proxy) \
 	-f Dockerfile.plugin-test \

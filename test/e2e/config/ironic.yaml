@@ -17,11 +17,7 @@ images:
   loadBehavior: tryLoad
 - name: quay.io/jetstack/cert-manager-controller:v1.19.2
   loadBehavior: tryLoad
-- name: quay.io/metal3-io/ironic-standalone-operator:v0.7.2
-  loadBehavior: tryLoad
 - name: quay.io/metal3-io/ironic-standalone-operator:v0.9.0
-  loadBehavior: tryLoad
-- name: quay.io/metal3-io/ironic-standalone-operator:v0.10.0
   loadBehavior: tryLoad
 - name: quay.io/metal3-io/ironic-standalone-operator:v0.11.0
   loadBehavior: tryLoad
@@ -94,6 +90,9 @@ intervals:
   default/wait-reconcile: [ "1s", "10ms" ]
   baremetalswitch/wait-secret-updated: [ "30s", "500ms" ]
   default/wait-user-data: [ "5s", "1s" ]
+  hostclaims/wait-associated: [ "10s", "1s" ]
+  hostclaims/wait-deleted: [ "20s", "10ms" ]
+  networking/wait-hna-deleted: [ "30s", "500ms" ]
 
 kindExtraPortMappings:
 # Expose Ironic ports so they are reachable outside of kind
@@ -113,14 +112,14 @@ bmoUpgradeSpecs:
   initBMOKustomization: "../../config/overlays/e2e-release-0.12"
   initIronicKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e-upgrade"
   upgradeBMOKustomization: "../../config/overlays/e2e-upgrade"
-  irsoKustomization: "data/ironic-standalone-operator/operator/irso-v0.7"
+  irsoKustomization: "data/ironic-standalone-operator/operator/irso-v0.11"
 # Upgrade BMO 0.13 -> main
 - deployIronic: true
   deployBMO: true
   initBMOKustomization: "../../config/overlays/e2e-release-0.13"
   initIronicKustomization: "data/ironic-standalone-operator/ironic/overlays/e2e-upgrade"
   upgradeBMOKustomization: "../../config/overlays/e2e-upgrade"
-  irsoKustomization: "data/ironic-standalone-operator/operator/irso-v0.9"
+  irsoKustomization: "data/ironic-standalone-operator/operator/irso-v0.11"
 # Upgrade BMO 0.14 -> main
 - deployIronic: true
   deployBMO: true
