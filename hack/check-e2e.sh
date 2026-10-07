@@ -6,7 +6,8 @@ REPO_ROOT=$(realpath "$(dirname "${BASH_SOURCE[0]}")/..")
 cd "${REPO_ROOT}" || exit 1
 
 WATCH_NS="$(grep -A1 WATCH_NAMESPACE config/overlays/e2e/namespaced-manager-patch.yaml | grep 'value:' | awk '{ print $2; }')"
-EXCEPTIONS=upgrade
+# hostclaims requires two namespaces hostclaims-tenant for hostclaim and hostclaims-infra for bmh.
+EXCEPTIONS=upgrade,hostclaims
 
 EXITCODE=0
 for spec in $(grep -E --no-filename ' *specName +:?=' test/e2e/*_test.go | grep -o '".*"' | tr -d '"'); do
@@ -22,4 +23,4 @@ for spec in $(grep -E --no-filename ' *specName +:?=' test/e2e/*_test.go | grep 
         EXITCODE=1
     fi
 done
-exit ${EXITCODE}
+exit "${EXITCODE}"
