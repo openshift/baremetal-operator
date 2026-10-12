@@ -1,8 +1,9 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.26-openshift-5.0 AS builder
 WORKDIR /go/src/github.com/metal3-io/baremetal-operator
 COPY . .
+# This command builds not just the manager, but also the ironic provisioner,
+# and it does it with the right flags, so that the plugin can be loaded.
 RUN CGO_ENABLED=1 make manager
-RUN CGO_ENABLED=1 go build -buildmode=plugin -o bin/ironic-provisioner.so ./pkg/provisioner/ironic/plugin/
 RUN make tools
 RUN make tools/bin/kustomize
 
