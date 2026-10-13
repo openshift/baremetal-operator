@@ -6,6 +6,7 @@ resources:
 - ./baremetalswitch
 - ./basic-ops
 - ./dataimage
+- ./networking
 - ./external-inspection
 - ./externally-provisioned
 - ./firmware-components
@@ -18,6 +19,9 @@ resources:
 - ./re-inspection
 - ./upgrade-bmo
 - ./upgrade-ironic
+- ./hostclaims-infra
+- ./hostclaims-tenant
+- ./cluster-role.yaml
 
 components:
 - ../../components/namespace-scoped
