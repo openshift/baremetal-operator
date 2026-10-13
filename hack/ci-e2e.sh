@@ -4,10 +4,12 @@
 # Description: This script sets up the environment and runs E2E tests for the
 #              BMO project. It uses either vbmc or sushy-tools based on
 #              the BMC_PROTOCOL environment variable.
-#              Supported protocols are: ipmi, redfish and redfish-virtualmedia.
+#              Supported protocols are: ipmi, redfish, redfish-virtualmedia
+#              and fixture.
 #              VBMC is used for ipmi and sushy-tools for both redfish protocols.
+#              fixture uses BMO's fixture provisioner, with no Ironic or VMs.
 #              By default, redfish-virtualmedia will be used.
-# Usage:       export BMC_PROTOCOL="redfish"  # Or "ipmi" or "redfish-virtualmedia"
+# Usage:       export BMC_PROTOCOL="redfish"  # Or "ipmi", "redfish-virtualmedia" or "fixture"
 #              ./ci-e2e.sh
 # -----------------------------------------------------------------------------
 
@@ -24,6 +26,8 @@ if [[ "${BMC_PROTOCOL}" == "redfish" ]] || [[ "${BMC_PROTOCOL}" == "redfish-virt
   export BMO_E2E_EMULATOR="sushy-tools"
 elif [[ "${BMC_PROTOCOL}" == "ipmi" ]]; then
   export BMO_E2E_EMULATOR="vbmc"
+elif [[ "${BMC_PROTOCOL}" == "fixture" ]]; then
+  export BMO_E2E_EMULATOR="fixture"
 else
   echo "FATAL: Invalid BMC protocol specified: ${BMC_PROTOCOL}"
   exit 1
@@ -32,6 +36,33 @@ fi
 echo "BMC_PROTOCOL=${BMC_PROTOCOL}"
 echo "BMO_E2E_EMULATOR=${BMO_E2E_EMULATOR}"
 
+# Gather artifacts/logs on exit, including when setup or tests fail.
+collect_artifacts() {
+  set +e
+  mkdir -p "${REPO_ROOT}/test/e2e/_artifacts"
+  if [[ "${BMO_E2E_EMULATOR}" != "fixture" ]]; then
+    local logs_dir="${REPO_ROOT}/test/e2e/_artifacts/logs"
+    mkdir -p "${logs_dir}/qemu"
+    sudo cp -r /var/log/libvirt/qemu/. "${logs_dir}/qemu/"
+    sudo chown -R "${USER}:${USER}" "${logs_dir}/qemu"
+  fi
+  tar --directory "${REPO_ROOT}/test/e2e/" -czf "${REPO_ROOT}/artifacts-e2e-${BMO_E2E_EMULATOR}-${BMC_PROTOCOL}.tar.gz" _artifacts
+}
+trap collect_artifacts EXIT
+
+# Same steps as .github/workflows/e2e-fixture-test.yml: the whole suite against
+# the fixture provisioner, with no Ironic, BMC emulators or VMs.
+if [[ "${BMO_E2E_EMULATOR}" == "fixture" ]]; then
+  unset GINKGO_FOCUS GINKGO_SKIP GINKGO_LABEL_FILTER
+  export PATH="/usr/local/go/bin:${PATH}"
+  "${REPO_ROOT}/hack/e2e/ensure_go.sh"
+  # CAPI test framework uses kubectl in the background
+  "${REPO_ROOT}/hack/e2e/ensure_kubectl.sh"
+  IMG=quay.io/metal3-io/baremetal-operator IMG_TAG=e2e make docker
+  E2E_CONF_FILE="${REPO_ROOT}/test/e2e/config/fixture.yaml" GINKGO_NODES=1 GINKGO_TIMEOUT=30m make test-e2e
+  exit
+fi
+
 export E2E_CONF_FILE="${REPO_ROOT}/test/e2e/config/ironic.yaml"
 export E2E_BMCS_CONF_FILE="${REPO_ROOT}/test/e2e/config/bmcs-${BMC_PROTOCOL}.yaml"
 
@@ -39,20 +70,19 @@ VBMC_IMAGE="${VBMC_IMAGE:-quay.io/metal3-io/vbmc}"
 SUSHY_EMULATOR_IMAGE="${SUSHY_EMULATOR_IMAGE:-quay.io/metal3-io/sushy-tools:latest}"
 SUSHY_EMULATOR_PORT="${SUSHY_EMULATOR_PORT:-8000}"
 
-# make test-e2e runs the fixture tests by default and skips some tests
-# that don't make sense in that context. We need to override.
-export GINKGO_SKIP_LABELS="${GINKGO_SKIP_LABELS:-}"
-GINKGO_FOCUS="${GINKGO_FOCUS:-}"
+# Default to the required tests.
+export GINKGO_LABEL_FILTER="${GINKGO_LABEL_FILTER:-required}"
 
+# TODO: Get rid of this by passing GINKGO_LABEL_FILTER straight from project-infra.
+GINKGO_FOCUS="${GINKGO_FOCUS:-}"
 case "${GINKGO_FOCUS,,}" in
   *upgrade*)
+    export GINKGO_LABEL_FILTER="optional"
+    unset GINKGO_FOCUS
     export DEPLOY_IRONIC="false"
     export DEPLOY_BMO="false"
     export DEPLOY_CERT_MANAGER="false"
     export GINKGO_NODES=1
-    ;;
-  *)
-    export GINKGO_SKIP="${GINKGO_SKIP:-upgrade}"
     ;;
 esac
 
@@ -278,19 +308,5 @@ if [[ "${CI_E2E_SKIP_SETUP,,}" != "true" ]]; then
     "${REPO_ROOT}/test/e2e/data/ironic-standalone-operator/ironic/base/ironic.yaml"
 fi
 
-# We need to gather artifacts/logs before exiting also if there are errors
-set +e
-
 # Run the e2e tests
 make test-e2e
-test_status="$?"
-
-LOGS_DIR="${REPO_ROOT}/test/e2e/_artifacts/logs"
-mkdir -p "${LOGS_DIR}/qemu"
-sudo cp -r /var/log/libvirt/qemu/. "${LOGS_DIR}/qemu/"
-sudo chown -R "${USER}:${USER}" "${LOGS_DIR}/qemu"
-
-# Collect all artifacts
-tar --directory test/e2e/ -czf "artifacts-e2e-${BMO_E2E_EMULATOR}-${BMC_PROTOCOL}.tar.gz" _artifacts
-
-exit "${test_status}"
