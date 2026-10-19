@@ -72,6 +72,7 @@ type BareMetalHostReconciler struct {
 	APIReader              client.Reader
 	Recorder               record.EventRecorder
 	MaxProvisioningRetries int
+	AllowedHNANamespaces   []string
 }
 
 // Instead of passing a zillion arguments to the action of a phase,
@@ -85,6 +86,7 @@ type reconcileInfo struct {
 	preprovisioningNetworkDataSecret *corev1.Secret
 	events                           []corev1.Event
 	postSaveCallbacks                []func()
+	portConfigs                      map[string]*provisioner.PortConfig
 }
 
 // match the provisioner.EventPublisher interface.
@@ -98,6 +100,7 @@ func (info *reconcileInfo) publishEvent(reason, message string) {
 // +kubebuilder:rbac:groups=metal3.io,resources=preprovisioningimages,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=metal3.io,resources=hardwaredata,verbs=get;list;watch;create;delete;patch;update
 // +kubebuilder:rbac:groups=metal3.io,resources=hardware/finalizers,verbs=update
+// +kubebuilder:rbac:groups=metal3.io,resources=hostnetworkattachments,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;update;patch
 
@@ -893,7 +896,7 @@ func (r *BareMetalHostReconciler) getPreprovImage(ctx context.Context, info *rec
 func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisioner.Provisioner, info *reconcileInfo) actionResult {
 	info.log.V(VerbosityLevelTrace).Info("registerHost started",
 		LogFieldCredentials, info.host.Status.TriedCredentials)
-	dirty := false
+	var dirty, networkDirty bool
 
 	credsChanged := !info.host.Status.TriedCredentials.Match(*info.bmcCredsSecret)
 	if credsChanged {
@@ -950,6 +953,14 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 	}
 
 	openShiftNoAgentPowerOff := info.host.Annotations["baremetal.openshift.io/disable-agent-power-off"] == "true"
+	// Resolve and validate port configs before Register so the
+	// provisioner only receives validated configurations.
+	// Network validation dirty state is tracked separately to avoid
+	// being overwritten by matchProfile's unconditional dirty assignment.
+	networkDirty, err = r.preparePortConfigs(ctx, info)
+	if err != nil {
+		return actionError{err}
+	}
 
 	provResult, provID, err := prov.Register(
 		ctx,
@@ -968,6 +979,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 			HardwareData:               info.hardwareData,
 			DisableInspection:          info.host.InspectionDisabled(),
 			InspectionMode:             info.host.Spec.InspectionMode,
+			PortConfigs:                info.portConfigs,
 		},
 		credsChanged,
 		info.host.Status.ErrorType == metal3api.RegistrationError)
@@ -977,7 +989,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		if preprovImg == nil {
 			waitingForPreprovImage.Inc()
 			result := actionContinue{preprovImageRetryDelay}
-			if dirty {
+			if dirty || networkDirty {
 				// Persist any pending changes (e.g. newly detected
 				// credentials) even though registration cannot complete
 				// yet. Otherwise they are re-detected and re-applied on
@@ -1015,7 +1027,7 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		if clearError(info.host) {
 			dirty = true
 		}
-		if dirty {
+		if dirty || networkDirty {
 			return actionUpdate{result}
 		}
 		return result
@@ -1076,7 +1088,20 @@ func (r *BareMetalHostReconciler) registerHost(ctx context.Context, prov provisi
 		dirty = clearError(info.host)
 	}
 
-	if dirty {
+	// Sync AppliedNetworkAttachmentConfigs with resolved port configs.
+	// portConfigs is nil when validation failed (preserve existing),
+	// empty map when NI was removed (clean up), or populated (apply).
+	// Only update during states where the provisioner can actually
+	// modify Ironic ports so status reflects what is applied.
+	if info.portConfigs != nil && provisioner.CanUpdateSwitchPortConfig(info.host.Status.Provisioning.State) {
+		desired := buildAppliedNetworkAttachmentConfigs(info)
+		if !reflect.DeepEqual(desired, info.host.Status.AppliedNetworkAttachmentConfigs) {
+			info.host.Status.AppliedNetworkAttachmentConfigs = desired
+			dirty = true
+		}
+	}
+
+	if dirty || networkDirty {
 		return actionComplete{}
 	}
 	return nil
