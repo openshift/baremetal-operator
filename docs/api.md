@@ -160,10 +160,25 @@ apply firmware updates.
 
 A **HostUpdatePolicy** resource opts a host into live firmware changes
 while it is provisioned. The name must match the BareMetalHost.
-`spec.firmwareSettings` and `spec.firmwareUpdates` can each be set to
-`onPreparing` (default preparing-time behavior) or `onReboot` (apply
-on the next reboot of a provisioned host, which sets
-`operationalStatus` to `servicing`).
+`spec.firmwareSettings` and `spec.firmwareUpdates` can each be set to:
+
+- `onPreparing` (default): apply changes in `preparing` only.
+- `onReboot`: apply changes on the next reboot of a provisioned host.
+- `onRequest`: apply changes to a provisioned host only when requested
+  with the `service.metal3.io` annotation, without rebooting it first.
+
+Applying changes on a provisioned host sets `operationalStatus` to
+`servicing`. A reboot only applies `onReboot` changes, and the
+annotation only applies `onRequest` changes.
+
+To request servicing, add the `service.metal3.io` annotation to a
+provisioned host with `spec.online` set to `true`. The operator removes
+the annotation once servicing has started, or right away if there is
+nothing to apply. If no field is set to `onRequest`, the operator also
+publishes a `ServiceAnnotationIgnored` event. The servicing steps
+themselves may still reboot the host when the change requires it.
+This annotation is a temporary solution and may be deprecated once a
+dedicated API for host operations is available.
 
 See [HostUpdatePolicy
 CR](../apis/metal3.io/v1alpha1/hostupdatepolicy_types.go)
