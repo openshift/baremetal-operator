@@ -17,6 +17,10 @@ resources:
 - crds/bases/metal3.io_hardwaredata.yaml
 - crds/bases/metal3.io_dataimages.yaml
 - crds/bases/metal3.io_hostupdatepolicies.yaml
+- crds/bases/metal3.io_baremetalswitches.yaml
+- crds/bases/metal3.io_hostclaims.yaml
+- crds/bases/metal3.io_hostdeploypolicies.yaml
+- crds/bases/metal3.io_hostnetworkattachments.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:
