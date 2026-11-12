@@ -292,10 +292,14 @@ const (
 	// ServicingError is an error condition occurring when
 	// service steps failed.
 	ServicingError ErrorType = "servicing error"
+	// SecretAccessError is an error condition occurring when a Secret
+	// referenced by the host is missing or cannot be read. Provisioning
+	// retries in place instead of deprovisioning the host.
+	SecretAccessError ErrorType = "secret access error"
 )
 
 // ErrorTypeAllowed represents the allowed values of ErrorType.
-var ErrorTypeAllowed = []string{"", string(ProvisionedRegistrationError), string(RegistrationError), string(InspectionError), string(PreparationError), string(ProvisioningError), string(PowerManagementError), string(DetachError), string(ServicingError)}
+var ErrorTypeAllowed = []string{"", string(ProvisionedRegistrationError), string(RegistrationError), string(InspectionError), string(PreparationError), string(ProvisioningError), string(PowerManagementError), string(DetachError), string(ServicingError), string(SecretAccessError)}
 
 // ProvisioningState defines the states the provisioner will report
 // the host has having.
@@ -842,6 +846,11 @@ type OperationHistory struct {
 type AppliedNetworkAttachmentConfig struct {
 	// Name is the network interface name (e.g., "eno1np0")
 	Name string `json:"name"`
+	// MACAddress is the resolved MAC address of the interface when the
+	// configuration was applied. It identifies the port during recovery even
+	// if later inspection reports a different interface name.
+	// +kubebuilder:validation:Pattern=`^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$`
+	MACAddress string `json:"macAddress"`
 	// SwitchPortConfig is the switch port configuration that was applied
 	SwitchPortConfig SwitchPortConfig `json:"switchPortConfig"`
 	// SwitchPort is the identifier of the switch port that was
@@ -861,7 +870,7 @@ type BareMetalHostStatus struct {
 
 	// ErrorType indicates the type of failure encountered when the
 	// OperationalStatus is OperationalStatusError
-	// +kubebuilder:validation:Enum=provisioned registration error;registration error;inspection error;preparation error;provisioning error;power management error;detach error;servicing error
+	// +kubebuilder:validation:Enum=provisioned registration error;registration error;inspection error;preparation error;provisioning error;power management error;detach error;servicing error;secret access error
 	ErrorType ErrorType `json:"errorType,omitempty"`
 
 	// LastUpdated identifies when this status was last observed.
@@ -976,6 +985,7 @@ type ProvisionStatus struct {
 // +kubebuilder:printcolumn:name="Error",type="string",JSONPath=".status.errorType",description="Type of the most recent error"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Time duration since creation of BaremetalHost"
 // +kubebuilder:object:root=true
+// +kubebuilder:storageversion
 type BareMetalHost struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

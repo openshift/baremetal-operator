@@ -218,10 +218,11 @@ github.com/metal3-io/baremetal-operator/pkg/provisioner/ironic/devicehints
 # github.com/metal3-io/baremetal-operator/apis v0.5.1 => ../apis
 ## explicit; go 1.26.0
 github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1
+github.com/metal3-io/baremetal-operator/apis/metal3.io/v1beta1
 # github.com/metal3-io/baremetal-operator/pkg/hardwareutils v0.5.1 => ../pkg/hardwareutils
 ## explicit; go 1.26.0
 github.com/metal3-io/baremetal-operator/pkg/hardwareutils/bmc
-# github.com/metal3-io/ironic-standalone-operator/api v0.11.0
+# github.com/metal3-io/ironic-standalone-operator/api v0.12.0
 ## explicit; go 1.26.0
 github.com/metal3-io/ironic-standalone-operator/api/v1alpha1
 # github.com/moby/docker-image-spec v1.3.1
@@ -289,7 +290,7 @@ github.com/olekukonko/tablewriter/pkg/twwarp
 github.com/olekukonko/tablewriter/pkg/twwidth
 github.com/olekukonko/tablewriter/renderer
 github.com/olekukonko/tablewriter/tw
-# github.com/onsi/ginkgo/v2 v2.33.0
+# github.com/onsi/ginkgo/v2 v2.33.1
 ## explicit; go 1.25.0
 github.com/onsi/ginkgo/v2
 github.com/onsi/ginkgo/v2/config
@@ -461,7 +462,7 @@ go.yaml.in/yaml/v2
 # go.yaml.in/yaml/v3 v3.0.5
 ## explicit; go 1.16
 go.yaml.in/yaml/v3
-# golang.org/x/crypto v0.57.0
+# golang.org/x/crypto v0.58.0
 ## explicit; go 1.26.0
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/chacha20
@@ -475,8 +476,8 @@ golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 # golang.org/x/mod v0.41.0
 ## explicit; go 1.26.0
 golang.org/x/mod/semver
-# golang.org/x/net v0.58.0
-## explicit; go 1.25.0
+# golang.org/x/net v0.60.0
+## explicit; go 1.26.0
 golang.org/x/net/html
 golang.org/x/net/html/atom
 golang.org/x/net/html/charset
@@ -489,23 +490,23 @@ golang.org/x/net/internal/httpsfv
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
 golang.org/x/net/websocket
-# golang.org/x/oauth2 v0.36.0
-## explicit; go 1.25.0
+# golang.org/x/oauth2 v0.37.0
+## explicit; go 1.26.0
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sync v0.23.0
+# golang.org/x/sync v0.24.0
 ## explicit; go 1.26.0
 golang.org/x/sync/errgroup
-# golang.org/x/sys v0.48.0
+# golang.org/x/sys v0.49.0
 ## explicit; go 1.26.0
 golang.org/x/sys/cpu
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/term v0.46.0
+# golang.org/x/term v0.47.0
 ## explicit; go 1.26.0
 golang.org/x/term
-# golang.org/x/text v0.42.0
+# golang.org/x/text v0.43.0
 ## explicit; go 1.26.0
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
@@ -530,15 +531,14 @@ golang.org/x/text/unicode/norm
 # golang.org/x/time v0.14.0
 ## explicit; go 1.24.0
 golang.org/x/time/rate
-# golang.org/x/tools v0.49.0
-## explicit; go 1.25.0
+# golang.org/x/tools v0.51.0
+## explicit; go 1.26.0
 golang.org/x/tools/cover
 golang.org/x/tools/go/ast/edge
 golang.org/x/tools/go/ast/inspector
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/packages
 golang.org/x/tools/go/types/objectpath
-golang.org/x/tools/internal/aliases
 golang.org/x/tools/internal/event
 golang.org/x/tools/internal/event/core
 golang.org/x/tools/internal/event/keys
@@ -1066,7 +1066,7 @@ k8s.io/utils/trace
 # libvirt.org/go/libvirt v1.12007.0
 ## explicit; go 1.11
 libvirt.org/go/libvirt
-# sigs.k8s.io/cluster-api v1.14.2
+# sigs.k8s.io/cluster-api v1.14.3
 ## explicit; go 1.26.0
 sigs.k8s.io/cluster-api/cmd/clusterctl/api/v1alpha3
 sigs.k8s.io/cluster-api/cmd/clusterctl/client
@@ -1124,7 +1124,7 @@ sigs.k8s.io/cluster-api/api/ipam/v1beta2
 sigs.k8s.io/cluster-api/api/runtime/catalog
 sigs.k8s.io/cluster-api/api/runtime/hooks/v1alpha1
 sigs.k8s.io/cluster-api/api/runtime/v1beta2
-# sigs.k8s.io/cluster-api/test v1.14.2
+# sigs.k8s.io/cluster-api/test v1.14.3
 ## explicit; go 1.26.0
 sigs.k8s.io/cluster-api/test/framework
 sigs.k8s.io/cluster-api/test/framework/bootstrap
