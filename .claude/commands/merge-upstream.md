@@ -1,3 +1,7 @@
+---
+description: Merge upstream changes into downstream following the repository workflow
+---
+
 # Merging Upstream to Downstream
 
 * Upstream: https://github.com/metal3-io/baremetal-operator
