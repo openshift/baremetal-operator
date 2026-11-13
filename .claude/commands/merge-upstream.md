@@ -80,11 +80,8 @@ git diff upstream/main HEAD~1 --name-only | grep "config/crd/bases/"
 ```
 
 If new CRDs are found, you must follow the process documented in the [README](README.md#how-to-add-a-new-upstream-crd-to-openshift):
-
-1. **First**: Ask the user to open a PR to [cluster-baremetal-operator](https://github.com/openshift/cluster-baremetal-operator) adding kubebuilder RBAC directives for the new CRD in `provisioning_controller.go`
-2. **Then**: Add the new CRD to `config/crd/ocp/ocp_kustomization.yaml` in this repository
-
-**Important**: The cluster-baremetal-operator PR must be merged before the baremetal-operator merge PR, as it's a blocking dependency.
+ask the user to open a PR to [cluster-baremetal-operator](https://github.com/openshift/cluster-baremetal-operator) adding kubebuilder RBAC directives for the new CRD in `provisioning_controller.go`
+**Important**: The cluster-baremetal-operator PR must be merged before the baremetal-operator merge PR, unless the controller for new CRDs is feature gated.
 
 ## 5. Test the Changes
 
