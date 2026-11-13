@@ -511,6 +511,15 @@ func clearRebootAnnotations(host *metal3api.BareMetalHost) (dirty bool) {
 	return
 }
 
+// clearServiceAnnotation removes the service annotation from the host.
+func (r *BareMetalHostReconciler) clearServiceAnnotation(ctx context.Context, info *reconcileInfo) actionResult {
+	delete(info.host.Annotations, metal3api.ServiceAnnotation)
+	if err := r.Update(ctx, info.host); err != nil {
+		return actionError{fmt.Errorf("failed to remove service annotation from host: %w", err)}
+	}
+	return actionContinue{}
+}
+
 // inspectionRefreshRequested checks for existence of inspect.metal3.io
 // annotation and returns true if it exist.
 func inspectionRefreshRequested(host *metal3api.BareMetalHost) bool {
@@ -1625,12 +1634,51 @@ func (r *BareMetalHostReconciler) actionDeprovisioning(ctx context.Context, prov
 	return actionComplete{}
 }
 
-func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov provisioner.Provisioner, info *reconcileInfo, hup *metal3api.HostUpdatePolicy) (result actionResult) {
+// hostFirmwareSpecsExist reports whether firmware servicing specs are still present
+// on the related HFS/HFC objects. Used by the ServicingError recovery fast-path
+// before calling getHostFirmwareSettings/Components, which block on generation mismatch.
+// Only NotFound errors from Get are treated as absent resources; other errors are returned.
+func (r *BareMetalHostReconciler) hostFirmwareSpecsExist(
+	ctx context.Context,
+	info *reconcileInfo,
+	liveFirmwareSettingsAllowed, liveFirmwareUpdatesAllowed bool,
+) (bool, error) {
+	specsExist := false
+
+	if liveFirmwareSettingsAllowed {
+		hfsCheck := &metal3api.HostFirmwareSettings{}
+		err := r.Get(ctx, info.request.NamespacedName, hfsCheck)
+		if err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return false, fmt.Errorf("could not load host firmware settings: %w", err)
+			}
+		} else if len(hfsCheck.Spec.Settings) > 0 {
+			specsExist = true
+		}
+	}
+
+	if liveFirmwareUpdatesAllowed {
+		hfcCheck := &metal3api.HostFirmwareComponents{}
+		err := r.Get(ctx, info.request.NamespacedName, hfcCheck)
+		if err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return false, fmt.Errorf("could not load host firmware components: %w", err)
+			}
+		} else if len(hfcCheck.Spec.Updates) > 0 {
+			specsExist = true
+		}
+	}
+
+	return specsExist, nil
+}
+
+// doServiceIfNeeded starts or continues servicing. Only changes whose HostUpdatePolicy is in allowedPolicies are applied.
+func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov provisioner.Provisioner, info *reconcileInfo, hup *metal3api.HostUpdatePolicy, allowedPolicies []metal3api.UpdatePolicy) (result actionResult) {
 	info.log.V(VerbosityLevelTrace).Info("doServiceIfNeeded started")
 	servicingData := provisioner.ServicingData{}
 
 	// (NOTE)janders: since Servicing is an opt-in feature that requires HostUpdatePolicy to be created and set to onReboot
-	// set below booleans to false by default and change to true based on policy settings
+	// or onRequest, set below booleans to false by default and change to true based on policy settings
 
 	var hfsDirty bool
 	var hfcDirty bool
@@ -1638,8 +1686,38 @@ func (r *BareMetalHostReconciler) doServiceIfNeeded(ctx context.Context, prov pr
 	var liveFirmwareSettingsAllowed, liveFirmwareUpdatesAllowed bool
 
 	if hup != nil {
-		liveFirmwareSettingsAllowed = (hup.Spec.FirmwareSettings == metal3api.HostUpdatePolicyOnReboot)
-		liveFirmwareUpdatesAllowed = (hup.Spec.FirmwareUpdates == metal3api.HostUpdatePolicyOnReboot)
+		liveFirmwareSettingsAllowed = slices.Contains(allowedPolicies, hup.Spec.FirmwareSettings)
+		liveFirmwareUpdatesAllowed = slices.Contains(allowedPolicies, hup.Spec.FirmwareUpdates)
+	}
+
+	// Fast-path: when recovering from a servicing error, check if specs are
+	// cleared before calling getHostFirmwareSettings/Components. Those
+	// functions fail on generation mismatch (sub-controller hasn't reconciled
+	// yet), which would block the abort/recovery path indefinitely.
+	if info.host.Status.ErrorType == metal3api.ServicingError &&
+		(liveFirmwareSettingsAllowed || liveFirmwareUpdatesAllowed) {
+		specsExist, err := r.hostFirmwareSpecsExist(ctx, info, liveFirmwareSettingsAllowed, liveFirmwareUpdatesAllowed)
+		if err != nil {
+			return actionError{fmt.Errorf("could not determine if firmware specs exist: %w", err)}
+		}
+		if !specsExist {
+			info.log.Info("specs cleared while in servicing error state, attempting abort")
+			provResult, _, err := prov.Service(ctx, servicingData, false, false)
+			if err != nil {
+				return actionError{fmt.Errorf("failed to abort servicing: %w", err)}
+			}
+			if provResult.ErrorMessage != "" {
+				return actionError{fmt.Errorf("failed to abort servicing: %s", provResult.ErrorMessage)}
+			}
+			if provResult.Dirty {
+				return actionContinue{provResult.RequeueAfter}
+			}
+			info.log.Info("successfully recovered from servicing error")
+			if clearErrorWithStatus(info.host, metal3api.OperationalStatusOK) {
+				return actionUpdate{}
+			}
+			return actionComplete{}
+		}
 	}
 
 	if liveFirmwareSettingsAllowed {
@@ -1795,9 +1873,30 @@ func (r *BareMetalHostReconciler) manageHostPower(ctx context.Context, prov prov
 		}
 	}
 
-	servicingAllowed := isProvisioned && !info.host.Status.PoweredOn && desiredPowerOnState
-	if servicingAllowed || info.host.Status.OperationalStatus == metal3api.OperationalStatusServicing || info.host.Status.ErrorType == metal3api.ServicingError {
-		var hup *metal3api.HostUpdatePolicy
+	// The service annotation requests servicing without powering the host off first.
+	_, hasServiceAnnotation := info.host.Annotations[metal3api.ServiceAnnotation]
+	serviceRequested := isProvisioned && desiredPowerOnState && hasServiceAnnotation
+	if serviceRequested && info.host.Status.OperationalStatus == metal3api.OperationalStatusServicing {
+		// Servicing has started, the annotation is no longer needed
+		return r.clearServiceAnnotation(ctx, info)
+	}
+
+	// Powering on applies onReboot changes and the service annotation applies onRequest changes.
+	// Servicing that is already in progress continues with both, so that it is not aborted.
+	var allowedPolicies []metal3api.UpdatePolicy
+	if info.host.Status.OperationalStatus == metal3api.OperationalStatusServicing || info.host.Status.ErrorType == metal3api.ServicingError {
+		allowedPolicies = []metal3api.UpdatePolicy{metal3api.HostUpdatePolicyOnReboot, metal3api.HostUpdatePolicyOnRequest}
+	} else {
+		if isProvisioned && desiredPowerOnState && !info.host.Status.PoweredOn {
+			allowedPolicies = append(allowedPolicies, metal3api.HostUpdatePolicyOnReboot)
+		}
+		if serviceRequested {
+			allowedPolicies = append(allowedPolicies, metal3api.HostUpdatePolicyOnRequest)
+		}
+	}
+
+	var hup *metal3api.HostUpdatePolicy
+	if len(allowedPolicies) > 0 {
 		hup, err = r.acquireHostUpdatePolicy(ctx, info)
 		if err != nil {
 			info.log.Info("failed setting owner reference on hostupdatepolicy",
@@ -1805,10 +1904,19 @@ func (r *BareMetalHostReconciler) manageHostPower(ctx context.Context, prov prov
 			return actionError{fmt.Errorf("failed setting owner reference on hostUpdatePolicy: %w", err)}
 		}
 
-		result := r.doServiceIfNeeded(ctx, prov, info, hup)
+		result := r.doServiceIfNeeded(ctx, prov, info, hup, allowedPolicies)
 		if result != nil {
 			return result
 		}
+	}
+
+	if serviceRequested {
+		// Nothing to service
+		if hup == nil || (hup.Spec.FirmwareSettings != metal3api.HostUpdatePolicyOnRequest && hup.Spec.FirmwareUpdates != metal3api.HostUpdatePolicyOnRequest) {
+			info.publishEvent("ServiceAnnotationIgnored",
+				fmt.Sprintf("%s annotation removed: no HostUpdatePolicy field is set to %s", metal3api.ServiceAnnotation, metal3api.HostUpdatePolicyOnRequest))
+		}
+		return r.clearServiceAnnotation(ctx, info)
 	}
 
 	desiredReboot, desiredRebootMode := hasRebootAnnotation(info, !isProvisioned)
@@ -2773,6 +2881,23 @@ func (r *BareMetalHostReconciler) SetupWithManager(mgr ctrl.Manager, preprovImgE
 		// need to pass MatchEveryOwner
 		controller.Owns(&metal3api.PreprovisioningImage{})
 	}
+
+	// Watch HFC/HFS for spec changes (generation bumps) so that the BMH
+	// controller reconciles promptly when a user clears firmware specs,
+	// rather than waiting for error-state exponential backoff to expire.
+	// HFS and HFC use the same name and namespace as their BareMetalHost.
+	firmwareEventHandler := handler.EnqueueRequestsFromMapFunc(
+		func(_ context.Context, obj client.Object) []ctrl.Request {
+			return []ctrl.Request{{NamespacedName: client.ObjectKey{
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
+			}}}
+		},
+	)
+	controller.Watches(&metal3api.HostFirmwareSettings{}, firmwareEventHandler,
+		builder.WithPredicates(predicate.GenerationChangedPredicate{}))
+	controller.Watches(&metal3api.HostFirmwareComponents{}, firmwareEventHandler,
+		builder.WithPredicates(predicate.GenerationChangedPredicate{}))
 
 	return controller.Complete(r)
 }
