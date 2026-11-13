@@ -199,7 +199,7 @@ $(GOLANGCI_LINT):
 $(GOLANGCI_LINT_BIN): $(GOLANGCI_LINT) ## Build a local copy of golangci-lint.
 
 .PHONY: lint
-lint: $(GOLANGCI_LINT)
+lint: $(GOLANGCI_LINT) openshift-lint
 	$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) ./... --timeout=10m
 	cd apis; $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS) ./... --timeout=10m
 	# DOWNSTREAM: skip test/ module lint - requires libvirt-dev headers not available in CI
@@ -215,6 +215,10 @@ lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported
 .PHONY: manifest-lint
 manifest-lint: ## Run manifest validation
 	./hack/manifestlint.sh
+
+.PHONY: openshift-lint
+openshift-lint: $(KUSTOMIZE) manifests-generate ## DOWNSTREAM: linting for OpenShift changes and additions
+	./openshift/prepare-manifests.sh
 
 ## --------------------------------------
 ## Build/Run Targets
