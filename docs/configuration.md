@@ -26,8 +26,8 @@ base `DEPLOY_KERNEL_URL`. The same pattern applies to
 `IRONIC_NAME` -- The name of the [Ironic resource][IronicCR] to take
 configuration from.
 
-`IRONIC_NAMESPACE` -- The namespace of the Ironic resource. Only used when
-`IRONIC_NAME` is set. Defaults to `WATCH_NAMESPACE`.
+`IRONIC_NAMESPACE` -- The namespace of the Ironic resource when `IRONIC_NAME`
+is set.
 
 `IRONIC_ENDPOINT` -- The URL for the operator to use when talking to
 Ironic. Not used when `IRONIC_NAME` is set.
@@ -85,10 +85,18 @@ Defaults to `/plugins`. See [Provisioner plugins](plugin-provisioners.md).
 `DIRECT_DEPLOY_FORCE_PERSISTENT_BOOT_DEVICE` -- (`Default`, `Always`,
 `Never`) Controls persistent boot device for direct-deploy images.
 
-The `-hostclaims` manager flag enables the HostClaim controller.
-That feature is under development and is not ready for use.
 PreprovisioningImage integration is enabled with
 `-build-preprov-image`.
+
+`HostClaims` -- A feature gate, disabled by default. The HostClaims are
+under development and are not ready for use.
+To experiment with it, set `FEATURE_GATES=HostClaims=true` or pass
+`--feature-gates=HostClaims=true` to enable it.
+The gate controls the launch of the controller
+and the webhook: if the gate is not enabled, the API server rejects any
+attempt to create a HostClaim.
+The HostClaim controller is enabled by default when the HostClaims feature
+gate is on, and can be turned off at startup with -hostclaims=false.
 
 `IronicNetworking` -- A feature gate, disabled by default. Set
 `FEATURE_GATES=IronicNetworking=true` or pass
@@ -107,11 +115,13 @@ Override to `noop` for test environments without a virtual switch.
 
 `IRONIC_SWITCH_CONFIGS_SECRET` -- The name of the Secret to be populated with
 switch configuration data used by the Ironic standalone networking
-implementation. Required when `IronicNetworking` is enabled.
+implementation. Required when `IronicNetworking` is enabled.  This Secret
+must exist in the `IRONIC_NAMESPACE` (if set) or, otherwise, `POD_NAMESPACE`.
 
 `IRONIC_SWITCH_CREDENTIALS_SECRET` -- The name of the Secret to be populated
 with switch credentials used by the Ironic standalone networking
-implementation. Required when `IronicNetworking` is enabled.
+implementation. Required when `IronicNetworking` is enabled.  This Secret
+must exist in the `IRONIC_NAMESPACE` (if set) or, otherwise, `POD_NAMESPACE`.
 
 `IRONIC_SWITCH_CREDENTIALS_PATH` -- Contains the path where switch credential
 secrets are mounted in the Ironic pod so that configuration data can be written

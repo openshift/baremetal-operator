@@ -2,6 +2,9 @@ package controllers
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -16,6 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	ctrl "sigs.k8s.io/controller-runtime"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -372,6 +376,201 @@ func TestRegisterHostNotDirtyWhileWaitingForPreprovisioningImage(t *testing.T) {
 	result := reconciler.registerHost(t.Context(), prov, info)
 
 	assert.False(t, result.Dirty(), "expected no forced status update when nothing changed")
+}
+
+func networkRegistrationFixture(t *testing.T, state metal3api.ProvisioningState) (*metal3api.BareMetalHost, *BareMetalHostReconciler, *mockProvisioner) {
+	t.Helper()
+
+	const macAddress = "00:11:22:33:44:55"
+	testHost := host(state).build()
+	testHost.Status.Provisioning.ID = "old-ironic-id"
+	testHost.Status.HardwareDetails = &metal3api.HardwareDetails{
+		NIC: []metal3api.NIC{{Name: "eth0", MAC: macAddress}},
+	}
+	testHost.Spec.NetworkInterfaces = []metal3api.NetworkInterface{{
+		Name:                  "eth0",
+		HostNetworkAttachment: metal3api.HostNetworkAttachmentRef{Name: "test-attachment"},
+	}}
+	testHost.Status.AppliedNetworkAttachmentConfigs = []metal3api.AppliedNetworkAttachmentConfig{{
+		Name:       "eth0",
+		MACAddress: macAddress,
+		SwitchPortConfig: metal3api.SwitchPortConfig{
+			Mode:       metal3api.SwitchportModeAccess,
+			NativeVLAN: 100,
+		},
+	}}
+	attachment := &metal3api.HostNetworkAttachment{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-attachment", Namespace: testHost.Namespace},
+		Spec: metal3api.HostNetworkAttachmentSpec{
+			Mode:       metal3api.SwitchportModeAccess,
+			NativeVLAN: 200,
+		},
+	}
+	scheme := runtime.NewScheme()
+	require.NoError(t, metal3api.AddToScheme(scheme))
+	reconciler := &BareMetalHostReconciler{
+		Client: fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(attachment).Build(),
+		Log:    ctrl.Log.WithName("network-registration"),
+	}
+	// Skip unrelated firmware resource creation during registration.
+	testHost.Name = ""
+	prov := newMockProvisioner()
+	prov.registerID = "new-ironic-id"
+	return testHost, reconciler, prov
+}
+
+func TestRegisterHostSelectsNetworkConfig(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, features.CurrentFeatureGate, features.FeatureIronicNetworking, true)
+
+	tests := []struct {
+		name              string
+		state             metal3api.ProvisioningState
+		initial           bool
+		emptySnapshot     bool
+		removeInterfaces  bool
+		missingAttachment bool
+		invalidInterface  bool
+		busy              bool
+		wantNil           bool
+		wantVLAN          int
+		wantSnapshotVLAN  int
+	}{
+		{name: "initial registration", state: metal3api.StateRegistering, initial: true, emptySnapshot: true, wantVLAN: 200, wantSnapshotVLAN: 200},
+		{name: "initial registration still busy", state: metal3api.StateRegistering, initial: true, emptySnapshot: true, busy: true, wantVLAN: 200},
+		{name: "registration retry before snapshot is populated", state: metal3api.StateRegistering, emptySnapshot: true, wantVLAN: 200, wantSnapshotVLAN: 200},
+		{name: "initial registration without interfaces", state: metal3api.StateRegistering, initial: true, emptySnapshot: true, removeInterfaces: true, wantNil: true},
+		{name: "registering applies desired config", state: metal3api.StateRegistering, wantVLAN: 200, wantSnapshotVLAN: 200},
+		{name: "available applies desired config", state: metal3api.StateAvailable, wantVLAN: 200, wantSnapshotVLAN: 200},
+		{name: "busy registration preserves snapshot", state: metal3api.StateAvailable, busy: true, wantVLAN: 200, wantSnapshotVLAN: 100},
+		{name: "provisioned preserves applied config", state: metal3api.StateProvisioned, wantVLAN: 100, wantSnapshotVLAN: 100},
+		{name: "preparing preserves applied config", state: metal3api.StatePreparing, wantVLAN: 100, wantSnapshotVLAN: 100},
+		{name: "deprovisioning preserves applied config", state: metal3api.StateDeprovisioning, wantVLAN: 100, wantSnapshotVLAN: 100},
+		{name: "provisioned defers newly added config", state: metal3api.StateProvisioned, emptySnapshot: true},
+		{name: "provisioned defers config removal", state: metal3api.StateProvisioned, removeInterfaces: true, wantVLAN: 100, wantSnapshotVLAN: 100},
+		{name: "available clears removed config", state: metal3api.StateAvailable, removeInterfaces: true},
+		{name: "available recovers deleted attachment", state: metal3api.StateAvailable, missingAttachment: true, wantVLAN: 100, wantSnapshotVLAN: 100},
+		{name: "available recovers invalid interface", state: metal3api.StateAvailable, invalidInterface: true, wantVLAN: 100, wantSnapshotVLAN: 100},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testHost, reconciler, prov := networkRegistrationFixture(t, tt.state)
+			if tt.initial {
+				testHost.Status.Provisioning.ID = ""
+			}
+			if tt.emptySnapshot {
+				testHost.Status.AppliedNetworkAttachmentConfigs = nil
+			}
+			if tt.removeInterfaces {
+				testHost.Spec.NetworkInterfaces = nil
+			}
+			if tt.invalidInterface {
+				testHost.Spec.NetworkInterfaces[0].Name = "missing-nic"
+			}
+			if tt.missingAttachment {
+				require.NoError(t, reconciler.Delete(t.Context(), &metal3api.HostNetworkAttachment{
+					ObjectMeta: metav1.ObjectMeta{Name: "test-attachment", Namespace: testHost.Namespace},
+				}))
+			}
+			if tt.busy {
+				prov.nextResults["ValidateManagementAccess"] = provisioner.Result{Dirty: true, RequeueAfter: time.Second}
+			}
+
+			result := reconciler.registerHost(t.Context(), prov, makeDefaultReconcileInfo(testHost))
+
+			require.NotNil(t, result)
+			assert.True(t, result.Dirty(), "the replacement Ironic ID should be persisted")
+			assert.Equal(t, "new-ironic-id", testHost.Status.Provisioning.ID)
+			configs := prov.registerData.PortConfigs
+			if tt.wantNil {
+				assert.Nil(t, configs)
+			} else {
+				require.NotNil(t, configs, "an empty map must suppress pending configuration during recovery")
+				if tt.wantVLAN == 0 {
+					assert.Empty(t, configs)
+				} else {
+					require.Len(t, configs, 1)
+					require.Contains(t, configs, "00:11:22:33:44:55")
+					assert.Equal(t, tt.wantVLAN, configs["00:11:22:33:44:55"].SwitchPortConfig.NativeVLAN)
+				}
+			}
+			if tt.wantSnapshotVLAN == 0 {
+				assert.Empty(t, testHost.Status.AppliedNetworkAttachmentConfigs)
+			} else {
+				require.Len(t, testHost.Status.AppliedNetworkAttachmentConfigs, 1)
+				assert.Equal(t, tt.wantSnapshotVLAN, testHost.Status.AppliedNetworkAttachmentConfigs[0].SwitchPortConfig.NativeVLAN)
+			}
+			if tt.missingAttachment || tt.invalidInterface {
+				condition := meta.FindStatusCondition(testHost.Status.Conditions, metal3api.NetworkInterfacesValidCondition)
+				require.NotNil(t, condition)
+				assert.Equal(t, metav1.ConditionFalse, condition.Status)
+			}
+		})
+	}
+}
+
+func TestRegisterHostNetworkConfigAcrossRecovery(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, features.CurrentFeatureGate, features.FeatureIronicNetworking, true)
+
+	for _, scenario := range []string{"changed attachment", "removed interfaces", "newly added interfaces"} {
+		t.Run(scenario, func(t *testing.T) {
+			testHost, reconciler, prov := networkRegistrationFixture(t, metal3api.StateProvisioned)
+			if scenario == "removed interfaces" {
+				testHost.Spec.NetworkInterfaces = nil
+			}
+			if scenario == "newly added interfaces" {
+				testHost.Status.AppliedNetworkAttachmentConfigs = nil
+			}
+			snapshot := testHost.DeepCopy().Status.AppliedNetworkAttachmentConfigs
+			prov.nextResults["ValidateManagementAccess"] = provisioner.Result{Dirty: true, RequeueAfter: time.Second}
+
+			result := reconciler.registerHost(t.Context(), prov, makeDefaultReconcileInfo(testHost))
+			require.NotNil(t, result)
+			assert.True(t, result.Dirty())
+			assert.Equal(t, "new-ironic-id", testHost.Status.Provisioning.ID)
+			assert.Equal(t, snapshot, testHost.Status.AppliedNetworkAttachmentConfigs)
+			require.NotNil(t, prov.registerData.PortConfigs)
+			firstConfigs := prov.registerData.PortConfigs
+
+			// Registration completes with the replacement UUID already stored.
+			prov.clearNextError("ValidateManagementAccess")
+			result = reconciler.registerHost(t.Context(), prov, makeDefaultReconcileInfo(testHost))
+			assert.Nil(t, result, "an unchanged snapshot should not require another status update")
+			assert.Equal(t, firstConfigs, prov.registerData.PortConfigs)
+			assert.Equal(t, snapshot, testHost.Status.AppliedNetworkAttachmentConfigs)
+
+			// Once Available, apply pending changes or clear removed configuration.
+			testHost.Status.Provisioning.State = metal3api.StateAvailable
+			result = reconciler.registerHost(t.Context(), prov, makeDefaultReconcileInfo(testHost))
+			require.NotNil(t, result)
+			assert.True(t, result.Dirty())
+			require.NotNil(t, prov.registerData.PortConfigs)
+			if scenario == "removed interfaces" {
+				assert.Empty(t, prov.registerData.PortConfigs)
+				assert.Empty(t, testHost.Status.AppliedNetworkAttachmentConfigs)
+			} else {
+				require.Len(t, prov.registerData.PortConfigs, 1)
+				assert.Equal(t, 200, prov.registerData.PortConfigs["00:11:22:33:44:55"].SwitchPortConfig.NativeVLAN)
+				require.Len(t, testHost.Status.AppliedNetworkAttachmentConfigs, 1)
+				assert.Equal(t, 200, testHost.Status.AppliedNetworkAttachmentConfigs[0].SwitchPortConfig.NativeVLAN)
+			}
+		})
+	}
+}
+
+func TestRegisterHostPersistsReplacementIDWithoutOtherChanges(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, features.CurrentFeatureGate, features.FeatureIronicNetworking, true)
+	testHost := host(metal3api.StateAvailable).build()
+	testHost.Status.Provisioning.ID = "old-ironic-id"
+	reconciler := testNewReconciler(testHost)
+	testHost.Name = ""
+	prov := newMockProvisioner()
+	prov.registerID = "new-ironic-id"
+
+	result := reconciler.registerHost(t.Context(), prov, makeDefaultReconcileInfo(testHost))
+
+	require.NotNil(t, result)
+	assert.True(t, result.Dirty(), "the new UUID must be persisted even when the profile is unchanged")
+	assert.Equal(t, "new-ironic-id", testHost.Status.Provisioning.ID)
 }
 
 func TestRegisterHostPersistsNetworkValidationChangesBeforeRegistrationCompletes(t *testing.T) {
@@ -1139,6 +1338,341 @@ func TestErrorCountIncreasedOnActionFailure(t *testing.T) {
 	}
 }
 
+func secretAccessProvisionErr(secretName string) error {
+	return fmt.Errorf("could not retrieve user data: %w", SecretAccessError{
+		secret: secretName,
+		key:    "userData",
+		err:    errors.New("not found"),
+	})
+}
+
+func assertActionFailedBackoff(t *testing.T, result actionResult, errorCount int) {
+	t.Helper()
+	failed, ok := result.(actionFailed)
+	require.True(t, ok)
+	assert.Equal(t, errorCount, failed.errorCount)
+	reconcileResult, err := result.Result()
+	require.NoError(t, err)
+	lower, upper := errorBackoffBounds(errorCount)
+	assert.Greater(t, reconcileResult.RequeueAfter, lower)
+	assert.LessOrEqual(t, reconcileResult.RequeueAfter, upper)
+	assert.NotEqual(t, hostErrorRetryDelay, reconcileResult.RequeueAfter)
+}
+
+func errorBackoffBounds(errorCount int) (time.Duration, time.Duration) {
+	if errorCount > maxBackOffCount {
+		errorCount = maxBackOffCount
+	}
+	base := math.Exp2(float64(errorCount))
+	// calculateBackoff subtracts up to defaultBackoff of the base as jitter.
+	lower := time.Duration(float64(time.Minute) * base * (1 - defaultBackoff))
+	upper := time.Duration(float64(time.Minute) * base)
+	return lower, upper
+}
+
+func assertSecretAccessFailureMetric(t *testing.T, info *reconcileInfo) {
+	t.Helper()
+	counter := actionFailureCounters.WithLabelValues("SecretAccessError")
+	before := promutil.ToFloat64(counter)
+	for _, cb := range info.postSaveCallbacks {
+		cb()
+	}
+	assert.InDelta(t, before+1, promutil.ToFloat64(counter), 0.01)
+}
+
+func TestActionProvisioningSecretAccessErrorOnly(t *testing.T) {
+	secretErr := secretAccessProvisionErr("user-data")
+	var wrapped SecretAccessError
+	if !errors.As(secretErr, &wrapped) {
+		t.Fatal("test error must wrap SecretAccessError")
+	}
+
+	testCases := []struct {
+		name      string
+		err       error
+		wantEvent bool
+	}{
+		{
+			name:      "secret access",
+			err:       secretErr,
+			wantEvent: true,
+		},
+		{
+			name: "unrelated wrapped failure",
+			err:  fmt.Errorf("could not retrieve user data: %w", errors.New("timeout")),
+		},
+		{
+			name: "no data in secret",
+			err:  NoDataInSecretError{secret: "user-data", key: "userData"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := host(metal3api.StateProvisioning).build()
+			prov := newMockProvisioner()
+			prov.provisionErr = tc.err
+			reconciler := testNewReconciler(h)
+			info := makeDefaultReconcileInfo(h)
+
+			result := reconciler.actionProvisioning(t.Context(), prov, info)
+
+			if !tc.wantEvent {
+				_, isActionErr := result.(actionError)
+				assert.True(t, isActionErr)
+				assert.Empty(t, h.Status.ErrorType)
+				assert.Empty(t, h.Status.ErrorMessage)
+				assert.Equal(t, metal3api.OperationalStatusOK, h.Status.OperationalStatus)
+				assert.Empty(t, info.events)
+				return
+			}
+
+			assert.Equal(t, metal3api.StateProvisioning, h.Status.Provisioning.State)
+			assert.Equal(t, metal3api.SecretAccessError, h.Status.ErrorType)
+			assert.Equal(t, metal3api.OperationalStatusError, h.Status.OperationalStatus)
+			assert.Equal(t, wrapped.Error(), h.Status.ErrorMessage)
+			assert.Equal(t, 1, h.Status.ErrorCount)
+			assert.Equal(t, 0, h.Status.ProvisioningFailCount)
+			assert.Len(t, info.events, 1)
+			assert.Equal(t, "SecretAccessError", info.events[0].Reason)
+			assert.Equal(t, wrapped.Error(), info.events[0].Message)
+			assertActionFailedBackoff(t, result, 1)
+			assertSecretAccessFailureMetric(t, info)
+
+			// The same condition stays non-fatal, counts another failure, and
+			// uses the ErrorCount backoff instead of a fixed delay.
+			info.events = nil
+			info.postSaveCallbacks = nil
+			again := reconciler.actionProvisioning(t.Context(), prov, info)
+			assert.Len(t, info.events, 1)
+			assert.Equal(t, "SecretAccessError", info.events[0].Reason)
+			assert.Equal(t, 2, h.Status.ErrorCount)
+			assert.Equal(t, 0, h.Status.ProvisioningFailCount)
+			assert.Equal(t, metal3api.StateProvisioning, h.Status.Provisioning.State)
+			assert.Equal(t, metal3api.SecretAccessError, h.Status.ErrorType)
+			assertActionFailedBackoff(t, again, 2)
+		})
+	}
+}
+
+func TestProvisioningSecretAccessErrorRetriesWithoutDeprovision(t *testing.T) {
+	h := host(metal3api.StateProvisioning).build()
+	prov := newMockProvisioner()
+	prov.provisionErr = secretAccessProvisionErr("user-data")
+	reconciler := testNewReconciler(h)
+	hsm := newHostStateMachine(h, reconciler, prov, true)
+
+	info := makeDefaultReconcileInfo(h)
+	// Match the host key so later reconciles load subresources created on
+	// the first pass instead of trying to create them again.
+	info.request.Name = h.Name
+	info.request.Namespace = h.Namespace
+	result := hsm.ReconcileState(t.Context(), info)
+
+	assert.Equal(t, metal3api.StateProvisioning, h.Status.Provisioning.State)
+	assert.Equal(t, metal3api.SecretAccessError, h.Status.ErrorType)
+	assert.Equal(t, metal3api.OperationalStatusError, h.Status.OperationalStatus)
+	assert.Contains(t, h.Status.ErrorMessage, `"user-data"`)
+	assert.Equal(t, 1, h.Status.ErrorCount)
+	assert.Equal(t, 0, h.Status.ProvisioningFailCount)
+	assert.Equal(t, 1, prov.provisionCalls)
+	if assert.Len(t, info.events, 1) {
+		assert.Equal(t, "SecretAccessError", info.events[0].Reason)
+		assert.Equal(t, h.Status.ErrorMessage, info.events[0].Message)
+	}
+	assertActionFailedBackoff(t, result, 1)
+	assertSecretAccessFailureMetric(t, info)
+
+	// The next reconcile must keep provisioning. A fatal ErrorType would
+	// move the host to deprovisioning before Provision is called again.
+	prov.provisionErr = secretAccessProvisionErr("other-data")
+	info = makeDefaultReconcileInfo(h)
+	info.request.Name = h.Name
+	info.request.Namespace = h.Namespace
+	result = hsm.ReconcileState(t.Context(), info)
+
+	assert.Equal(t, metal3api.StateProvisioning, h.Status.Provisioning.State)
+	assert.Contains(t, h.Status.ErrorMessage, `"other-data"`)
+	assert.Equal(t, 2, prov.provisionCalls)
+	assert.Equal(t, 2, h.Status.ErrorCount)
+	assert.Equal(t, 0, h.Status.ProvisioningFailCount)
+	assert.Equal(t, metal3api.OperationalStatusError, h.Status.OperationalStatus)
+	assert.Equal(t, metal3api.SecretAccessError, h.Status.ErrorType)
+	if assert.Len(t, info.events, 1) {
+		assert.Equal(t, "SecretAccessError", info.events[0].Reason)
+	}
+	assertActionFailedBackoff(t, result, 2)
+
+	prov.provisionErr = nil
+	info = makeDefaultReconcileInfo(h)
+	info.request.Name = h.Name
+	info.request.Namespace = h.Namespace
+	hsm.ReconcileState(t.Context(), info)
+
+	assert.Equal(t, metal3api.StateProvisioned, h.Status.Provisioning.State)
+	assert.Empty(t, h.Status.ErrorType)
+	assert.Empty(t, h.Status.ErrorMessage)
+	assert.Equal(t, metal3api.OperationalStatusOK, h.Status.OperationalStatus)
+	assert.Equal(t, 0, h.Status.ErrorCount)
+	assert.Equal(t, 0, h.Status.ProvisioningFailCount)
+}
+
+func TestProvisioningCancelledClearsSecretAccessError(t *testing.T) {
+	const failCount = 2
+	h := host(metal3api.StateProvisioning).
+		SetStatusError(metal3api.OperationalStatusError, metal3api.SecretAccessError, `could not retrieve userData secret "user-data": not found`, 1).
+		build()
+	// Removing the image cancels provisioning while the host is still waiting
+	// on the Secret.
+	h.Spec.Image = nil
+	h.Status.ProvisioningFailCount = failCount
+	prov := newMockProvisioner()
+	reconciler := testNewReconciler(h)
+	hsm := newHostStateMachine(h, reconciler, prov, true)
+	info := makeDefaultReconcileInfo(h)
+
+	result := hsm.ReconcileState(t.Context(), info)
+
+	assert.Equal(t, metal3api.StateDeprovisioning, h.Status.Provisioning.State)
+	assert.Empty(t, h.Status.ErrorType)
+	assert.Empty(t, h.Status.ErrorMessage)
+	assert.Equal(t, metal3api.OperationalStatusOK, h.Status.OperationalStatus)
+	assert.Equal(t, failCount, h.Status.ProvisioningFailCount)
+	assert.Equal(t, 0, prov.provisionCalls)
+	assert.True(t, result.Dirty())
+}
+
+func TestProvisioningCancelledFatalErrorIncrementsFailCount(t *testing.T) {
+	message := "Image provisioning failed"
+	h := host(metal3api.StateProvisioning).
+		SetStatusError(metal3api.OperationalStatusError, metal3api.ProvisioningError, message, 1).
+		build()
+	h.Spec.Image = nil
+	prov := newMockProvisioner()
+	reconciler := testNewReconciler(h)
+	hsm := newHostStateMachine(h, reconciler, prov, true)
+	info := makeDefaultReconcileInfo(h)
+
+	hsm.ReconcileState(t.Context(), info)
+
+	assert.Equal(t, metal3api.StateDeprovisioning, h.Status.Provisioning.State)
+	assert.Equal(t, 1, h.Status.ProvisioningFailCount)
+	assert.Equal(t, metal3api.ProvisioningError, h.Status.ErrorType)
+	assert.Equal(t, message, h.Status.ErrorMessage)
+	assert.Equal(t, metal3api.OperationalStatusError, h.Status.OperationalStatus)
+	assert.Equal(t, 0, prov.provisionCalls)
+}
+
+func TestProvisioningErrorDeprovisions(t *testing.T) {
+	h := host(metal3api.StateProvisioning).
+		SetStatusError(metal3api.OperationalStatusError, metal3api.ProvisioningError, "Image provisioning failed", 1).
+		build()
+	prov := newMockProvisioner()
+	reconciler := testNewReconciler(h)
+	hsm := newHostStateMachine(h, reconciler, prov, true)
+	info := makeDefaultReconcileInfo(h)
+
+	hsm.ReconcileState(t.Context(), info)
+
+	assert.Equal(t, metal3api.StateDeprovisioning, h.Status.Provisioning.State)
+	assert.Equal(t, 0, prov.provisionCalls)
+	assert.Equal(t, metal3api.ProvisioningError, h.Status.ErrorType)
+	assert.Equal(t, "Image provisioning failed", h.Status.ErrorMessage)
+}
+
+func TestProvisioningMissingOCIAuthSecretRetries(t *testing.T) {
+	secretName := "missing-oci-auth"
+	h := host(metal3api.StateProvisioning).build()
+	h.Spec.Image = &metal3api.Image{
+		URL:               "oci://registry.example.com/repo/image:tag",
+		OCIAuthSecretName: &secretName,
+	}
+	prov := newMockProvisioner()
+	reconciler := testNewReconciler(h)
+	reconciler.APIReader = reconciler.Client
+	hsm := newHostStateMachine(h, reconciler, prov, true)
+
+	info := makeDefaultReconcileInfo(h)
+	info.request.Name = h.Name
+	info.request.Namespace = h.Namespace
+	result := hsm.ReconcileState(t.Context(), info)
+
+	assert.Equal(t, metal3api.StateProvisioning, h.Status.Provisioning.State)
+	assert.Equal(t, metal3api.SecretAccessError, h.Status.ErrorType)
+	assert.Equal(t, metal3api.OperationalStatusError, h.Status.OperationalStatus)
+	assert.Contains(t, h.Status.ErrorMessage, secretName)
+	assert.Equal(t, 1, h.Status.ErrorCount)
+	assert.Equal(t, 0, h.Status.ProvisioningFailCount)
+	assert.Equal(t, 0, prov.provisionCalls)
+	if assert.Len(t, info.events, 1) {
+		assert.Equal(t, "SecretAccessError", info.events[0].Reason)
+	}
+	assertActionFailedBackoff(t, result, 1)
+
+	info = makeDefaultReconcileInfo(h)
+	info.request.Name = h.Name
+	info.request.Namespace = h.Namespace
+	result = hsm.ReconcileState(t.Context(), info)
+
+	assert.Equal(t, metal3api.StateProvisioning, h.Status.Provisioning.State)
+	assert.Equal(t, metal3api.SecretAccessError, h.Status.ErrorType)
+	assert.Equal(t, 2, h.Status.ErrorCount)
+	assert.Equal(t, 0, h.Status.ProvisioningFailCount)
+	assert.Equal(t, 0, prov.provisionCalls)
+	assertActionFailedBackoff(t, result, 2)
+}
+
+func TestProvisioningUnsupportedOCIAuthSecretIsFatal(t *testing.T) {
+	secretName := "bad-oci-auth"
+	h := host(metal3api.StateProvisioning).build()
+	h.Spec.Image = &metal3api.Image{
+		URL:               "oci://registry.example.com/repo/image:tag",
+		OCIAuthSecretName: &secretName,
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: h.Namespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"username": []byte("user"),
+		},
+	}
+	prov := newMockProvisioner()
+	c := fakeclient.NewClientBuilder().WithObjects(h, secret).Build()
+	reconciler := &BareMetalHostReconciler{
+		Client:    c,
+		APIReader: c,
+		Log:       ctrl.Log.WithName("host_state_machine").WithName("BareMetalHost"),
+	}
+	hsm := newHostStateMachine(h, reconciler, prov, true)
+	info := makeDefaultReconcileInfo(h)
+	// Match the host key so the firmware settings created while registering
+	// are found again instead of failing the next reconcile.
+	info.request.Name = h.Name
+	info.request.Namespace = h.Namespace
+
+	hsm.ReconcileState(t.Context(), info)
+
+	assert.Equal(t, metal3api.StateProvisioning, h.Status.Provisioning.State)
+	assert.Equal(t, metal3api.ProvisioningError, h.Status.ErrorType)
+	assert.Contains(t, h.Status.ErrorMessage, "unsupported type")
+	assert.Equal(t, 1, h.Status.ErrorCount)
+	assert.Equal(t, 0, h.Status.ProvisioningFailCount)
+	assert.Equal(t, 0, prov.provisionCalls)
+
+	info = makeDefaultReconcileInfo(h)
+	info.request.Name = h.Name
+	info.request.Namespace = h.Namespace
+	hsm.ReconcileState(t.Context(), info)
+
+	assert.Equal(t, metal3api.StateDeprovisioning, h.Status.Provisioning.State)
+	assert.Equal(t, 1, h.Status.ProvisioningFailCount)
+	assert.Equal(t, metal3api.ProvisioningError, h.Status.ErrorType)
+	assert.Equal(t, 0, prov.provisionCalls)
+}
+
 func TestErrorCountClearedOnStateTransition(t *testing.T) {
 	tests := []struct {
 		Scenario                     string
@@ -1525,7 +2059,11 @@ type mockProvisioner struct {
 	nextResults         map[string]provisioner.Result
 	callsNoError        map[string]bool
 	registerErr         error
+	registerID          string
+	registerData        provisioner.ManagementAccessData
 	preprovImageFormats []metal3api.ImageFormat
+	provisionErr        error
+	provisionCalls      int
 }
 
 func (m *mockProvisioner) getNextResultByMethod(name string) (result provisioner.Result) {
@@ -1559,8 +2097,9 @@ func (m *mockProvisioner) calledNoError(methodName string) bool {
 	return m.callsNoError[methodName]
 }
 
-func (m *mockProvisioner) Register(_ context.Context, _ provisioner.ManagementAccessData, _, _ bool) (result provisioner.Result, provID string, err error) {
-	return m.getNextResultByMethod("ValidateManagementAccess"), "", m.registerErr
+func (m *mockProvisioner) Register(_ context.Context, data provisioner.ManagementAccessData, _, _ bool) (result provisioner.Result, provID string, err error) {
+	m.registerData = data
+	return m.getNextResultByMethod("ValidateManagementAccess"), m.registerID, m.registerErr
 }
 
 func (m *mockProvisioner) PreprovisioningImageFormats(_ context.Context) ([]metal3api.ImageFormat, error) {
@@ -1589,7 +2128,11 @@ func (m *mockProvisioner) Adopt(_ context.Context, _ provisioner.AdoptData, _ bo
 }
 
 func (m *mockProvisioner) Provision(_ context.Context, _ provisioner.ProvisionData, _ bool) (result provisioner.Result, err error) {
-	return m.getNextResultByMethod("Provision"), err
+	m.provisionCalls++
+	if m.provisionErr != nil {
+		return provisioner.Result{}, m.provisionErr
+	}
+	return m.getNextResultByMethod("Provision"), nil
 }
 
 func (m *mockProvisioner) Deprovision(_ context.Context, _ bool, _ metal3api.AutomatedCleaningMode) (result provisioner.Result, err error) {

@@ -30,9 +30,9 @@ const (
 
 var (
 	VersionLatest = Version{}
+	Version390    = Version{Major: 39, Minor: 0}
 	Version380    = Version{Major: 38, Minor: 0}
 	Version370    = Version{Major: 37, Minor: 0}
-	Version350    = Version{Major: 35, Minor: 0}
 )
 
 // SupportedVersions is a mapping of supported versions to container image tags.
@@ -42,9 +42,9 @@ var (
 // expectations.
 var SupportedVersions = map[Version]string{
 	VersionLatest: "latest",
+	Version390:    "release-39.0",
 	Version380:    "release-38.0",
 	Version370:    "release-37.0",
-	Version350:    "release-35.0",
 }
 
 // Inspection defines inspection settings.
@@ -581,6 +581,10 @@ type Overrides struct {
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
 
+	// Tolerations to add to each pod (including upgrade jobs), e.g. to allow scheduling on control plane nodes.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+
 	// Volumes to add to the main Ironic pod (and upgrade jobs).
 	// Use this together with volumeMounts on overridden containers to mount
 	// additional ConfigMaps, Secrets or PersistentVolumeClaims.
@@ -603,6 +607,7 @@ type PrometheusExporter struct {
 	// Enabled controls whether sensor data collection and metrics export is active.
 	// When true, configures Ironic to collect sensor data and deploys the
 	// ironic-prometheus-exporter container.
+	// Requires the PrometheusExporter feature gate to be set.
 	Enabled bool `json:"enabled"`
 
 	// BindAddress is the IP address the metrics endpoint listens on.
@@ -682,6 +687,7 @@ type IronicSpec struct {
 	// PrometheusExporter configures sensor data collection and Prometheus metrics export.
 	// When enabled, this configures Ironic to collect sensor data and deploys the
 	// ironic-prometheus-exporter container.
+	// Requires the PrometheusExporter feature gate to be set.
 	// +optional
 	PrometheusExporter *PrometheusExporter `json:"prometheusExporter,omitempty"`
 
