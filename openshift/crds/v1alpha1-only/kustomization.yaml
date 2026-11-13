@@ -1,0 +1,24 @@
+resources:
+- ../base
+
+# This version removes v1beta1 from the manifest and is served when the feature
+# gate is NOT enabled.
+patches:
+- target:
+    kind: CustomResourceDefinition
+    name: baremetalhosts.metal3.io
+  patch: |
+    - op: add
+      path: /metadata/annotations/release.openshift.io~1feature-gate
+      value: "-BareMetalHostV1Beta1"
+    - op: remove
+      path: /spec/versions/1
+- target:
+    kind: CustomResourceDefinition
+    name: hardwaredata.metal3.io
+  patch: |
+    - op: add
+      path: /metadata/annotations/release.openshift.io~1feature-gate
+      value: "-BareMetalHostV1Beta1"
+    - op: remove
+      path: /spec/versions/1

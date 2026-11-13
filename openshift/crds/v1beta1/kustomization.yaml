@@ -1,0 +1,20 @@
+resources:
+- ../base
+
+# This version keeps v1beta1 in the manifest and is served when the feature
+# gate is enabled.
+patches:
+- target:
+    kind: CustomResourceDefinition
+    name: baremetalhosts.metal3.io
+  patch: |
+    - op: add
+      path: /metadata/annotations/release.openshift.io~1feature-gate
+      value: "BareMetalHostV1Beta1"
+- target:
+    kind: CustomResourceDefinition
+    name: hardwaredata.metal3.io
+  patch: |
+    - op: add
+      path: /metadata/annotations/release.openshift.io~1feature-gate
+      value: "BareMetalHostV1Beta1"
