@@ -55,6 +55,10 @@ const (
 	// when rebooting - hard/soft.
 	RebootAnnotationPrefix = "reboot.metal3.io"
 
+	// OpenShift: ServiceAnnotationPrefix is the annotation that triggers servicing
+	// (firmware updates/settings) without requiring a reboot cycle.
+	ServiceAnnotationPrefix = "service.baremetal.openshift.io"
+
 	// InspectAnnotationPrefix is used to specify if automatic introspection carried out
 	// during registration of BMH is enabled or disabled.
 	InspectAnnotationPrefix = "inspect.metal3.io"

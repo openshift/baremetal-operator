@@ -3,6 +3,7 @@ package ironic
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/gophercloud/gophercloud/v2/openstack/baremetal/v1/nodes"
 	"github.com/metal3-io/baremetal-operator/pkg/hardwareutils/bmc"
@@ -39,14 +40,20 @@ func (p *ironicProvisioner) buildServiceSteps(bmcAccess bmc.AccessDetails, data 
 	newUpdates := p.getFirmwareComponentsUpdates(data.TargetFirmwareComponents)
 	if len(newUpdates) != 0 {
 		p.log.Info("Applying Firmware Update clean steps", "settings", newUpdates)
+		fwArgs := map[string]any{
+			"settings": newUpdates,
+		}
+		// OpenShift: batch non-BMC updates into a single reboot
+		if data.AllowGroupingReboots {
+			fwArgs["allow_grouping_reboots"] = true
+		}
+		// End OpenShift
 		serviceSteps = append(
 			serviceSteps,
 			nodes.ServiceStep{
 				Interface: nodes.InterfaceFirmware,
 				Step:      "update",
-				Args: map[string]any{
-					"settings": newUpdates,
-				},
+				Args:      fwArgs,
 			},
 		)
 	}
@@ -108,6 +115,15 @@ func (p *ironicProvisioner) Service(ctx context.Context, data provisioner.Servic
 		if !data.HasFirmwareSpec {
 			return p.abortServicing(ctx, ironicNode)
 		}
+
+		// OpenShift: if Ironic rejected allow_grouping_reboots, surface a clear error
+		// and don't retry — the same request will fail the same way.
+		if strings.Contains(ironicNode.LastError, "unexpected arguments: allow_grouping_reboots") {
+			p.log.Info("Ironic does not support batched firmware updates", "lastError", ironicNode.LastError)
+			result, err = operationFailed("batched firmware update failed: Ironic does not support the allow_grouping_reboots option; upgrade Ironic or update firmware components individually using the reboot annotation")
+			return result, started, err
+		}
+		// End OpenShift
 
 		// When servicing failed and there are pending updates, we need to clean host provisioning settings
 		// If restartOnFailure is false, it means the settings aren't cleared.
