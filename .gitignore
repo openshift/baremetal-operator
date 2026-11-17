@@ -8,6 +8,8 @@ test/e2e/images
 test/e2e/data/ironic-standalone-operator/ironic/base/ironic.yaml
 test/e2e/config/vbmctl.yaml
 out
+# OpenShift-specific
+manifests/
 
 # Created by https://www.gitignore.io/api/go
 ### Go ###

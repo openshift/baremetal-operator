@@ -1,0 +1,19 @@
+commonAnnotations:
+  include.release.openshift.io/ibm-cloud-managed: "true"
+  include.release.openshift.io/self-managed-high-availability: "true"
+  include.release.openshift.io/single-node-developer: "true"
+  capability.openshift.io/name: baremetal
+
+resources:
+- ../../../config/base/crds
+
+patches:
+# NOTE(dtantsur): upstream adds this for the conversion webhook
+- target:
+    kind: CustomResourceDefinition
+    name: baremetalhosts.metal3.io
+  patch: |
+    - op: remove
+      path: /metadata/annotations/cert-manager.io~1inject-ca-from
+    - op: remove
+      path: /spec/conversion
