@@ -9,6 +9,7 @@ tools/bin/kustomize build openshift/crds/v1alpha1-only > \
 # The new manifest with both API versions
 tools/bin/kustomize build openshift/crds/v1beta1 > \
     manifests/0000_31_cluster-baremetal-operator_00_baremetalhost_with_v1beta1.crd.yaml
+manifest_count=2
 
 # Sanity checks
 if grep cert-manager.io/inject-ca-from manifests/*.yaml; then
@@ -25,5 +26,10 @@ if grep v1beta1 manifests/0000_31_cluster-baremetal-operator_00_baremetalhost.cr
 fi
 if grep baremetal-operator-system manifests/*.yaml; then
     echo "FAIL: manifests mention the upstream namespace; check for unrelated resources"
+    exit 1
+fi
+if [[ "$(grep 'feature-gate: MetalHostClaimsAPI' manifests/*.yaml | wc -l)" != $(( manifest_count * 2 )) ]]; then
+    echo "FAIL: expected two references to the MetalHostClaimsAPI feature gate in every manifest, got"
+    grep 'feature-gate: MetalHostClaimsAPI' manifests/*.yaml
     exit 1
 fi

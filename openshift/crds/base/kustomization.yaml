@@ -17,3 +17,18 @@ patches:
       path: /metadata/annotations/cert-manager.io~1inject-ca-from
     - op: remove
       path: /spec/conversion
+# NOTE(dtantsur): HostClaims are a gated feature
+- target:
+    kind: CustomResourceDefinition
+    name: hostclaims.metal3.io
+  patch: |
+    - op: add
+      path: /metadata/annotations/release.openshift.io~1feature-gate
+      value: "MetalHostClaimsAPI"
+- target:
+    kind: CustomResourceDefinition
+    name: hostdeploypolicies.metal3.io
+  patch: |
+    - op: add
+      path: /metadata/annotations/release.openshift.io~1feature-gate
+      value: "MetalHostClaimsAPI"
