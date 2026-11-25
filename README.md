@@ -9,21 +9,16 @@ for more information.
 
 ## How to add a new upstream CRD to openshift
 
-In [cluster-baremetal-operator](https://github.com/openshift/cluster-baremetal-operator), in
-`provisioning_controller.go` there is a long list of RBAC directives and you need to register your new CRD there.
+In [cluster-baremetal-operator](https://github.com/openshift/cluster-baremetal-operator),
+update the BMO ClusterRole in
+[`config/rbac/bmo_role.yaml`](https://github.com/openshift/cluster-baremetal-operator/blob/main/config/rbac/bmo_role.yaml).
+Add only the verbs BMO needs for the new resource and its `status` and `finalizers`
+subresources, if applicable. Do not add BMO permissions to CBO's Kubebuilder markers.
 
-For example,
-
-``` go
-// +kubebuilder:rbac:groups=metal3.io,resources=hostupdatepolicies,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=metal3.io,resources=hostupdatepolicies/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=metal3.io,resources=hostupdatepolicies/finalizers,verbs=update
-```
-
-Then, regenerate manifests with:
+Then, regenerate the CBO release manifests:
 
 ```
-$ make manifests
+make manifests
 ```
 
 This PR to cluster-baremetal-operator will block your PR to bring the new CRDs to baremetal-operator,
